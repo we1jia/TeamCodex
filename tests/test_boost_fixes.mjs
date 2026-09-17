@@ -455,11 +455,11 @@ test("17. windows/run-teamcodex.ps1 具备优雅退出与平滑接管防丢机�
   assert.match(psCode, /"--remote-debugging-address=127\.0\.0\.1"/);
 });
 
-test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v70)", () => {
+test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v71)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
-  // 18.1 版本升级至 inline-v70
-  assert.match(uiCode, /const UI_VERSION = "inline-v70";/);
+  // 18.1 版本升级至 inline-v71
+  assert.match(uiCode, /const UI_VERSION = "inline-v71";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
