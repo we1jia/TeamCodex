@@ -202,9 +202,9 @@ with zipfile.ZipFile("${zipPath}", "r") as z:
   assert.match(output, /ALL_ZIP_CHECKS_PASSED/);
 });
 
-test("8. UI_VERSION inline-v68、内嵌标签删除图标、分享闭环、房间名防呆与黄金层级", () => {
+test("8. UI_VERSION inline-v69、内嵌标签删除图标、分享闭环、房间名防呆与黄金层级", () => {
   const code = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
-  assert.match(code, /const UI_VERSION = "inline-v68";/, "UI_VERSION 必须升级至 inline-v68");
+  assert.match(code, /const UI_VERSION = "inline-v69";/, "UI_VERSION 必须升级至 inline-v69");
   assert.match(code, /snapshot-detail-footer-info/, "分享弹窗底部必须包含独立的单行提示栏 snapshot-detail-footer-info");
   assert.match(code, /snapshot-detail-actions-right/, "分享弹窗底部必须包含右侧操作分栏");
   assert.match(code, /width:\s*min\(560px/, "弹窗卡片宽度必须扩展至 560px 杜绝挤压");

@@ -94,7 +94,20 @@ bash macos/launch.sh
 ##### Windows 独立测试模式
 直接运行 `windows/启动测试模式.cmd`，将在独立的数据目录和隔离端口中启动沙箱会话。
 
-### 5. 协同口令规范 (Smart Token)
+### 5. 中枢服务部署方案（本地 / 局域网 / 云端）
+
+TeamCodex 协同中枢（`server/dev_host.mjs`）是纯原生 Node.js 实现（零第三方依赖），支持三种部署拓扑：
+
+| 场景模式 | 运行方式 | 客户端接入方式 | 网络环境 |
+|---|---|---|---|
+| **模式 1：单机跨端（默认）** | Mac 客户端启动时自动在后台静默运行中枢服务 | Windows 虚拟机自动探测宿主机 IP 并直连 | 本地虚拟网桥（Parallels 等） |
+| **模式 2：局域网私有协作** | 局域网内一台常开 PC、Mac 或 NAS 运行 `node server/dev_host.mjs` | 设置中填入该机内网 IP（如 `http://192.168.1.100:18765`）或粘贴 Smart Token | 同一办公区 / 实验室 Wi-Fi |
+| **模式 3：云端公网服务器** | 任意 Linux 云服务器使用 `docker compose up -d` 或 PM2 部署 | 配合 Nginx 配置域名与 HTTPS，客户端直接接入公网域名 | 跨地域远程分布式团队 |
+
+> 详细配置指南、Docker / Docker Compose 配置、Linux Systemd 常驻与 Nginx SSE 反向代理模板详见专有文档：  
+> **[TeamCodex 中枢服务部署与网络接入全景指南 (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**
+
+### 6. 协同口令规范 (Smart Token)
 
 TeamCodex 支持通过单行复合口令实现房间快速加入。协议格式如下：
 
@@ -110,7 +123,7 @@ Hub: http://10.211.55.2:18765 | Room: 1024 | Key: 123456
 
 解析器将自动提取 Hub 地址、房间标识及鉴权密钥，并在验证后自动建立 SSE 实时通道。
 
-### 6. 仓库目录结构
+### 7. 仓库目录结构
 
 ```text
 TeamCodex/
@@ -134,7 +147,7 @@ TeamCodex/
 └── README.md
 ```
 
-### 7. 质量保证与自动化测试
+### 8. 质量保证与自动化测试
 
 运行状态机与生命周期测试套件：
 
@@ -148,7 +161,7 @@ node --test tests/test_boost_fixes.mjs
 node --test tests/test_rooms_and_auth.mjs
 ```
 
-### 8. 安全与合规边界
+### 9. 安全与合规边界
 
 - **系统零污染**：不篡改 `~/.codex/config.toml` 或系统注册表，不读取系统 Keychain 凭据。
 - **物理内网隔离**：通信严格限定在局域网 Hub 地址与指定房间内部，不存在外部遥测数据上报。
@@ -246,7 +259,20 @@ bash macos/launch.sh
 ##### Windows Test Mode
 Execute `windows/启动测试模式.cmd` to launch an isolated sandbox session with a dedicated profile directory.
 
-### 5. Smart Token Specification
+### 5. Hub Deployment Models (Local / LAN / Cloud)
+
+TeamCodex Hub (`server/dev_host.mjs`) is built on native Node.js with zero external dependencies, supporting three standard deployment topologies:
+
+| Topology Model | Execution Method | Client Access Method | Target Network |
+|---|---|---|---|
+| **Model 1: Single-Host (Default)** | Spawned silently by the macOS launcher in the background | Windows VM auto-probes the host bridge IP | Local VM bridge (Parallels, etc.) |
+| **Model 2: Private LAN** | Run `node server/dev_host.mjs` on an always-on PC, Mac, or NAS | Clients enter the local IP (e.g. `http://192.168.1.100:18765`) or paste a Token | Office / Lab shared Wi-Fi |
+| **Model 3: Cloud VPS Hub** | Run via `docker compose up -d` or PM2 on any Linux VPS | Reverse proxy via Nginx with HTTPS domain name | Globally distributed remote teams |
+
+> For comprehensive deployment configurations, Docker / Docker Compose templates, Linux Systemd units, and Nginx SSE stream buffering rules, see:  
+> **[TeamCodex Hub Deployment & Networking Guide (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**
+
+### 6. Smart Token Specification
 
 TeamCodex supports single-line composite tokens for streamlined room access. The protocol adheres to the following specification:
 
@@ -262,7 +288,7 @@ Hub: http://10.211.55.2:18765 | Room: 1024 | Key: 123456
 
 The internal parser automatically extracts the hub endpoint, room identifier, and authentication key before initiating the SSE stream.
 
-### 6. Directory Layout
+### 7. Directory Layout
 
 ```text
 TeamCodex/
@@ -286,7 +312,7 @@ TeamCodex/
 └── README.md
 ```
 
-### 7. Quality Assurance & Testing
+### 8. Quality Assurance & Testing
 
 Run state machine and lifecycle tests:
 
@@ -300,7 +326,7 @@ Run multi-room isolation, authentication, and message idempotency tests:
 node --test tests/test_rooms_and_auth.mjs
 ```
 
-### 8. Security & Privacy Model
+### 9. Security & Privacy Model
 
 - **Zero Host Tampering**: Never alters `~/.codex/config.toml`, system registries, or Keychain credentials.
 - **Physical LAN Confinement**: All communications are strictly restricted to the specified local network hub and authenticated room. No telemetry data is transmitted externally.

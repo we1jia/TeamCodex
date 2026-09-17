@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v68";
+  const UI_VERSION = "inline-v69";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -6161,7 +6161,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
   const existing = document.getElementById(PAGE_ID);
   const result = installTab();
   if (existing) {
-    if (existing.dataset.ui !== UI_VERSION) {
+    if (existing.dataset.ui !== UI_VERSION || !existing.shadowRoot?.querySelector?.(".snapshot-detail-footer-info")) {
       existing.remove();
       openPage();
     } else {

@@ -1,0 +1,15 @@
+services:
+  teamcodex-hub:
+    build: .
+    image: teamcodex-hub:latest
+    container_name: teamcodex-hub
+    restart: unless-stopped
+    ports:
+      - "18765:18765"
+    environment:
+      - NODE_ENV=production
+      - TEAM_CONTEXT_BIND_HOST=0.0.0.0
+      - TEAM_CONTEXT_PORT=18765
+      - TEAM_CONTEXT_DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data
