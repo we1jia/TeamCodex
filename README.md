@@ -8,7 +8,7 @@ Stop cascading errors from tossing static AI docs. Align reasoning chains and co
 
 [![Release](https://img.shields.io/github/v/release/we1jia/TeamCodex?color=ea580c&style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
 [![Build](https://img.shields.io/badge/build-passing-16a34a?style=flat-square)](https://github.com/we1jia/TeamCodex/actions)
-[![Tests](https://img.shields.io/badge/tests-55%2F55%20passed-16a34a?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/tests-58%2F58%20passed-16a34a?style=flat-square)](tests/)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-52525b?style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-f97316?style=flat-square)](server/dev_host.mjs)
 [![License](https://img.shields.io/badge/license-MIT-52525b?style=flat-square)](LICENSE)
@@ -52,14 +52,15 @@ TeamCodex 将 **AI 的动态多轮推理链路（Context Chain）** 转化为像
 
 | 平台 | 安装包 | 交互形态与体验 |
 |---|---|---|
-| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | 拖入 `Applications` 即可。启动后常驻顶部菜单栏，点击弹出原生磨砂 Mini Dashboard 悬浮卡片 |
-| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | 运行向导自动适配 ARM64/AMD64，常驻系统托盘，静默接管无黑框并支持任务栏右键菜单 |
-| **免安装便携版** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | 解压即用，适合移动介质或严格权限环境 |
+| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | 拖入 `Applications` 即可。状态栏全面升级为**纯白微矢量双云协同图标（Template Icon）**，带 1.7pt 负空间立体切缝与 `>_` 终端镂空，自适应深浅模式；点击弹出原生磨砂 Mini Dashboard 悬浮卡片 |
+| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | 运行向导自动适配 ARM64/AMD64，常驻系统托盘，静默接管无黑框。**左键点击弹出原生深色悬浮卡片**（失焦/Esc 自动收起）；**右键点击弹出纯净原版上下文菜单**（点击【退出】秒速退出无卡死）；具备全局单实例 Mutex 互斥防双图标 |
+| **免安装便携版** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | 解压即用，适合移动介质或严格权限环境，Windows 附带 `退出TeamCodex.cmd` 应急一键清理工具 |
 
-> **提示**：启动后应用常驻系统托盘，点击即可展开 **Mini Dashboard 控制面板**，具备：
+> **提示**：启动后应用常驻系统托盘/状态栏，点击即可展开 **Mini Dashboard 控制面板**，具备：
 > - **状态自检**：实时显示 Codex 挂载状态（🟢 已挂载 / 🟡 等待挂载 / 🔴 未连接）、中枢地址与在线房间；
 > - **一键操作**：支持【启动并挂载 Codex】、【复制 Smart Token】、【切换中枢地址】与【重启注入】；
-> - **无感热更与版本检测**：自动拉取最新侧栏注入脚本，检测到底层新版本时支持一键下载。
+> - **无感热更与版本检测**：自动拉取最新侧栏注入脚本，检测到底层新版本时支持一键下载；
+> - **优雅退出**：右键菜单提供纯净退出选项，系统级强杀彻底消灭后台孤立进程。
 
 ---
 
@@ -127,15 +128,17 @@ TeamCodex/
 │   └── panel.html              # 菜单栏/托盘 Mini Dashboard 悬浮控制卡片
 ├── macos/                      # macOS 菜单栏客户端与打包套件
 │   ├── TeamCodex.swift         # 原生 Swift 状态栏应用源码 (Cocoa + WebKit)
+│   ├── TeamCodex-Status.png    # 纯白微矢量双云协同图标 (Template Icon, 自适应深浅主题)
 │   ├── launch.sh               # 运行时自检与守护脚本
 │   └── build_dmg.py            # 自包含 DMG 构建器 (集成 swiftc 自动编译)
 ├── windows/                    # Windows 托盘套件与 NSIS 安装包工程
-│   ├── tray-teamcodex.ps1      # 原生任务栏托盘与右键控制逻辑
-│   ├── run-teamcodex.ps1       # 启动守护与优雅退出接管
+│   ├── tray-teamcodex.ps1      # 原生系统托盘控制台 (左键原生弹窗 + 右键原版菜单)
+│   ├── run-teamcodex.ps1       # 启动守护与单实例 Mutex 互斥接管
+│   ├── 退出TeamCodex.cmd       # [应急工具] 一键强杀所有后台进程并清理托盘
 │   └── installer.nsi           # NSIS 安装向导配置
 ├── scripts/                    # 运维与自动化部署脚本 (deploy-hub.sh)
 ├── docs/                       # 架构设计与网络接入全景指南 (HUB_DEPLOYMENT.md)
-├── tests/                      # 55 项全自动化测试套件 (单测与端到端状态机)
+├── tests/                      # 58 项全自动化测试套件 (单测与端到端状态机)
 ├── version.json                # 客户端版本定义 (v1.1.0)
 ├── Dockerfile                  # 极简 Alpine Node 生产镜像定义
 ├── docker-compose.yml          # 一键容器化服务编排
@@ -149,7 +152,7 @@ TeamCodex/
 ```bash
 node --test tests/test_boost_fixes.mjs
 node --test tests/test_rooms_and_auth.mjs
-# 输出：55 tests passed (32 状态机与注入测试 + 23 房间鉴权与隔离测试)
+# 输出：58 tests passed (35 状态机与注入测试 + 23 房间鉴权与隔离测试)
 ```
 
 ---
@@ -202,9 +205,9 @@ Grab pre-built installers directly from **[GitHub Releases](https://github.com/w
 
 | Platform | Installer | Setup & Experience |
 |---|---|---|
-| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | Drag `TeamCodex.app` into `/Applications`. Runs in the top menu bar with a native frosted Mini Dashboard popover |
-| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | Runs setup wizard for ARM64/AMD64, lives silently in the system tray with context menu controls |
-| **Portable Archives** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | Standalone portable green packages |
+| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | Drag `TeamCodex.app` into `/Applications`. Status bar upgraded to **Pure White Geometric Vector Cloud Template Icon** with negative space relief and `>_` terminal glyph, adapting automatically to Dark/Light modes; click to open frosted Mini Dashboard |
+| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | Runs setup wizard for ARM64/AMD64. **Left-click opens native dark floating dashboard** (auto-dismiss on blur/Esc); **Right-click opens pristine context menu with instant clean exit**; guarded by global single-instance Mutex |
+| **Portable Archives** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | Standalone portable green packages; includes emergency cleanup tool `退出TeamCodex.cmd` |
 
 > **Note**: TeamCodex runs as a lightweight tray companion. Click the menu bar or tray icon to open the **Mini Dashboard**:
 > - **Live Diagnostics**: Instantly inspect Codex attachment status (🟢 Injected / 🟡 Waiting / 🔴 Disconnected), active Hub, and room occupancy;
@@ -275,17 +278,19 @@ TeamCodex/
 ├── ui/                         # Frontend UI assets
 │   ├── index.html              # Fullscreen standalone collaboration canvas
 │   └── panel.html              # Frosted Mini Dashboard floating card
-├── macos/                      # macOS menubar application & DMG builder
-│   ├── TeamCodex.swift         # Native Swift status item popover (Cocoa + WebKit)
-│   ├── launch.sh               # Runtime healthcheck and daemon script
-│   └── build_dmg.py            # Self-contained DMG builder with automated swiftc compilation
+├── macos/                      # macOS status bar app & packaging
+│   ├── TeamCodex.swift         # Native Swift status bar source (Cocoa + WebKit)
+│   ├── TeamCodex-Status.png    # Pure white vector cloud template icon (Dark/Light adaptive)
+│   ├── launch.sh               # Runtime health supervisor
+│   └── build_dmg.py            # Standalone DMG builder with swiftc automation
 ├── windows/                    # Windows tray suite & NSIS installer
-│   ├── tray-teamcodex.ps1      # Native taskbar tray and context menu logic
-│   ├── run-teamcodex.ps1       # Launch daemon with graceful shutdown safeguards
-│   └── installer.nsi           # NSIS installation script
-├── scripts/                    # Deployment & maintenance tools (deploy-hub.sh)
+│   ├── tray-teamcodex.ps1      # Native tray companion (Left-click popup + Right-click menu)
+│   ├── run-teamcodex.ps1       # Startup supervisor with single-instance mutex
+│   ├── 退出TeamCodex.cmd       # [Emergency tool] One-click kill & tray cache cleanup
+│   └── installer.nsi           # NSIS setup wizard configuration
+├── scripts/                    # Ops & automation deployment scripts (deploy-hub.sh)
 ├── docs/                       # Architectural & deployment manuals (HUB_DEPLOYMENT.md)
-├── tests/                      # 55 automated unit and end-to-end test cases
+├── tests/                      # 58 automated unit and end-to-end test cases
 ├── version.json                # Client version manifest (v1.1.0)
 ├── Dockerfile                  # Lightweight Alpine production container definition
 ├── docker-compose.yml          # Container orchestration configuration
@@ -299,7 +304,7 @@ TeamCodex/
 ```bash
 node --test tests/test_boost_fixes.mjs
 node --test tests/test_rooms_and_auth.mjs
-# Output: 55 tests passed (32 state machine & injection tests + 23 room auth & isolation tests)
+# Output: 58 tests passed (35 state machine & injection tests + 23 room auth & isolation tests)
 ```
 
 ---

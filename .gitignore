@@ -29,3 +29,5 @@ TeamCodex-macOS.zip
 TeamCodex-macOS.dmg
 TeamCodex-Setup.exe
 dist_macos/
+__pycache__/
+*.pyc
