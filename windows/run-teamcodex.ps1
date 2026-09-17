@@ -14,7 +14,7 @@ $LogFile = Join-Path $DataRoot "launcher.log"
 New-Item -ItemType Directory -Force -Path $DataRoot | Out-Null
 
 function Stop-OrphanNodeProcessesOnPorts {
-  param([int[]]$Ports = @(18765, 19877))
+  param([int[]]$Ports = @(18765, 18766, 18767, 19877))
   foreach ($p in $Ports) {
     try {
       $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
@@ -47,6 +47,14 @@ function Stop-OrphanNodeProcessesOnPorts {
   }
 }
 Stop-OrphanNodeProcessesOnPorts -Ports @(18765, 19877)
+Stop-OrphanNodeProcessesOnPorts -Ports @(18766, 18767)
+
+# 清理已存在的旧托盘 powershell 实例，避免重复托盘图标
+try {
+  Get-Process -Name "powershell" -ErrorAction SilentlyContinue | Where-Object {
+    $_.Id -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*" -or $_.CommandLine -like "*run-teamcodex*")
+  } | Stop-Process -Force -ErrorAction SilentlyContinue
+} catch {}
 
 $discoveryFile = Join-Path $InstallRoot "data\hub_discovery.json"
 $discoveredHubUrl = $null

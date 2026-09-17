@@ -40,6 +40,8 @@ FILES_TO_PACK = [
     ('windows/启动TeamCodex.cmd', 'TeamCodex-Windows/windows/启动TeamCodex.cmd'),
     ('windows/run-teamcodex.ps1', 'TeamCodex-Windows/windows/run-teamcodex.ps1'),
     ('windows/tray-teamcodex.ps1', 'TeamCodex-Windows/windows/tray-teamcodex.ps1'),
+    ('windows/退出TeamCodex.cmd', 'TeamCodex-Windows/windows/退出TeamCodex.cmd'),
+    ('windows/退出TeamCodex.cmd', 'TeamCodex-Windows/退出TeamCodex.cmd'),
     ('server/launcher_host.mjs', 'TeamCodex-Windows/server/launcher_host.mjs'),
     ('ui/panel.html', 'TeamCodex-Windows/ui/panel.html'),
     ('version.json', 'TeamCodex-Windows/version.json'),

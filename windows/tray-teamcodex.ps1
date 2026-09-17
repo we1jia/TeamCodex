@@ -6,6 +6,26 @@ Add-Type -AssemblyName System.Drawing
 
 function Show-TeamCodexTray {
   Add-Type -AssemblyName Microsoft.VisualBasic
+
+  # ==============================================================================
+  # 1. 全局单实例互斥锁与旧进程强制清洗 (彻底消灭多重托盘图标)
+  # ==============================================================================
+  $mutexName = "Global\TeamCodexTrayMutex"
+  $createdNew = $false
+  $script:trayMutex = $null
+  try {
+    $script:trayMutex = New-Object System.Threading.Mutex($true, $mutexName, [ref]$createdNew)
+    if (-not $createdNew) {
+      $oldProcs = Get-Process -Name "powershell" -ErrorAction SilentlyContinue | Where-Object {
+        $_.Id -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*" -or $_.CommandLine -like "*run-teamcodex*")
+      }
+      foreach ($p in $oldProcs) {
+        Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+      }
+      Start-Sleep -Milliseconds 250
+    }
+  } catch {}
+
   $launcherPort = if ($env:TEAM_CODEX_LAUNCHER_PORT) { $env:TEAM_CODEX_LAUNCHER_PORT } else { "18767" }
   $base = "http://127.0.0.1:$launcherPort"
 
@@ -13,19 +33,19 @@ function Show-TeamCodexTray {
     param([string]$Path, [string]$Method = "GET", [string]$Body = $null)
     try {
       if ($Method -eq "GET") {
-        return Invoke-RestMethod -Uri "$base$Path" -TimeoutSec 3
+        return Invoke-RestMethod -Uri "$base$Path" -TimeoutSec 1
       }
       if ($Body) {
-        return Invoke-RestMethod -Uri "$base$Path" -Method Post -ContentType "application/json" -Body $Body -TimeoutSec 5
+        return Invoke-RestMethod -Uri "$base$Path" -Method Post -ContentType "application/json" -Body $Body -TimeoutSec 2
       }
-      return Invoke-RestMethod -Uri "$base$Path" -Method Post -TimeoutSec 5
+      return Invoke-RestMethod -Uri "$base$Path" -Method Post -TimeoutSec 2
     } catch {
       return $null
     }
   }
 
   $notify = New-Object System.Windows.Forms.NotifyIcon
-  $iconPath = Join-Path $PSScriptRoot "assets\\TeamCodex.ico"
+  $iconPath = Join-Path $PSScriptRoot "assets\TeamCodex.ico"
   if (Test-Path -LiteralPath $iconPath) {
     $notify.Icon = New-Object System.Drawing.Icon($iconPath)
   } else {
@@ -35,7 +55,7 @@ function Show-TeamCodexTray {
   $notify.Visible = $true
 
   # ==============================================================================
-  # 1. 还原纯净的原版右键菜单 (符合用户截图现场与操作习惯，带退出)
+  # 2. 彻底还原原版右键菜单 (纯净原版，带状态、操作与彻底退出)
   # ==============================================================================
   $menu = New-Object System.Windows.Forms.ContextMenuStrip
   $statusCodex = $menu.Items.Add("Codex: 检测中")
@@ -55,7 +75,7 @@ function Show-TeamCodexTray {
   $notify.ContextMenuStrip = $menu
 
   # ==============================================================================
-  # 2. 专属原生悬浮控制面板弹窗 (左键点击唤起，失焦自动隐藏)
+  # 3. 专属原生悬浮控制面板弹窗 (左键点击唤起，失焦自动隐藏)
   # ==============================================================================
   $popup = New-Object System.Windows.Forms.Form
   $popup.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
@@ -67,7 +87,6 @@ function Show-TeamCodexTray {
   $popup.ForeColor = [System.Drawing.Color]::FromArgb(242, 244, 248)
   $popup.KeyPreview = $true
 
-  # 边框与双层阴影容器
   $cardPanel = New-Object System.Windows.Forms.Panel
   $cardPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
   $cardPanel.Padding = New-Object System.Windows.Forms.Padding(14, 12, 14, 12)
@@ -151,7 +170,6 @@ function Show-TeamCodexTray {
   $rowHub = New-StatusRow "中枢" "检测中..." 35
   $rowRoom = New-StatusRow "房间" "1024" 68
 
-  # 操作按钮列表
   function New-ActionButton {
     param([string]$Text, [int]$Y)
     $btn = New-Object System.Windows.Forms.Button
@@ -186,60 +204,65 @@ function Show-TeamCodexTray {
   $tipLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
   $cardPanel.Controls.Add($tipLabel)
 
-  # 弹窗交互控制
-  $popup.Add_Deactivate({
-    $popup.Hide()
-  })
+  $popup.Add_Deactivate({ $popup.Hide() })
   $popup.Add_KeyDown({
     param($s, $e)
-    if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Escape) {
-      $popup.Hide()
-    }
+    if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Escape) { $popup.Hide() }
   })
 
+  # ==============================================================================
+  # 4. 防重入门禁状态刷新 (避免 UI 消息泵卡死)
+  # ==============================================================================
+  $script:isRefreshing = $false
   function Refresh-Status {
-    $s = Invoke-Launcher "/api/status"
-    if (-not $s) { return }
+    if ($script:isRefreshing) { return }
+    $script:isRefreshing = $true
+    try {
+      $s = Invoke-Launcher "/api/status"
+      if (-not $s) { return }
 
-    # 右键菜单文本同步 (原汁原味)
-    $statusCodex.Text = if ($s.codex.injected) { "Codex: 已挂载" } elseif ($s.codex.running) { "Codex: 已打开" } else { "Codex: 未连接" }
-    $statusHub.Text = if ($s.hub.ok) { "中枢: $($s.hub.lanUrl)" } else { "中枢: 未连接" }
-    $statusRoom.Text = "房间: $($s.room.id)"
-    if ($s.update.has_update) {
-      $updateItem.Text = "发现新版本 $($s.update.latest)"
-      $btnUpdate.Text = "发现新版本 $($s.update.latest) (点击升级)"
-      $btnUpdate.ForeColor = [System.Drawing.Color]::FromArgb(96, 165, 250)
-      $notify.Text = "TeamCodex 有更新"
-    } else {
-      $updateItem.Text = "当前版本 $($s.app_version)"
-      $btnUpdate.Text = "检查更新"
-      $btnUpdate.ForeColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
-      $notify.Text = "TeamCodex"
+      # 右键菜单纯净同步
+      $statusCodex.Text = if ($s.codex.injected) { "Codex: 已挂载" } elseif ($s.codex.running) { "Codex: 已打开" } else { "Codex: 未连接" }
+      $statusHub.Text = if ($s.hub.ok) { "中枢: $($s.hub.lanUrl)" } else { "中枢: 未连接" }
+      $statusRoom.Text = "房间: $($s.room.id)"
+      if ($s.update.has_update) {
+        $updateItem.Text = "发现新版本 $($s.update.latest)"
+        $btnUpdate.Text = "发现新版本 $($s.update.latest) (点击升级)"
+        $btnUpdate.ForeColor = [System.Drawing.Color]::FromArgb(96, 165, 250)
+        $notify.Text = "TeamCodex 有更新"
+      } else {
+        $updateItem.Text = "当前版本 $($s.app_version)"
+        $btnUpdate.Text = "检查更新"
+        $btnUpdate.ForeColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
+        $notify.Text = "TeamCodex"
+      }
+
+      # 左键弹窗状态同步
+      $verLabel.Text = "v$($s.app_version)"
+      if ($s.codex.injected) {
+        $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(34, 197, 94)
+        $rowCodex.Val.Text = "已挂载"
+      } elseif ($s.codex.running) {
+        $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(234, 179, 8)
+        $rowCodex.Val.Text = "已打开"
+      } else {
+        $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(239, 68, 68)
+        $rowCodex.Val.Text = "未连接"
+      }
+
+      if ($s.hub.ok) {
+        $rowHub.Dot.ForeColor = [System.Drawing.Color]::FromArgb(34, 197, 94)
+        $rowHub.Val.Text = "$($s.hub.lanUrl)"
+      } else {
+        $rowHub.Dot.ForeColor = [System.Drawing.Color]::FromArgb(239, 68, 68)
+        $rowHub.Val.Text = "未连接"
+      }
+
+      $rowRoom.Dot.ForeColor = [System.Drawing.Color]::FromArgb(34, 197, 94)
+      $rowRoom.Val.Text = "$($s.room.id)"
+    } catch {} finally {
+      $script:isRefreshing = $false
     }
-
-    # 左键弹窗状态卡片同步
-    $verLabel.Text = "v$($s.app_version)"
-    if ($s.codex.injected) {
-      $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(34, 197, 94)
-      $rowCodex.Val.Text = "已挂载"
-    } elseif ($s.codex.running) {
-      $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(234, 179, 8)
-      $rowCodex.Val.Text = "已打开"
-    } else {
-      $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(239, 68, 68)
-      $rowCodex.Val.Text = "未连接"
-    }
-
-    if ($s.hub.ok) {
-      $rowHub.Dot.ForeColor = [System.Drawing.Color]::FromArgb(34, 197, 94)
-      $rowHub.Val.Text = "$($s.hub.lanUrl)"
-    } else {
-      $rowHub.Dot.ForeColor = [System.Drawing.Color]::FromArgb(239, 68, 68)
-      $rowHub.Val.Text = "未连接"
-    }
-
-    $rowRoom.Dot.ForeColor = [System.Drawing.Color]::FromArgb(34, 197, 94)
-    $rowRoom.Val.Text = "$($s.room.id)"
   }
 
   function Toggle-PanelPopup {
@@ -248,54 +271,85 @@ function Show-TeamCodexTray {
       return
     }
     Refresh-Status
-    # 计算右下角任务栏托盘弹出位置
-    $wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
-    $x = [Math]::Max(10, $wa.Right - $popup.Width - 12)
-    $y = [Math]::Max(10, $wa.Bottom - $popup.Height - 12)
-    $popup.Location = New-Object System.Drawing.Point($x, $y)
-    $popup.Show()
-    $popup.Activate()
+    try {
+      $wa = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+      $x = [Math]::Max(10, $wa.Right - $popup.Width - 12)
+      $y = [Math]::Max(10, $wa.Bottom - $popup.Height - 12)
+      $popup.Location = New-Object System.Drawing.Point($x, $y)
+      $popup.Show()
+      $popup.Activate()
+    } catch {}
   }
 
-  # 动作函数绑定 (右键菜单与左键弹窗共享)
+  # 动作函数
   $doStart = {
-    Invoke-Launcher "/api/start-codex" "POST" | Out-Null
-    $notify.ShowBalloonTip(2000, "TeamCodex", "正在启动并挂载 Codex...", [System.Windows.Forms.ToolTipIcon]::Info)
-    Refresh-Status
+    try {
+      Invoke-Launcher "/api/start-codex" "POST" | Out-Null
+      $notify.ShowBalloonTip(2000, "TeamCodex", "正在启动并挂载 Codex...", [System.Windows.Forms.ToolTipIcon]::Info)
+      Refresh-Status
+    } catch {}
   }
   $doToken = {
-    $data = Invoke-Launcher "/api/token"
-    if ($data -and $data.token) {
-      [System.Windows.Forms.Clipboard]::SetText($data.token)
-      $notify.ShowBalloonTip(2500, "TeamCodex", "口令已复制到剪贴板", [System.Windows.Forms.ToolTipIcon]::Info)
-    }
+    try {
+      $data = Invoke-Launcher "/api/token"
+      if ($data -and $data.token) {
+        [System.Windows.Forms.Clipboard]::SetText($data.token)
+        $notify.ShowBalloonTip(2500, "TeamCodex", "口令已复制到剪贴板", [System.Windows.Forms.ToolTipIcon]::Info)
+      }
+    } catch {}
   }
   $doHub = {
-    $s = Invoke-Launcher "/api/status"
-    $current = if ($s) { $s.hub.url } else { "http://127.0.0.1:18765" }
-    $input = [Microsoft.VisualBasic.Interaction]::InputBox("填写中枢地址", "TeamCodex", $current)
-    if ($input) {
-      $json = (@{ hub_url = $input } | ConvertTo-Json -Compress)
-      Invoke-Launcher "/api/hub" "POST" $json | Out-Null
-      Refresh-Status
-    }
+    try {
+      $s = Invoke-Launcher "/api/status"
+      $current = if ($s) { $s.hub.url } else { "http://127.0.0.1:18765" }
+      $input = [Microsoft.VisualBasic.Interaction]::InputBox("填写中枢地址", "TeamCodex", $current)
+      if ($input) {
+        $json = (@{ hub_url = $input } | ConvertTo-Json -Compress)
+        Invoke-Launcher "/api/hub" "POST" $json | Out-Null
+        Refresh-Status
+      }
+    } catch {}
   }
   $doRestart = {
-    Invoke-Launcher "/api/restart-inject" "POST" | Out-Null
-    $notify.ShowBalloonTip(2000, "TeamCodex", "正在重启注入...", [System.Windows.Forms.ToolTipIcon]::Info)
-    Refresh-Status
+    try {
+      Invoke-Launcher "/api/restart-inject" "POST" | Out-Null
+      $notify.ShowBalloonTip(2000, "TeamCodex", "正在重启注入...", [System.Windows.Forms.ToolTipIcon]::Info)
+      Refresh-Status
+    } catch {}
   }
   $doUpdate = {
-    $s = Invoke-Launcher "/api/update"
-    if ($s -and $s.has_update) {
-      Invoke-Launcher "/api/update/download" "POST" | Out-Null
-      $notify.ShowBalloonTip(3000, "TeamCodex 发现新版本", "正在打开新版本更新下载 (最新: $($s.latest))", [System.Windows.Forms.ToolTipIcon]::Info)
-      if ($s.url) { Start-Process $s.url }
-    } else {
-      Invoke-Launcher "/api/restart-inject" "POST" | Out-Null
-      $notify.ShowBalloonTip(3000, "TeamCodex 检查更新", "当前已是最新版本，已刷新免重装热更新！", [System.Windows.Forms.ToolTipIcon]::Info)
-    }
-    Refresh-Status
+    try {
+      $s = Invoke-Launcher "/api/update"
+      if ($s -and $s.has_update) {
+        Invoke-Launcher "/api/update/download" "POST" | Out-Null
+        $notify.ShowBalloonTip(3000, "TeamCodex 发现新版本", "正在打开新版本下载 (最新: $($s.latest))", [System.Windows.Forms.ToolTipIcon]::Info)
+        if ($s.url) { Start-Process $s.url }
+      } else {
+        Invoke-Launcher "/api/restart-inject" "POST" | Out-Null
+        $notify.ShowBalloonTip(3000, "TeamCodex 检查更新", "当前已是最新版本，已刷新免重装热更新！", [System.Windows.Forms.ToolTipIcon]::Info)
+      }
+      Refresh-Status
+    } catch {}
+  }
+
+  # ==============================================================================
+  # 5. 彻底强力退出处理 (立即释放资源并强杀进程，绝不挂起)
+  # ==============================================================================
+  $doExit = {
+    try { $timer.Stop() } catch {}
+    try { $notify.Visible = $false } catch {}
+    try { $notify.Dispose() } catch {}
+    try { $popup.Close() } catch {}
+    try { $popup.Dispose() } catch {}
+    try {
+      if ($script:trayMutex) {
+        $script:trayMutex.ReleaseMutex()
+        $script:trayMutex.Dispose()
+      }
+    } catch {}
+    # 彻底终止当前 PowerShell 进程
+    try { [System.Environment]::Exit(0) } catch {}
+    try { Stop-Process -Id $PID -Force } catch {}
   }
 
   $startItem.Add_Click($doStart)
@@ -313,13 +367,8 @@ function Show-TeamCodexTray {
   $updateItem.Add_Click($doUpdate)
   $btnUpdate.Add_Click($doUpdate)
 
-  $exitItem.Add_Click({
-    $popup.Close()
-    $notify.Visible = $false
-    [System.Windows.Forms.Application]::Exit()
-  })
+  $exitItem.Add_Click($doExit)
 
-  # 左键单击或双击托盘图标：弹出专属悬浮面板弹窗
   $notify.Add_MouseClick({
     param($sender, $e)
     if ($e.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
@@ -336,10 +385,11 @@ function Show-TeamCodexTray {
   $timer.Start()
 
   Refresh-Status
-  [System.Windows.Forms.Application]::Run()
-  $timer.Stop()
-  $notify.Dispose()
-  $popup.Dispose()
+  try {
+    [System.Windows.Forms.Application]::Run()
+  } finally {
+    & $doExit
+  }
 }
 
 Show-TeamCodexTray
