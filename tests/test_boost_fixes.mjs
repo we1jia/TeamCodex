@@ -459,7 +459,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v84";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v85";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -685,8 +685,8 @@ test("25. 详情弹窗支持展开完整会话内容与外链状态自适应 (in
 test("26. 严格提纯发送消息 payload，彻底根除 DOM 元素循环引用导致的 JSON 序列化崩溃 (inline-v84)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
-  // 26.1 版本标识升级至 inline-v84
-  assert.match(uiCode, /const UI_VERSION = "inline-v84";/);
+  // 26.1 版本标识升级至 inline-v84+
+  assert.match(uiCode, /const UI_VERSION = "inline-v8[45]";/);
 
   // 26.2 listSidebarThreadsDetailed 彻底移除 element: el，仅返回纯数据
   assert.match(uiCode, /return\s*\{\s*id,\s*title,\s*selected,\s*project\s*\};/);
@@ -701,4 +701,26 @@ test("26. 严格提纯发送消息 payload，彻底根除 DOM 元素循环引用
   assert.match(uiCode, /id: String\(threadInfo\.id/);
   assert.match(uiCode, /title: String\(threadInfo\.title/);
   assert.match(uiCode, /linked_thread:\s*safeLinkedThread,/);
+});
+
+test("27. 成员头像栏全量接入背景色切割环、双重留白光环与设备微图标 (inline-v85)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 27.1 版本标识升级至 inline-v85
+  assert.match(uiCode, /const UI_VERSION = "inline-v85";/);
+
+  // 27.2 彻底消灭 --bg-body 与 #18181b 纯黑硬编码描边，全量使用 var(--bg-page)
+  assert.doesNotMatch(uiCode, /var\(--bg-body/);
+  assert.match(uiCode, /\.stack-avatar\s*\{[\s\S]*?box-shadow:\s*0\s+0\s+0\s+2px\s+var\(--bg-page\);/);
+  assert.match(uiCode, /\.stack-online-dot\s*\{[\s\S]*?box-shadow:\s*0\s+0\s+0\s+1\.5px\s+var\(--bg-page\);/);
+
+  // 27.3 激活状态具备双重留白光环 (Ring-offset)
+  assert.match(uiCode, /\.stack-avatar\.is-active\s*\{[\s\S]*?box-shadow:\s*0\s+0\s+0\s+1\.5px\s+var\(--bg-page\),\s*0\s+0\s+0\s+3px\s+var\(--accent-color\);/);
+
+  // 27.4 设备节点支持精致微矢量 SVG 渲染
+  assert.match(uiCode, /if \(isMac\) \{\s*avatarBtn\.innerHTML\s*=\s*`<svg viewBox="0 0 24 24"/);
+  assert.match(uiCode, /else if \(isWin\) \{\s*avatarBtn\.innerHTML\s*=\s*`<svg viewBox="0 0 24 24"/);
+
+  // 27.5 邀请加号按钮升级为微胶囊并具备平滑 hover
+  assert.match(uiCode, /\.stack-invite-btn\s*\{[\s\S]*?background:\s*var\(--bg-chip\);/);
 });

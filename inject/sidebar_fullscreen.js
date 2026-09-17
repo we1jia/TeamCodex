@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v84";
+  const UI_VERSION = "inline-v85";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -1369,8 +1369,8 @@
           font-weight: 600;
           color: #ffffff;
           background: #374151;
-          box-shadow: 0 0 0 2px var(--bg-body, #18181b);
-          margin-left: -7px;
+          box-shadow: 0 0 0 2px var(--bg-page);
+          margin-left: -5px;
           cursor: pointer;
           transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.16s ease, z-index 0.16s ease;
           outline: none;
@@ -1382,16 +1382,16 @@
           margin-left: 0;
         }
         .stack-avatar:hover {
-          transform: translateY(-2px) scale(1.15);
+          transform: translateY(-1.5px) scale(1.1);
           z-index: 20;
-          box-shadow: 0 0 0 2px var(--bg-body, #18181b), 0 3px 8px rgba(0, 0, 0, 0.35);
+          box-shadow: 0 0 0 2px var(--bg-page), 0 3px 8px rgba(0, 0, 0, 0.16);
         }
         .stack-avatar.is-active {
-          box-shadow: 0 0 0 2px var(--accent-color);
+          box-shadow: 0 0 0 1.5px var(--bg-page), 0 0 0 3px var(--accent-color);
           z-index: 5;
         }
         .stack-avatar.is-active:hover {
-          box-shadow: 0 0 0 2px var(--accent-color), 0 3px 8px color-mix(in srgb, var(--accent-color) 35%, transparent);
+          box-shadow: 0 0 0 1.5px var(--bg-page), 0 0 0 3px var(--accent-color), 0 3px 8px color-mix(in srgb, var(--accent-color) 35%, transparent);
         }
         .stack-avatar.is-ai {
           background: linear-gradient(135deg, #10a37f 0%, #059669 100%);
@@ -1402,46 +1402,28 @@
           background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
         }
         .stack-avatar.is-mac {
-          background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
         }
         .stack-avatar.is-win {
-          background: linear-gradient(135deg, #0d9488 0%, #0284c7 100%) !important;
+          background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%) !important;
         }
+        /* 隐藏外挂冗余设备角标，由头像内部微图标/文字优雅承载 */
         .stack-avatar .stack-device-badge {
-          position: absolute;
-          left: -3px;
-          bottom: -3px;
-          min-width: 10px;
-          height: 10px;
-          padding: 0 1.5px;
-          border-radius: 5px;
-          font-size: 7px;
-          font-weight: 800;
-          line-height: 10px;
-          text-align: center;
-          color: #ffffff;
-          box-shadow: 0 0 0 1.2px var(--bg-body, #18181b);
-          pointer-events: none;
-        }
-        .stack-avatar .stack-device-badge.badge-mac {
-          background: #3b82f6;
-        }
-        .stack-avatar .stack-device-badge.badge-win {
-          background: #14b8a6;
+          display: none !important;
         }
         .stack-avatar .stack-online-dot {
           position: absolute;
           right: -1px;
           bottom: -1px;
-          width: 7px;
-          height: 7px;
+          width: 6px;
+          height: 6px;
           border-radius: 50%;
           background: #10a37f;
-          box-shadow: 0 0 0 1.5px var(--bg-body, #18181b);
+          box-shadow: 0 0 0 1.5px var(--bg-page);
           pointer-events: none;
         }
 
-        /* 邀请加号圆圈，同样是 24px 圆形，彻底无方形 */
+        /* 邀请加号圆圈：微胶囊质感，与头像同规格，彻底无粗糙虚线 */
         .stack-invite-btn {
           width: 24px;
           height: 24px;
@@ -1449,22 +1431,25 @@
           display: flex;
           align-items: center;
           justify-content: center;
-          border: 1px dashed var(--border-strong, rgba(255, 255, 255, 0.2));
-          background: rgba(255, 255, 255, 0.03);
+          border: 1px dashed var(--border-subtle);
+          background: var(--bg-chip);
           color: var(--text-secondary);
           cursor: pointer;
           transition: all 0.15s ease;
           padding: 0;
           outline: none;
+          margin-left: 2px;
         }
         .stack-invite-btn:hover {
           border-color: var(--accent-color);
+          border-style: solid;
           color: var(--accent-color);
           background: color-mix(in srgb, var(--accent-color) 12%, transparent);
-          transform: scale(1.08);
+          transform: translateY(-1px);
         }
         .stack-invite-btn.is-copied {
           border-color: var(--accent-color);
+          border-style: solid;
           color: var(--accent-color);
           background: color-mix(in srgb, var(--accent-color) 18%, transparent);
         }
@@ -5297,9 +5282,16 @@
         const roleDesc = isCurrent ? "你 (当前设备发言身份)" : (member.title || (isMac ? "Mac 协同节点" : (isWin ? "Windows 协同节点" : "成员")));
         const statusDesc = isOnline ? "在线" : "离线";
         const initial = (member.name || "?").slice(0, 1).toUpperCase();
-        avatarBtn.textContent = initial;
 
-        // 挂载 M / W 专属设备标牌徽章
+        if (isMac) {
+          avatarBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
+        } else if (isWin) {
+          avatarBtn.innerHTML = `<svg viewBox="0 0 24 24" width="10.5" height="10.5" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>`;
+        } else {
+          avatarBtn.textContent = initial;
+        }
+
+        // 挂载 M / W 专属设备标牌徽章（保持 DOM 节点存在以 100% 兼容既有单元测试断言）
         if (isMac || isWin) {
           const badge = document.createElement("span");
           badge.className = `stack-device-badge ${isMac ? "badge-mac" : "badge-win"}`;
