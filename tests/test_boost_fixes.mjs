@@ -455,11 +455,11 @@ test("17. windows/run-teamcodex.ps1 具备优雅退出与平滑接管防丢机�
   assert.match(psCode, /"--remote-debugging-address=127\.0\.0\.1"/);
 });
 
-test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v71)", () => {
+test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v71/v72)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
-  // 18.1 版本升级至 inline-v71
-  assert.match(uiCode, /const UI_VERSION = "inline-v71";/);
+  // 18.1 版本标识升级
+  assert.match(uiCode, /const UI_VERSION = "inline-v72";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -481,4 +481,43 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   assert.doesNotMatch(uiCode, /🚀 一键加入此空间/);
   assert.doesNotMatch(uiCode, /⚡ 检测到协同口令/);
 });
+
+test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂毛玻璃样式 (inline-v72)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 19.1 输入框底部工具栏拔除鸡肋按钮：不再存在 + New、@ Link、Secure
+  const composerToolbarMatch = uiCode.match(/<div class="composer-toolbar">([\s\S]*?)<\/div>\s*<\/div>/);
+  assert.ok(composerToolbarMatch, "应该找到 composer-toolbar 结构");
+  const toolbarHtml = composerToolbarMatch[1];
+  assert.doesNotMatch(toolbarHtml, /id="btn-new-thread"/, "工具栏严禁保留多余的 + New 按钮");
+  assert.doesNotMatch(toolbarHtml, /id="mention"/, "工具栏严禁保留多余的 @ Link 按钮");
+  assert.doesNotMatch(toolbarHtml, /class="safe-badge"/, "工具栏严禁保留占地的 Secure 标识");
+  assert.match(toolbarHtml, /id="share-thread"/, "必须保留 [分享对话...]");
+  assert.match(toolbarHtml, /id="review"/, "必须保留 [导入上下文]");
+
+  // 19.2 移除浮层中的 dashed 虚线边框与突兀纯色加号方块
+  assert.doesNotMatch(uiCode, /border:\s*1px dashed rgba\(58,\s*131,\s*247,\s*0\.3\)/);
+  assert.doesNotMatch(uiCode, /border:\s*1px dashed var\(--accent-color\)/);
+  assert.match(uiCode, /\.picker-item-action\s*\{\s*background:\s*var\(--bg-card/);
+
+  // 19.3 快照详情弹窗具备清晰的三大导入操作
+  assert.match(uiCode, /id="snapshot-detail-import-new"/, "必须具备 [+ 新建并导入] 按钮");
+  assert.match(uiCode, /id="snapshot-detail-native-import"/, "必须具备 [导入到当前对话] 按钮");
+  assert.match(uiCode, /id="snapshot-detail-import-select"/, "必须具备 [选对话...] 按钮");
+
+  // 19.4 多选 Dock 条支持独立新建导入与导入当前
+  assert.match(uiCode, /id="btn-select-import-new"/, "多选 Dock 条必须包含 [新建并导入]");
+  assert.match(uiCode, /id="btn-select-import"/, "多选 Dock 条必须包含 [导入当前]");
+
+  // 19.5 包含通用对话选择弹窗模态框 (thread-select-modal)
+  assert.match(uiCode, /id="thread-select-modal"/, "必须包含通用选择对话模态框");
+  assert.match(uiCode, /id="thread-select-search"/, "必须支持搜索过滤本地对话");
+  assert.match(uiCode, /id="thread-select-list"/, "必须具备对话动态列表容器");
+
+  // 19.6 自愈检测指纹已同步升级至 v72
+  assert.match(uiCode, /existing\.dataset\.ui !== UI_VERSION/);
+  assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("snapshot-detail-import-new"\)/);
+  assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("thread-select-modal"\)/);
+});
+
 

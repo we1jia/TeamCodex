@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v71";
+  const UI_VERSION = "inline-v72";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -1610,29 +1610,32 @@
           flex-shrink: 0;
         }
         .picker-item-badge.active-thread {
-          background: rgba(58, 131, 247, 0.15);
-          color: var(--accent-color);
+          background: rgba(16, 163, 127, 0.15);
+          color: #10a37f;
         }
         .picker-item-action {
-          background: rgba(58, 131, 247, 0.06);
-          border: 1px dashed rgba(58, 131, 247, 0.3);
+          background: var(--bg-card, rgba(255, 255, 255, 0.04));
+          border: 1px solid var(--border-subtle);
           margin-bottom: 6px;
+          border-radius: 9px;
         }
         .picker-item-action:hover {
-          background: rgba(58, 131, 247, 0.12);
-          border-color: rgba(58, 131, 247, 0.45);
+          background: var(--bg-card-hover);
+          border-color: var(--border-strong);
         }
         .picker-item-icon.action-icon {
-          background: var(--accent-color);
-          color: #fff;
+          background: rgba(16, 163, 127, 0.14);
+          color: #10a37f;
         }
         .room-tag-btn.new-room-tag {
-          border: 1px dashed var(--accent-color);
-          color: var(--accent-color);
-          background: rgba(58, 131, 247, 0.05);
+          border: 1px solid var(--border-subtle);
+          color: var(--text-secondary);
+          background: var(--bg-chip);
         }
         .room-tag-btn.new-room-tag:hover {
-          background: rgba(58, 131, 247, 0.12);
+          background: var(--bg-card-hover);
+          border-color: var(--border-strong);
+          color: var(--text-primary);
         }
         .picker-empty {
           padding: 20px 12px;
@@ -2450,6 +2453,183 @@
         .snapshot-detail-aux-btn.primary:hover {
           opacity: 0.9;
         }
+
+        .snapshot-detail-action-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid var(--border-subtle);
+          color: var(--text-primary);
+          padding: 7px 14px;
+          border-radius: 9999px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          font-family: inherit;
+          transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+        }
+        .snapshot-detail-action-btn:hover {
+          background: var(--bg-card-hover);
+          border-color: var(--border-strong);
+        }
+        .snapshot-detail-action-btn:active {
+          transform: scale(0.98);
+        }
+        .snapshot-detail-action-btn.secondary {
+          background: var(--bg-chip);
+          border-color: var(--border-subtle);
+        }
+
+        /* 通用对话选择模态框 (Share 时挑对话、Import 时挑对话) */
+        .thread-select-card {
+          width: min(520px, calc(100vw - 32px));
+          max-height: min(640px, calc(100vh - 80px));
+          background: var(--bg-page);
+          border: 1px solid var(--border-subtle);
+          border-radius: 16px;
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--border-subtle);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          animation: modal-card-in 0.18s cubic-bezier(0.2, 0, 0, 1);
+        }
+        .thread-select-header {
+          padding: 16px 20px 14px;
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          border-bottom: 1px solid var(--border-subtle);
+        }
+        .thread-select-title {
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin: 0;
+        }
+        .thread-select-subtitle {
+          font-size: 12px;
+          color: var(--text-muted);
+          margin-top: 4px;
+          line-height: 1.4;
+        }
+        .thread-select-search-wrap {
+          padding: 12px 18px;
+          border-bottom: 1px solid var(--border-subtle);
+          position: relative;
+          display: flex;
+          align-items: center;
+        }
+        .thread-select-search-wrap svg {
+          position: absolute;
+          left: 28px;
+          color: var(--text-muted);
+          pointer-events: none;
+        }
+        .thread-select-search-wrap input {
+          width: 100%;
+          padding: 8px 12px 8px 32px;
+          border-radius: 8px;
+          border: 1px solid var(--border-subtle);
+          background: var(--bg-input, rgba(255, 255, 255, 0.03));
+          color: var(--text-primary);
+          font-size: 13px;
+          outline: none;
+          transition: border-color 0.15s ease;
+        }
+        .thread-select-search-wrap input:focus {
+          border-color: #10a37f;
+        }
+        .thread-select-list {
+          flex: 1;
+          overflow-y: auto;
+          padding: 8px 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .thread-select-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 9px 12px;
+          border-radius: 9px;
+          border: 1px solid transparent;
+          background: transparent;
+          color: var(--text-primary);
+          cursor: pointer;
+          text-align: left;
+          font-family: inherit;
+          font-size: 13px;
+          transition: all 0.12s ease;
+        }
+        .thread-select-item:hover {
+          background: var(--bg-card-hover);
+          border-color: var(--border-subtle);
+        }
+        .thread-select-item.is-current {
+          background: rgba(16, 163, 127, 0.08);
+          border-color: rgba(16, 163, 127, 0.25);
+        }
+        .thread-select-item-left {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+          flex: 1;
+        }
+        .thread-select-item-icon {
+          width: 26px;
+          height: 26px;
+          border-radius: 6px;
+          background: var(--bg-chip);
+          color: var(--text-secondary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .thread-select-item.is-current .thread-select-item-icon {
+          background: rgba(16, 163, 127, 0.15);
+          color: #10a37f;
+        }
+        .thread-select-item-content {
+          min-width: 0;
+          flex: 1;
+        }
+        .thread-select-item-title {
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-weight: 500;
+          line-height: 1.35;
+        }
+        .thread-select-item-badge {
+          font-size: 10.5px;
+          padding: 2px 7px;
+          border-radius: 4px;
+          background: rgba(16, 163, 127, 0.15);
+          color: #10a37f;
+          font-weight: 500;
+          flex-shrink: 0;
+        }
+        .thread-select-item-action {
+          font-size: 11.5px;
+          padding: 4px 9px;
+          border-radius: 6px;
+          background: var(--bg-chip);
+          color: var(--text-secondary);
+          border: 1px solid var(--border-subtle);
+          font-weight: 500;
+          flex-shrink: 0;
+          transition: all 0.12s ease;
+        }
+        .thread-select-item:hover .thread-select-item-action {
+          background: #10a37f;
+          color: #fff;
+          border-color: transparent;
+        }
         .context-select-checkbox { width: 15px; height: 15px; margin: 1px 0 0; accent-color: var(--accent-color); opacity: 1; transform: scale(1); transition: opacity 120ms ease, transform 120ms ease; pointer-events: none; }
         .context-message-meta { display: flex; align-items: center; gap: 7px; color: var(--text-secondary); font-size: 11px; margin-bottom: 3px; }
         .context-message-role { color: var(--text-primary); font-weight: 600; }
@@ -2562,9 +2742,13 @@
                 <button class="sel-action-btn" id="btn-select-all" type="button">全选</button>
                 <button class="sel-action-btn" id="btn-select-clear" type="button">清空</button>
                 <button class="sel-action-btn" id="btn-select-cancel" type="button">取消</button>
-                <button class="sel-action-btn primary" id="btn-select-import" type="button" disabled>
+                <button class="sel-action-btn primary" id="btn-select-import-new" type="button" disabled title="新建独立空白对话并导入">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+                  <span>新建并导入</span>
+                </button>
+                <button class="sel-action-btn secondary" id="btn-select-import" type="button" disabled title="导入到当前对话输入框">
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  <span>导入</span>
+                  <span>导入当前</span>
                 </button>
               </div>
             </div>
@@ -2583,26 +2767,14 @@
               <textarea id="input" placeholder="随心输入，或输入 @ 关联对话与成员..."></textarea>
               <div class="composer-toolbar">
                 <div class="composer-left">
-                  <button class="tool-btn" id="share-thread" type="button" title="完整分享当前本地对话到本团队空间">
+                  <button class="tool-btn" id="share-thread" type="button" title="选择本地对话并分享到当前团队空间">
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-                    <span>Share</span>
+                    <span>分享对话...</span>
                   </button>
-                  <button class="tool-btn" id="review" type="button" title="选择团队消息并导入当前对话">
+                  <button class="tool-btn" id="review" type="button" title="选择团队消息并导入到本地对话">
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    <span>Import</span>
+                    <span>导入上下文</span>
                   </button>
-                  <button class="tool-btn" id="btn-new-thread" type="button" title="新建空白对话并自动关联到本团队空间">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
-                    <span>New</span>
-                  </button>
-                  <button class="tool-btn" id="mention" type="button" title="选择或切换对话与成员">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg>
-                    <span>Link</span>
-                  </button>
-                  <span class="safe-badge" title="端到端本地安全协同">
-                    <svg viewBox="0 0 24 24" width="10.5" height="10.5" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    <span>Secure</span>
-                  </span>
                 </div>
                 <div class="composer-right">
                   <button class="send" type="submit" aria-label="发送">${SEND_ICON}</button>
@@ -2782,11 +2954,19 @@
                     </svg>
                     <span id="snapshot-detail-native-copy-text">复制链接</span>
                   </button>
-                  <button class="primary snapshot-detail-native-import-btn" id="snapshot-detail-native-import" type="button">
-                    <svg aria-hidden="true" focusable="false" height="15" viewBox="0 0 16 16" width="15" fill="currentColor">
+                  <button class="snapshot-detail-action-btn secondary" id="snapshot-detail-import-select" type="button" title="从历史会话列表中选择要注入的目标对话">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>选对话...</span>
+                  </button>
+                  <button class="snapshot-detail-action-btn secondary" id="snapshot-detail-native-import" type="button" title="将团队上下文注入到当前打开的对话输入框">
+                    <svg aria-hidden="true" focusable="false" height="13" viewBox="0 0 16 16" width="13" fill="currentColor">
                       <path d="M2.5 13.5A.5.5 0 0 1 3 13h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5ZM8 1a.5.5 0 0 1 .5.5v7.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 9.293V1.5A.5.5 0 0 1 8 1Z"/>
                     </svg>
                     <span>导入到当前对话</span>
+                  </button>
+                  <button class="primary snapshot-detail-native-import-btn" id="snapshot-detail-import-new" type="button" title="新建空白对话并注入团队上下文，不污染手头工作">
+                    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+                    <span>+ 新建并导入</span>
                   </button>
                 </div>
               </div>
@@ -2819,6 +2999,27 @@
               <button class="ghost" id="context-select-copy" type="button" disabled>复制 Markdown</button>
               <button class="ghost primary" id="context-select-import" type="button" disabled>导入到当前对话</button>
             </div>
+          </div>
+        </div>
+        <!-- 通用选择对话弹窗 (用于 Share 时选对话分享、Import 时选对话导入) -->
+        <div class="modal-backdrop" id="thread-select-modal" hidden>
+          <div class="thread-select-card" role="dialog" aria-modal="true" aria-labelledby="thread-select-title">
+            <div class="thread-select-header">
+              <div>
+                <h2 class="thread-select-title" id="thread-select-title">选择要分享的对话</h2>
+                <div class="thread-select-subtitle" id="thread-select-subtitle">选择本地对话打包生成快照并发布至团队空间</div>
+              </div>
+              <button class="ghost" id="thread-select-close" type="button" aria-label="关闭对话选择">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+                </svg>
+              </button>
+            </div>
+            <div class="thread-select-search-wrap">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" id="thread-select-search" placeholder="搜索本地对话标题..." autocomplete="off">
+            </div>
+            <div class="thread-select-list scroll" id="thread-select-list"></div>
           </div>
         </div>
       </div>
@@ -2923,10 +3124,13 @@
     const btnSelectClear = root.getElementById("btn-select-clear");
     const btnSelectCancel = root.getElementById("btn-select-cancel");
     const btnSelectImport = root.getElementById("btn-select-import");
+    const btnSelectImportNew = root.getElementById("btn-select-import-new");
     const snapshotDetailModal = root.getElementById("snapshot-detail-modal");
     const snapshotDetailTitle = root.getElementById("snapshot-detail-title");
     const snapshotDetailClose = root.getElementById("snapshot-detail-close");
     const snapshotDetailNativeImport = root.getElementById("snapshot-detail-native-import");
+    const snapshotDetailImportNew = root.getElementById("snapshot-detail-import-new");
+    const snapshotDetailImportSelect = root.getElementById("snapshot-detail-import-select");
     const snapshotDetailNativeCopy = root.getElementById("snapshot-detail-native-copy");
     const snapshotDetailNativeCopyText = root.getElementById("snapshot-detail-native-copy-text");
     const snapshotDetailNativeOpen = root.getElementById("snapshot-detail-native-open");
@@ -2935,6 +3139,14 @@
     const snapshotNativeThumb = root.getElementById("snapshot-native-thumb");
     const snapshotNativeBadgeRow = root.getElementById("snapshot-native-badge-row");
     const snapshotNativeBadge = root.getElementById("snapshot-native-badge");
+
+    // 通用选择对话弹窗引用 (用于 Share 时挑对话、Import 时挑对话)
+    const threadSelectModal = root.getElementById("thread-select-modal");
+    const threadSelectTitle = root.getElementById("thread-select-title");
+    const threadSelectSubtitle = root.getElementById("thread-select-subtitle");
+    const threadSelectSearch = root.getElementById("thread-select-search");
+    const threadSelectList = root.getElementById("thread-select-list");
+    const threadSelectClose = root.getElementById("thread-select-close");
 
     const knownIds = new Set();
     let actorType = "human";
@@ -3939,6 +4151,9 @@
      if (btnSelectImport) {
        btnSelectImport.disabled = count === 0;
      }
+     if (btnSelectImportNew) {
+       btnSelectImportNew.disabled = count === 0;
+     }
      if (btnSelectClear) {
        btnSelectClear.disabled = count === 0;
      }
@@ -4010,22 +4225,177 @@
      updateMultiSelectUI();
    };
 
-   // 导入消息主体选中的对话到当前 Codex 对话
-   const importSelectedMessagesToComposer = () => {
-     if (!selectedMessageIds.size) {
-       showToast("请先勾选需要导入的消息");
-       return;
-     }
-     const allMsgs = lastSnapshot?.messages || [];
-     const selected = allMsgs.filter((m) => selectedMessageIds.has(m.id));
-     if (!selected.length) {
-       showToast("未找到已选消息内容");
-       return;
-     }
+    // 独立新建会话并导入团队上下文
+    const importIntoNewThread = (content) => {
+      createNewThreadAndLink();
+      closePage();
+      window.setTimeout(() => {
+        insertIntoComposer(content);
+        showToast("✓ 已新建对话并导入团队上下文！");
+      }, 500);
+    };
 
-     const count = selected.length;
-     const lines = [];
-     lines.push(`【导入团队空间 [${config.roomId || "Media"}] 的选定对话 (共 ${count} 条)】\n`);
+    // 导入到当前已打开的对话输入框
+    const importIntoCurrentThread = (content) => {
+      closePage();
+      window.setTimeout(() => {
+        insertIntoComposer(content);
+        showToast("✓ 已将团队上下文导入当前对话输入框！");
+      }, 350);
+    };
+
+    // 切换到指定的已有会话并导入
+    const importIntoSpecificThread = (thread, content) => {
+      if (thread.element) {
+        thread.element.click();
+      }
+      closePage();
+      window.setTimeout(() => {
+        insertIntoComposer(content);
+        showToast(`✓ 已将团队上下文导入对话《${thread.title.slice(0, 14)}...》！`);
+      }, 450);
+    };
+
+    // 通用选择对话弹窗交互逻辑 (Share 时挑对话、Import 时挑对话)
+    let currentThreadSelectConfig = null;
+
+    const closeThreadSelectModal = () => {
+      if (threadSelectModal) threadSelectModal.hidden = true;
+      currentThreadSelectConfig = null;
+    };
+
+    threadSelectClose?.addEventListener("click", closeThreadSelectModal);
+    threadSelectModal?.addEventListener("click", (e) => {
+      if (e.target === threadSelectModal) closeThreadSelectModal();
+    });
+
+    const openThreadSelectModal = ({ mode = "share", content = "" } = {}) => {
+      if (!threadSelectModal) return;
+      currentThreadSelectConfig = { mode, content };
+      
+      const isShare = mode === "share";
+      if (threadSelectTitle) {
+        threadSelectTitle.textContent = isShare ? "选择要分享的对话" : "选择要导入的目标对话";
+      }
+      if (threadSelectSubtitle) {
+        threadSelectSubtitle.textContent = isShare 
+          ? `将本地对话打包生成脱敏快照发布至团队空间 [${config.roomId || "Media"}]`
+          : "选择将团队内容注入到哪个本地会话中继续推进工作";
+      }
+      if (threadSelectSearch) {
+        threadSelectSearch.value = "";
+      }
+
+      renderThreadSelectList();
+      threadSelectModal.hidden = false;
+      if (threadSelectSearch) threadSelectSearch.focus();
+    };
+
+    const renderThreadSelectList = () => {
+      if (!threadSelectList) return;
+      threadSelectList.innerHTML = "";
+      const q = (threadSelectSearch?.value || "").trim().toLowerCase();
+      const allThreads = listSidebarThreads();
+      const filtered = allThreads.filter((t) => !q || t.title.toLowerCase().includes(q));
+      const isShare = currentThreadSelectConfig?.mode === "share";
+
+      // 导入模式下：顶部增加【+ 新建空白会话并导入】快捷操作
+      if (!isShare) {
+        const newBtn = document.createElement("button");
+        newBtn.type = "button";
+        newBtn.className = "thread-select-item is-current";
+        newBtn.innerHTML = `
+          <div class="thread-select-item-left">
+            <span class="thread-select-item-icon" style="background:rgba(16,163,127,0.15);color:#10a37f;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </span>
+            <div class="thread-select-item-content">
+              <div class="thread-select-item-title" style="color:#10a37f;font-weight:600;">新建空白对话并导入</div>
+            </div>
+          </div>
+          <span class="thread-select-item-action" style="background:#10a37f;color:#fff;border-color:transparent;">立即新建</span>
+        `;
+        newBtn.addEventListener("click", () => {
+          closeThreadSelectModal();
+          importIntoNewThread(currentThreadSelectConfig?.content || "");
+        });
+        threadSelectList.appendChild(newBtn);
+      }
+
+      if (!filtered.length) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "padding:20px;text-align:center;color:var(--text-muted);font-size:12.5px;";
+        empty.textContent = "未找到匹配的本地对话";
+        threadSelectList.appendChild(empty);
+        return;
+      }
+
+      filtered.forEach((thread) => {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = `thread-select-item ${thread.selected ? "is-current" : ""}`;
+        item.innerHTML = `
+          <div class="thread-select-item-left">
+            <span class="thread-select-item-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </span>
+            <div class="thread-select-item-content">
+              <div class="thread-select-item-title">${escapeHtml(thread.title)}</div>
+            </div>
+            ${thread.selected ? `<span class="thread-select-item-badge">当前对话</span>` : ""}
+          </div>
+          <span class="thread-select-item-action">${isShare ? "分享此对话" : "导入此处"}</span>
+        `;
+        item.addEventListener("click", () => {
+          const cfg = currentThreadSelectConfig;
+          closeThreadSelectModal();
+          if (isShare) {
+            // 分享模式
+            if (thread.selected) {
+              shareCurrentThreadToTeam();
+            } else {
+              // 切换到目标对话后提取并分享
+              if (thread.element) {
+                thread.element.click();
+              }
+              linkedThread = thread;
+              renderLink();
+              showToast(`正在切换至对话《${thread.title.slice(0, 12)}...》并生成分享...`);
+              window.setTimeout(() => {
+                shareCurrentThreadToTeam();
+              }, 450);
+            }
+          } else {
+            // 导入模式
+            if (thread.selected) {
+              importIntoCurrentThread(cfg?.content || "");
+            } else {
+              importIntoSpecificThread(thread, cfg?.content || "");
+            }
+          }
+        });
+        threadSelectList.appendChild(item);
+      });
+    };
+
+    threadSelectSearch?.addEventListener("input", renderThreadSelectList);
+
+    // 导入消息主体选中的对话到当前 Codex 对话或新对话
+    const importSelectedMessagesToComposer = ({ newThread = false } = {}) => {
+      if (!selectedMessageIds.size) {
+        showToast("请先勾选需要导入的消息");
+        return;
+      }
+      const allMsgs = lastSnapshot?.messages || [];
+      const selected = allMsgs.filter((m) => selectedMessageIds.has(m.id));
+      if (!selected.length) {
+        showToast("未找到已选消息内容");
+        return;
+      }
+
+      const count = selected.length;
+      const lines = [];
+      lines.push(`【导入团队空间 [${config.roomId || "Media"}] 的选定对话 (共 ${count} 条)】\n`);
 
       selected.forEach((msg, idx) => {
         const who = msg.actor_type === "human" ? (msg.actor_id || "用户") : (msg.actor_id || "Codex");
@@ -4048,18 +4418,35 @@
       });
 
       lines.push("请结合以上团队分享的完整对话（可直接参考官方公开链接或上述完整记录），继续回答我的问题并推进当前工作。");
-     const prompt = lines.join("\n\n").trim();
+      const prompt = lines.join("\n\n").trim();
 
-     exitMultiSelectMode();
-     closePage();
+      exitMultiSelectMode();
 
-     window.setTimeout(() => {
-       insertIntoComposer(prompt);
-       showToast(`✓ 已将选定的 ${count} 条团队消息导入当前对话输入框！`);
-     }, 400);
-   };
+      if (newThread) {
+        importIntoNewThread(prompt);
+      } else {
+        importIntoCurrentThread(prompt);
+      }
+    };
 
-    // 快照与原生分享详情弹窗状态与操作 (100% 对齐官方图 2 原生分享弹窗)
+    const buildSnapshotImportBlock = (msg) => {
+      if (!msg) return "";
+      const rawTitle = msg.linked_thread?.title || "未命名对话";
+      const title = rawTitle.replace(/\s*-\s*ChatGPT|\s*-\s*Codex/i, "").trim();
+      const who = msg.actor_name || msg.actor_id || "团队成员";
+      const shareUrl = msg.metadata?.share_url ||
+        (msg.content?.match(/https:\/\/chatgpt\.com\/s\/cx_[a-zA-Z0-9_\-]+/)?.[0]) || null;
+      const fullContent = msg.metadata?.full_markdown || msg.content || "";
+
+      let block = `【导入团队分享的对话《${title}》】(来自 ${who})\n\n`;
+      if (shareUrl) {
+        block += `官方公开链接：${shareUrl}\n\n`;
+      }
+      block += `#### 完整对话上下文记录：\n${fullContent}\n\n`;
+      block += `请结合以上团队分享的对话上下文，继续回答我的问题并推进当前工作。`;
+      return block;
+    };
+
     let currentViewingSnapshotMessage = null;
     let isSnapshotFullContentVisible = false;
 
@@ -5293,10 +5680,10 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         btn.click();
       }
     });
-    root.getElementById("share-thread")?.addEventListener("click", () => shareCurrentThreadToTeam());
+    root.getElementById("share-thread")?.addEventListener("click", () => {
+      openThreadSelectModal({ mode: "share" });
+    });
     root.getElementById("review")?.addEventListener("click", () => openImportSelectCard());
-    root.getElementById("btn-new-thread")?.addEventListener("click", () => createNewThreadAndLink());
-    root.getElementById("mention")?.addEventListener("click", () => (picker.hidden ? showPicker() : hidePicker()));
 
     contextSelectList?.addEventListener("pointerup", () => {
       selectionPointerActive = false;
@@ -5352,9 +5739,12 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
    btnSelectCancel?.addEventListener("click", () => {
      exitMultiSelectMode();
    });
-   btnSelectImport?.addEventListener("click", () => {
-     importSelectedMessagesToComposer();
-   });
+    btnSelectImport?.addEventListener("click", () => {
+      importSelectedMessagesToComposer({ newThread: false });
+    });
+    btnSelectImportNew?.addEventListener("click", () => {
+      importSelectedMessagesToComposer({ newThread: true });
+    });
 
     // 快照与原生分享详情弹层操作绑定 (对齐官方图 2 原生分享交互)
     snapshotDetailClose?.addEventListener("click", closeSnapshotDetailModal);
@@ -5362,30 +5752,28 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       if (event.target === snapshotDetailModal) closeSnapshotDetailModal();
     });
 
-    // 核心主按钮：【📥 一键导入到当前对话】（各自选择团队上下文放入自己项目上下文）
+    // 按钮 1：【+ 新建并导入】（自动新开独立空白会话注入上下文）
+    snapshotDetailImportNew?.addEventListener("click", () => {
+      if (!currentViewingSnapshotMessage) return;
+      const block = buildSnapshotImportBlock(currentViewingSnapshotMessage);
+      closeSnapshotDetailModal();
+      importIntoNewThread(block);
+    });
+
+    // 按钮 2：【导入到当前对话】（填入当前打开的会话输入框）
     snapshotDetailNativeImport?.addEventListener("click", () => {
       if (!currentViewingSnapshotMessage) return;
-      const msg = currentViewingSnapshotMessage;
-      const title = msg.linked_thread?.title || "未命名对话";
-      const who = msg.actor_name || msg.actor_id || "团队成员";
-      const shareUrl = msg.metadata?.share_url ||
-        (msg.content?.match(/https:\/\/chatgpt\.com\/s\/cx_[a-zA-Z0-9_\-]+/)?.[0]) || null;
-      const fullContent = msg.metadata?.full_markdown || msg.content || "";
-
-      let block = `【导入团队分享的对话《${title}》】(来自 ${who})\n\n`;
-      if (shareUrl) {
-        block += `官方公开链接：${shareUrl}\n\n`;
-      }
-      block += `#### 完整对话上下文记录：\n${fullContent}\n\n`;
-      block += `请结合以上团队分享的对话上下文，继续回答我的问题并推进当前工作。`;
-
+      const block = buildSnapshotImportBlock(currentViewingSnapshotMessage);
       closeSnapshotDetailModal();
-      closePage();
+      importIntoCurrentThread(block);
+    });
 
-      window.setTimeout(() => {
-        insertIntoComposer(block);
-        showToast("✓ 已将团队对话快照导入当前对话输入框！");
-      }, 400);
+    // 按钮 3：【选对话...】（从历史会话列表中选择目标对话注入）
+    snapshotDetailImportSelect?.addEventListener("click", () => {
+      if (!currentViewingSnapshotMessage) return;
+      const block = buildSnapshotImportBlock(currentViewingSnapshotMessage);
+      closeSnapshotDetailModal();
+      openThreadSelectModal({ mode: "import", content: block });
     });
 
     // 辅助按钮：带 🔗 图标的【复制链接】
@@ -6193,7 +6581,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
   const existing = document.getElementById(PAGE_ID);
   const result = installTab();
   if (existing) {
-    if (existing.dataset.ui !== UI_VERSION || !existing.shadowRoot?.querySelector?.(".snapshot-detail-footer-info") || existing.shadowRoot?.innerHTML?.includes("一键导入")) {
+    if (existing.dataset.ui !== UI_VERSION || !existing.shadowRoot?.getElementById?.("snapshot-detail-import-new") || !existing.shadowRoot?.getElementById?.("thread-select-modal")) {
       existing.remove();
       openPage();
     } else {
