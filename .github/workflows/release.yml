@@ -31,8 +31,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Package Windows ZIP for regression tests
-        run: python3 windows/build_zip.py
+      - name: Package Windows and Plugin ZIPs for regression tests
+        run: |
+          python3 windows/build_zip.py
+          python3 scripts/build_plugin_zip.py
 
       - name: Run automated tests
         run: |
