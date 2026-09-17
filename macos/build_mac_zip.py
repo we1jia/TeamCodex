@@ -25,6 +25,8 @@ FILES_AND_DIRS = [
     ("ui/panel.html", "TeamCodex-macOS/ui/panel.html", 0o644),
     ("server/launcher_host.mjs", "TeamCodex-macOS/server/launcher_host.mjs", 0o644),
     ("macos/TeamCodex.swift", "TeamCodex-macOS/macos/TeamCodex.swift", 0o644),
+    ("macos/TeamCodex-Status.png", "TeamCodex-macOS/macos/TeamCodex-Status.png", 0o644),
+    ("macos/TeamCodex-Status@2x.png", "TeamCodex-macOS/macos/TeamCodex-Status@2x.png", 0o644),
     ("version.json", "TeamCodex-macOS/version.json", 0o644),
     ("data/hub_discovery.json", "TeamCodex-macOS/data/hub_discovery.json", 0o644),
 ]

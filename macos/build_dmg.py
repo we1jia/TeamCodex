@@ -49,6 +49,8 @@ def build_dmg():
         ("ui", True),
         ("macos/launch.sh", False),
         ("macos/TeamCodex.swift", False),
+        ("macos/TeamCodex-Status.png", False),
+        ("macos/TeamCodex-Status@2x.png", False),
         ("data/hub_discovery.json", False),
         ("version.json", False),
         ("README.md", False),
@@ -60,8 +62,15 @@ def build_dmg():
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         if is_dir:
             shutil.copytree(src, dst, dirs_exist_ok=True)
-        else:
+        elif os.path.exists(src):
             shutil.copy2(src, dst)
+
+    # 将状态栏图标放置在 App Bundle 的 Resources 根目录下以便 NSImage(named:) 直接命中
+    res_root = os.path.join(app_target, "Contents", "Resources")
+    for icon_name in ["TeamCodex-Status.png", "TeamCodex-Status@2x.png"]:
+        src_icon = os.path.join(TC_DIR, "macos", icon_name)
+        if os.path.exists(src_icon):
+            shutil.copy2(src_icon, os.path.join(res_root, icon_name))
 
     # 3. 编译菜单栏客户端，替换 bash 占位可执行文件
     swift_src = os.path.join(TC_DIR, "macos", "TeamCodex.swift")

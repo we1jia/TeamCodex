@@ -907,3 +907,26 @@ test("34. Mac 首次启动注入健壮性、白瓷姿态高清图标与主界面
   assert.ok(fs.statSync(dmgPath).size > 1000000, "DMG 应大于 1MB");
 });
 
+test("35. macOS 菜单栏状态图标升级为微矢量纯白双云协同图标 (TeamCodex-Status)，自适应 Template 规范并彻底替换简陋剪影", () => {
+  const swiftCode = fs.readFileSync(path.join(ROOT, "macos/TeamCodex.swift"), "utf8");
+
+  // 35.1 彻底替换简陋的 SF Symbol person.2.fill
+  assert.doesNotMatch(swiftCode, /person\.2\.fill.*accessibilityDescription/, "严禁在状态栏继续使用简陋的两个小人剪影");
+
+  // 35.2 状态栏图标资源存在并符合规范尺寸
+  const status1x = path.join(ROOT, "macos/TeamCodex-Status.png");
+  const status2x = path.join(ROOT, "macos/TeamCodex-Status@2x.png");
+  const appRes1x = path.join(ROOT, "macos/TeamCodex.app/Contents/Resources/TeamCodex-Status.png");
+  const appRes2x = path.join(ROOT, "macos/TeamCodex.app/Contents/Resources/TeamCodex-Status@2x.png");
+
+  assert.ok(fs.existsSync(status1x), "TeamCodex-Status.png 应存在");
+  assert.ok(fs.existsSync(status2x), "TeamCodex-Status@2x.png 应存在");
+  assert.ok(fs.existsSync(appRes1x), "App Bundle 根资源中应包含 TeamCodex-Status.png");
+  assert.ok(fs.existsSync(appRes2x), "App Bundle 根资源中应包含 TeamCodex-Status@2x.png");
+
+  // 35.3 Swift 代码必须正确设置 isTemplate = true 以自适应浅色/深色系统主题
+  assert.match(swiftCode, /createStatusIcon/);
+  assert.match(swiftCode, /isTemplate\s*=\s*true/);
+  assert.match(swiftCode, /TeamCodex-Status/);
+});
+
