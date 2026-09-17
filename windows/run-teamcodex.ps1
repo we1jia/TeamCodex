@@ -248,28 +248,76 @@ if ($discoveredHost) {
   }
 }
 
+function Stop-ProcessGracefully {
+  param(
+    [System.Diagnostics.Process[]]$Processes,
+    [int]$TimeoutSeconds = 4
+  )
+  if (-not $Processes -or $Processes.Count -eq 0) { return }
+
+  Log-Message "正在向当前运行的客户端发送窗口关闭消息 (优雅退出，保存草稿)..."
+  foreach ($p in $Processes) {
+    try {
+      if (-not $p.HasExited) {
+        $closed = $p.CloseMainWindow()
+        if (-not $closed) {
+          $p.Close()
+        }
+      }
+    } catch {}
+  }
+
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+    $stillRunning = Get-Process -Name @("ChatGPT", "Codex") -ErrorAction SilentlyContinue
+    if (-not $stillRunning) { break }
+    Start-Sleep -Milliseconds 200
+  }
+
+  $remaining = Get-Process -Name @("ChatGPT", "Codex") -ErrorAction SilentlyContinue
+  if ($remaining) {
+    Log-Message "客户端在 ${TimeoutSeconds} 秒内未完全退出，执行安全清理..."
+    foreach ($rem in $remaining) {
+      try { Stop-Process -Id $rem.Id -Force -ErrorAction SilentlyContinue } catch {}
+    }
+    Start-Sleep -Milliseconds 500
+  } else {
+    Log-Message "原客户端已平滑优雅退出。"
+  }
+}
+
 # 2. 检查是否有开放 CDP 的 Codex / ChatGPT 实例
 $cdpReady = $null
 try { $cdpReady = Invoke-RestMethod -Uri "http://127.0.0.1:$CdpPort/json/version" -TimeoutSec 1 } catch {}
 
 if (-not $cdpReady) {
-  # 检查是否有正在运行的 ChatGPT.exe 或 Codex.exe，若有但未开端口，提示或保留
+  # 检查是否有正在运行的 ChatGPT.exe 或 Codex.exe
   $running = Get-Process -Name @("ChatGPT", "Codex") -ErrorAction SilentlyContinue
-  if (-not $running) {
-    $codexExe = Resolve-CodexPath
-    if ($codexExe) {
-      Log-Message "正在拉起带调试端口的 Codex/ChatGPT: $codexExe"
-      $codexArgs = @(
-        "--remote-debugging-address=127.0.0.1",
-        "--remote-debugging-port=$CdpPort"
-      )
-      Start-Process -FilePath $codexExe -ArgumentList $codexArgs -WorkingDirectory (Split-Path -Parent $codexExe)
-      Wait-Endpoint -Url "http://127.0.0.1:$CdpPort/json/version" -Attempts 40 | Out-Null
+  
+  # 优先在进程还在运行的时候捕获其真实可执行文件路径
+  $codexExe = Resolve-CodexPath
+
+  if ($running) {
+    Log-Message "检测到 ChatGPT/Codex 正在运行但未开启协同调试端口。"
+    Log-Message "开始平滑接管：保存当前草稿并重启客户端..."
+    Stop-ProcessGracefully -Processes $running -TimeoutSeconds 4
+  }
+
+  if ($codexExe) {
+    Log-Message "正在以协同模式拉起 Codex/ChatGPT (调试端口: $CdpPort): $codexExe"
+    $codexArgs = @(
+      "--remote-debugging-address=127.0.0.1",
+      "--remote-debugging-port=$CdpPort"
+    )
+    Start-Process -FilePath $codexExe -ArgumentList $codexArgs -WorkingDirectory (Split-Path -Parent $codexExe)
+    $cdpReady = Wait-Endpoint -Url "http://127.0.0.1:$CdpPort/json/version" -Attempts 40
+    if ($cdpReady) {
+      Log-Message "Codex/ChatGPT 协同调试通道已就绪！"
     } else {
-      Log-Message "未自动找到 ChatGPT.exe 或 Codex.exe。请手动启动 Codex 并添加 --remote-debugging-port=$CdpPort 参数。"
+      Log-Message "警告: 未能在预期时间内连通调试端口，请检查防火墙或进程是否启动。"
     }
   } else {
-    Log-Message "检测到 Codex/ChatGPT 已在运行。如果未开启调试端口，请退出后重新通过快捷方式打开。"
+    Log-Message "未自动找到 ChatGPT.exe 或 Codex.exe。请手动启动 Codex 并添加 --remote-debugging-port=$CdpPort 参数。"
   }
 }
 

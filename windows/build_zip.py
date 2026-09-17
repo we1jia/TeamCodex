@@ -10,6 +10,7 @@ OUTPUT_ZIP_PARENT = os.path.join(WORKSPACE, 'TeamCodex-Windows-arm64-amd64.zip')
 
 FILES_TO_PACK = [
     ('windows/一键安装到桌面.cmd', 'TeamCodex-Windows/一键安装到桌面.cmd'),
+    ('windows/install.cmd', 'TeamCodex-Windows/install.cmd'),
     ('windows/启动测试模式.cmd', 'TeamCodex-Windows/启动测试模式.cmd'),
     ('windows/启动TeamCodex.cmd', 'TeamCodex-Windows/启动TeamCodex.cmd'),
     ('windows/启动TeamCodex(无黑框静默).vbs', 'TeamCodex-Windows/启动TeamCodex(无黑框静默).vbs'),

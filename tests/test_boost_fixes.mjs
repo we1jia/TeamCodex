@@ -436,3 +436,19 @@ test("16. isPageActive 活性判据与切回原生对话高亮无损互斥", () 
   // 16.4 Tab 重新点击走 openPage 保证复位并恢复可见性
   assert.match(uiCode, /const open = \(event\) => \{[\s\S]*?window\.__teamContextOpenPage\?\.\(\);/);
 });
+
+test("17. windows/run-teamcodex.ps1 具备优雅退出与平滑接管防丢机制", () => {
+  const psCode = fs.readFileSync(path.join(ROOT, "windows/run-teamcodex.ps1"), "utf8");
+
+  // 17.1 必须定义并使用 Stop-ProcessGracefully
+  assert.match(psCode, /function Stop-ProcessGracefully/);
+  assert.match(psCode, /CloseMainWindow\(\)/, "必须通过发送 CloseMainWindow 优雅请求退出，保留草稿保存时间");
+
+  // 17.2 检测到运行中但无端口时自动接管，严禁静默忽略或报错
+  assert.match(psCode, /开始平滑接管：保存当前草稿并重启客户端/);
+  assert.match(psCode, /Stop-ProcessGracefully -Processes \$running/);
+
+  // 17.3 强制绑定 127.0.0.1 杜绝网络暴露
+  assert.match(psCode, /"--remote-debugging-address=127\.0\.0\.1"/);
+});
+
