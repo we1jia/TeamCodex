@@ -45,6 +45,9 @@ jobs:
       - name: Build macOS Native Installer (DMG)
         run: python3 macos/build_dmg.py
 
+      - name: Build Codex Plugin Bundle (ZIP)
+        run: python3 scripts/build_plugin_zip.py
+
       - name: Upload macOS Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -52,6 +55,7 @@ jobs:
           path: |
             TeamCodex-macOS.dmg
             TeamCodex-macOS.zip
+            TeamCodex-Codex-Plugin.zip
 
   build-windows:
     runs-on: ubuntu-latest
@@ -106,7 +110,7 @@ jobs:
 
       - name: Generate SHA256 checksums
         run: |
-          sha256sum TeamCodex-macOS.dmg TeamCodex-Setup.exe TeamCodex-macOS.zip TeamCodex-Windows-arm64-amd64.zip > SHA256SUMS.txt
+          sha256sum TeamCodex-macOS.dmg TeamCodex-Setup.exe TeamCodex-macOS.zip TeamCodex-Windows-arm64-amd64.zip TeamCodex-Codex-Plugin.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Determine Release Tag
@@ -132,6 +136,7 @@ jobs:
             TeamCodex-Setup.exe
             TeamCodex-macOS.zip
             TeamCodex-Windows-arm64-amd64.zip
+            TeamCodex-Codex-Plugin.zip
             SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

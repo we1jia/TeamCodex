@@ -1,0 +1,37 @@
+name: CI & Regression Suite
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Regression Suite (59 Tests)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Package Windows and Plugin ZIPs for regression check
+        run: |
+          python3 windows/build_zip.py
+          python3 scripts/build_plugin_zip.py
+
+      - name: Run automated tests
+        run: |
+          node --test tests/test_boost_fixes.mjs
+          node --test tests/test_rooms_and_auth.mjs
