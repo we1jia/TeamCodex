@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v67";
+  const UI_VERSION = "inline-v68";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -2129,7 +2129,7 @@
         .snapshot-detail-card {
           background: rgba(33, 33, 33, 0.96);
           color: var(--text-primary);
-          width: min(520px, calc(100vw - 32px));
+          width: min(560px, calc(100vw - 32px));
           max-height: 90vh;
           border-radius: 24px;
           border: 1px solid rgba(255, 255, 255, 0.12);
@@ -2319,25 +2319,70 @@
           border-radius: 8px;
           border: 1px solid rgba(255, 255, 255, 0.06);
         }
-        /* 底部操作区 (完全对齐图 2 原生分享底部) */
+        /* 底部操作区 (高颜值双层布局：整行说明置顶 + 底部操作左右平衡) */
         .snapshot-detail-footer {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px 24px 20px;
+          flex-direction: column;
+          gap: 16px;
+          padding: 18px 24px 22px;
           border-top: 1px solid rgba(255, 255, 255, 0.08);
-          gap: 12px;
           background: transparent;
+        }
+        .snapshot-detail-footer-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: var(--text-secondary);
+          font-size: 13px;
+          line-height: 1.4;
+        }
+        .snapshot-detail-footer-icon {
+          opacity: 0.65;
+          flex-shrink: 0;
         }
         .snapshot-detail-footer-note {
           font-size: 13px;
           color: var(--text-secondary);
-          flex: 1;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .snapshot-detail-footer-actions {
           display: flex;
           align-items: center;
-          gap: 8px;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .snapshot-detail-actions-left {
+          display: flex;
+          align-items: center;
+        }
+        .snapshot-detail-actions-right {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .snapshot-detail-native-import-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          background: #10a37f;
+          color: #ffffff;
+          border: none;
+          padding: 8px 18px;
+          border-radius: 9999px;
+          font-size: 13.5px;
+          font-weight: 600;
+          cursor: pointer;
+          box-shadow: 0 2px 10px rgba(16, 163, 127, 0.35);
+          transition: background 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+        }
+        .snapshot-detail-native-import-btn:hover {
+          background: #1a7f64;
+          box-shadow: 0 4px 14px rgba(16, 163, 127, 0.45);
+        }
+        .snapshot-detail-native-import-btn:active {
+          transform: scale(0.98);
         }
         .snapshot-detail-native-copy-btn {
           display: inline-flex;
@@ -2357,6 +2402,28 @@
           background: rgba(255, 255, 255, 0.18);
         }
         .snapshot-detail-native-copy-btn:active {
+          transform: scale(0.98);
+        }
+        .snapshot-detail-native-open-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          background: transparent;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: var(--text-secondary);
+          padding: 8px 16px;
+          border-radius: 9999px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.12s ease;
+        }
+        .snapshot-detail-native-open-btn:hover {
+          color: var(--text-primary);
+          background: rgba(255, 255, 255, 0.08);
+          border-color: rgba(255, 255, 255, 0.22);
+        }
+        .snapshot-detail-native-open-btn:active {
           transform: scale(0.98);
         }
         .snapshot-detail-aux-btn {
@@ -2675,22 +2742,31 @@
             </div>
 
             <div class="snapshot-detail-footer">
-              <div class="snapshot-detail-footer-note">任何拥有此链接的人都可以查看此聊天</div>
+              <div class="snapshot-detail-footer-info">
+                <svg class="snapshot-detail-footer-icon" aria-hidden="true" focusable="false" height="15" viewBox="0 0 16 16" width="15" fill="currentColor">
+                  <path d="M8 0a8 8 0 1 0 8 8A8.01 8.01 0 0 0 8 0Zm5.93 7h-2.58a13.3 13.3 0 0 0-1.09-4.32A6.53 6.53 0 0 1 13.93 7ZM8 1.52c.67 1.15 1.25 2.82 1.48 5.48H6.52C6.75 4.34 7.33 2.67 8 1.52ZM1.52 9h2.58a13.3 13.3 0 0 0 1.09 4.32A6.53 6.53 0 0 1 1.52 9Zm2.58-2H1.52a6.53 6.53 0 0 1 4.19-4.32A13.3 13.3 0 0 0 4.1 7ZM8 14.48c-.67-1.15-1.25-2.82-1.48-5.48h2.96c-.23 2.66-.81 4.33-1.48 5.48Zm1.74-2.16A13.3 13.3 0 0 0 10.83 8h2.58a6.53 6.53 0 0 1-3.67 4.32Z"/>
+                </svg>
+                <span class="snapshot-detail-footer-note">任何拥有此链接的人都可以查看此聊天</span>
+              </div>
               <div class="snapshot-detail-footer-actions">
-                <button class="primary snapshot-detail-native-import-btn" id="snapshot-detail-native-import" type="button" style="padding:7px 16px;border-radius:20px;background:var(--accent-color);color:#ffffff;border:none;cursor:pointer;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(16,163,127,0.3);">
-                  <span>📥 一键导入到当前对话</span>
-                </button>
-                <button class="snapshot-detail-native-copy-btn" id="snapshot-detail-native-copy" type="button" style="margin-left:8px;">
-                  <svg aria-hidden="true" focusable="false" height="16" viewBox="0 0 16 16" width="16" fill="currentColor">
-                    <path d="M3.69541 6.25121C3.89761 6.04427 4.22909 6.03985 4.43662 6.24145C4.64426 6.44372 4.64953 6.77691 4.44736 6.98461L3.61338 7.84008L3.6085 7.84496C2.42952 9.02432 2.40771 10.9534 3.72666 12.2727C5.04612 13.5922 6.97593 13.5702 8.15537 12.3909L8.16025 12.386L9.01572 11.553C9.22335 11.3509 9.55562 11.3553 9.75791 11.5627C9.96017 11.7704 9.9566 12.1036 9.74912 12.3059L8.89365 13.1389C7.28179 14.7455 4.68893 14.7213 2.9835 13.0159C1.27845 11.3104 1.25498 8.71842 2.86143 7.10668L3.69541 6.25121Z"></path>
-                    <path d="M9.629 5.62914C9.83403 5.42415 10.1662 5.42413 10.3712 5.62914C10.5761 5.83417 10.5761 6.16634 10.3712 6.37133L6.37119 10.3713C6.16621 10.5763 5.83404 10.5762 5.629 10.3713C5.42398 10.1663 5.42398 9.83417 5.629 9.62914L9.629 5.62914Z"></path>
-                    <path d="M7.10654 2.86157C8.71829 1.25511 11.3103 1.27855 13.0157 2.98364C14.7212 4.68907 14.7453 7.28193 13.1388 8.89379L12.3058 9.74926C12.1034 9.95672 11.7702 9.96029 11.5626 9.75805C11.3552 9.55576 11.3507 9.22349 11.5528 9.01586L12.3858 8.16039L12.3907 8.15551C13.5701 6.97606 13.592 5.04626 12.2726 3.7268C10.9532 2.40781 9.02419 2.42965 7.84482 3.60864L7.83994 3.61352L6.98447 4.4475C6.77678 4.64965 6.44358 4.64438 6.24131 4.43676C6.03972 4.22923 6.04415 3.89775 6.25107 3.69555L7.10654 2.86157Z"></path>
-                  </svg>
-                  <span id="snapshot-detail-native-copy-text">复制链接</span>
-                </button>
-                <button class="snapshot-detail-native-open-btn" id="snapshot-detail-native-open" type="button" style="margin-left:8px;padding:7px 14px;border-radius:20px;background:var(--bg-card);border:1px solid var(--border-subtle);color:var(--text-primary);cursor:pointer;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:4px;">
-                  <span>网页打开 ↗</span>
-                </button>
+                <div class="snapshot-detail-actions-left">
+                  <button class="snapshot-detail-native-open-btn" id="snapshot-detail-native-open" type="button">
+                    <span>网页打开 ↗</span>
+                  </button>
+                </div>
+                <div class="snapshot-detail-actions-right">
+                  <button class="snapshot-detail-native-copy-btn" id="snapshot-detail-native-copy" type="button">
+                    <svg aria-hidden="true" focusable="false" height="15" viewBox="0 0 16 16" width="15" fill="currentColor">
+                      <path d="M3.69541 6.25121C3.89761 6.04427 4.22909 6.03985 4.43662 6.24145C4.64426 6.44372 4.64953 6.77691 4.44736 6.98461L3.61338 7.84008L3.6085 7.84496C2.42952 9.02432 2.40771 10.9534 3.72666 12.2727C5.04612 13.5922 6.97593 13.5702 8.15537 12.3909L8.16025 12.386L9.01572 11.553C9.22335 11.3509 9.55562 11.3553 9.75791 11.5627C9.96017 11.7704 9.9566 12.1036 9.74912 12.3059L8.89365 13.1389C7.28179 14.7455 4.68893 14.7213 2.9835 13.0159C1.27845 11.3104 1.25498 8.71842 2.86143 7.10668L3.69541 6.25121Z"></path>
+                      <path d="M9.629 5.62914C9.83403 5.42415 10.1662 5.42413 10.3712 5.62914C10.5761 5.83417 10.5761 6.16634 10.3712 6.37133L6.37119 10.3713C6.16621 10.5763 5.83404 10.5762 5.629 10.3713C5.42398 10.1663 5.42398 9.83417 5.629 9.62914L9.629 5.62914Z"></path>
+                      <path d="M7.10654 2.86157C8.71829 1.25511 11.3103 1.27855 13.0157 2.98364C14.7212 4.68907 14.7453 7.28193 13.1388 8.89379L12.3058 9.74926C12.1034 9.95672 11.7702 9.96029 11.5626 9.75805C11.3552 9.55576 11.3507 9.22349 11.5528 9.01586L12.3858 8.16039L12.3907 8.15551C13.5701 6.97606 13.592 5.04626 12.2726 3.7268C10.9532 2.40781 9.02419 2.42965 7.84482 3.60864L7.83994 3.61352L6.98447 4.4475C6.77678 4.64965 6.44358 4.64438 6.24131 4.43676C6.03972 4.22923 6.04415 3.89775 6.25107 3.69555L7.10654 2.86157Z"></path>
+                    </svg>
+                    <span id="snapshot-detail-native-copy-text">复制链接</span>
+                  </button>
+                  <button class="primary snapshot-detail-native-import-btn" id="snapshot-detail-native-import" type="button">
+                    <span>📥 一键导入到当前对话</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
