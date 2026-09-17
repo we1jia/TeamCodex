@@ -459,7 +459,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v75";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v76";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -500,23 +500,24 @@ test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂�
   assert.doesNotMatch(uiCode, /border:\s*1px dashed var\(--accent-color\)/);
   assert.match(uiCode, /\.picker-item-action\s*\{\s*background:\s*var\(--bg-card/);
 
-  // 19.3 快照详情弹窗具备清晰的三大导入操作
-  assert.match(uiCode, /id="snapshot-detail-import-new"/, "必须具备 [+ 新建并导入] 按钮");
+  // 19.3 快照详情弹窗具备清晰的三大导入操作与不折行样式
+  assert.match(uiCode, /id="snapshot-detail-import-new"/, "必须具备 [新建并导入] 按钮");
   assert.match(uiCode, /id="snapshot-detail-native-import"/, "必须具备 [导入到当前对话] 按钮");
   assert.match(uiCode, /id="snapshot-detail-import-select"/, "必须具备 [选对话...] 按钮");
+  assert.match(uiCode, /white-space:\s*nowrap\s*!important/, "弹窗按钮必须强制单行不折叠换行");
+  assert.doesNotMatch(uiCode, /<span>\+\s*新建并导入<\/span>/, "严禁在文本中重复拼写加号产生双加号");
 
-  // 19.4 多选 Dock 条支持 [选对话...]、[导入当前对话] 与 [+ 新建并导入]，彻底消除“导入当前”歧义
-  assert.match(uiCode, /id="btn-select-import-select"/, "多选 Dock 条必须包含 [选对话...]");
-  assert.match(uiCode, /id="btn-select-import-new"/, "多选 Dock 条必须包含 [+ 新建并导入]");
-  assert.match(uiCode, /<span>导入当前对话<\/span>/, "多选 Dock 条必须清晰完整显示 [导入当前对话]");
-  assert.doesNotMatch(uiCode, /<span>导入当前<\/span>/, "严禁出现语意不明的 [导入当前]");
+  // 19.4 多选 Dock 条精简收敛为单一明确的 [选择对话导入...]，彻底剔除冗余按钮与双加号
+  assert.match(uiCode, /id="btn-select-import-select"/, "多选 Dock 条必须包含 [选择对话导入...]");
+  assert.match(uiCode, /<span>选择对话导入\.\.\.<\/span>/, "多选 Dock 条导入按钮文案必须清晰明确");
+  assert.doesNotMatch(uiCode, /id="btn-select-import-new"/, "多选 Dock 条必须剔除多余无用的单独新建并导入按钮");
 
   // 19.5 包含通用对话选择弹窗模态框 (thread-select-modal)
   assert.match(uiCode, /id="thread-select-modal"/, "必须包含通用选择对话模态框");
   assert.match(uiCode, /id="thread-select-search"/, "必须支持搜索过滤本地对话");
   assert.match(uiCode, /id="thread-select-list"/, "必须具备对话动态列表容器");
 
-  // 19.6 自愈检测指纹已同步升级至 v72~v75
+  // 19.6 自愈检测指纹已同步升级至 v76
   assert.match(uiCode, /existing\.dataset\.ui !== UI_VERSION/);
   assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("snapshot-detail-import-new"\)/);
   assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("thread-select-modal"\)/);

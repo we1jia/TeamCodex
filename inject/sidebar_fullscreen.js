@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v75";
+  const UI_VERSION = "inline-v76";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -657,12 +657,47 @@
     restoreNativeAppShellHeader();
   }
 
+  function showNativeAppToast(msg) {
+    if (typeof document === "undefined") return;
+    let toast = document.getElementById("__team_context_global_toast__");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "__team_context_global_toast__";
+      toast.style.cssText = "position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:rgba(24,24,27,0.95);color:#fff;padding:8px 18px;border-radius:20px;font-size:12.5px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,0.38);z-index:2147483647;pointer-events:none;transition:opacity 0.18s ease,transform 0.18s ease;backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.12);";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.opacity = "1";
+    toast.style.transform = "translateX(-50%) translateY(0)";
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateX(-50%) translateY(8px)";
+    }, 2400);
+  }
+
+  function triggerSidebarThreadClick(thread) {
+    if (!thread) return false;
+    let target = null;
+    if (thread.id) {
+      target = document.querySelector(`[data-app-action-sidebar-thread-id="${CSS.escape(thread.id)}"]`);
+    }
+    if (!target && thread.element) {
+      target = thread.element;
+    }
+    if (!target) return false;
+    target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+    target.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    target.click();
+    target.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
+    return true;
+  }
+
   function returnToConversation() {
     const thread = window.__teamContextReturnThread;
     closePage();
     if (!thread?.id) return;
-    const row = document.querySelector(`[data-app-action-sidebar-thread-id="${CSS.escape(thread.id)}"]`);
-    row?.click();
+    triggerSidebarThreadClick(thread);
   }
 
   function insertIntoComposer(text) {
@@ -677,10 +712,34 @@
     return true;
   }
 
+  function safeInsertIntoComposer(text, maxWaitMs = 3000) {
+    return new Promise((resolve) => {
+      const startTime = Date.now();
+      const attempt = () => {
+        const editor = document.querySelector(".ProseMirror");
+        if (editor) {
+          editor.focus();
+          const ok = document.execCommand("insertText", false, text);
+          if (!ok) {
+            editor.textContent = text;
+            editor.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
+          }
+          resolve(true);
+          return;
+        }
+        if (Date.now() - startTime < maxWaitMs) {
+          setTimeout(attempt, 80);
+        } else {
+          resolve(false);
+        }
+      };
+      attempt();
+    });
+  }
+
   function openCodexThread(thread) {
-    const row = document.querySelector(`[data-app-action-sidebar-thread-id="${CSS.escape(thread.id)}"]`);
     closePage();
-    if (row) row.click();
+    triggerSidebarThreadClick(thread);
   }
 
   function mountCollab(page) {
@@ -2010,6 +2069,12 @@
           align-items: center;
           gap: 4px;
         }
+        .selection-dock-divider {
+          width: 1px;
+          height: 14px;
+          background: var(--border-subtle);
+          margin: 0 3px;
+        }
         .sel-action-btn {
           display: inline-flex;
           align-items: center;
@@ -2133,7 +2198,7 @@
         .snapshot-detail-card {
           background: rgba(33, 33, 33, 0.96);
           color: var(--text-primary);
-          width: min(560px, calc(100vw - 32px));
+          width: min(600px, calc(100vw - 32px));
           max-height: 90vh;
           border-radius: 24px;
           border: 1px solid rgba(255, 255, 255, 0.12);
@@ -2356,15 +2421,19 @@
           align-items: center;
           justify-content: space-between;
           gap: 12px;
+          flex-wrap: nowrap;
         }
         .snapshot-detail-actions-left {
           display: flex;
           align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
         }
         .snapshot-detail-actions-right {
           display: flex;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
+          flex-shrink: 0;
         }
         .snapshot-detail-native-import-btn {
           display: inline-flex;
@@ -2373,11 +2442,13 @@
           background: #10a37f;
           color: #ffffff;
           border: none;
-          padding: 8px 18px;
+          padding: 7px 15px;
           border-radius: 9999px;
-          font-size: 13.5px;
+          font-size: 13px;
           font-weight: 600;
           cursor: pointer;
+          white-space: nowrap !important;
+          flex-shrink: 0;
           box-shadow: 0 2px 10px rgba(16, 163, 127, 0.35);
           transition: background 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
         }
@@ -2391,19 +2462,23 @@
         .snapshot-detail-native-copy-btn {
           display: inline-flex;
           align-items: center;
-          gap: 6px;
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.15);
-          color: var(--text-primary);
-          padding: 8px 18px;
+          gap: 5px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          color: var(--text-secondary);
+          padding: 6.5px 12px;
           border-radius: 9999px;
-          font-size: 13.5px;
+          font-size: 12.5px;
           font-weight: 500;
           cursor: pointer;
-          transition: background 0.12s ease, transform 0.08s ease;
+          white-space: nowrap !important;
+          flex-shrink: 0;
+          transition: all 0.12s ease;
         }
         .snapshot-detail-native-copy-btn:hover {
-          background: rgba(255, 255, 255, 0.18);
+          color: var(--text-primary);
+          background: rgba(255, 255, 255, 0.12);
+          border-color: rgba(255, 255, 255, 0.2);
         }
         .snapshot-detail-native-copy-btn:active {
           transform: scale(0.98);
@@ -2415,11 +2490,13 @@
           background: transparent;
           border: 1px solid rgba(255, 255, 255, 0.12);
           color: var(--text-secondary);
-          padding: 8px 16px;
+          padding: 6.5px 12px;
           border-radius: 9999px;
-          font-size: 13px;
+          font-size: 12.5px;
           font-weight: 500;
           cursor: pointer;
+          white-space: nowrap !important;
+          flex-shrink: 0;
           transition: all 0.12s ease;
         }
         .snapshot-detail-native-open-btn:hover {
@@ -2438,6 +2515,8 @@
           border-radius: 8px;
           font-size: 12.5px;
           cursor: pointer;
+          white-space: nowrap !important;
+          flex-shrink: 0;
           transition: all 0.12s ease;
         }
         .snapshot-detail-aux-btn:hover {
@@ -2457,16 +2536,18 @@
         .snapshot-detail-action-btn {
           display: inline-flex;
           align-items: center;
-          gap: 6px;
+          gap: 5px;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid var(--border-subtle);
           color: var(--text-primary);
-          padding: 7px 14px;
+          padding: 6.5px 12px;
           border-radius: 9999px;
-          font-size: 13px;
+          font-size: 12.5px;
           font-weight: 500;
           cursor: pointer;
           font-family: inherit;
+          white-space: nowrap !important;
+          flex-shrink: 0;
           transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
         }
         .snapshot-detail-action-btn:hover {
@@ -2797,17 +2878,10 @@
                 <button class="sel-action-btn" id="btn-select-all" type="button">全选</button>
                 <button class="sel-action-btn" id="btn-select-clear" type="button">清空</button>
                 <button class="sel-action-btn" id="btn-select-cancel" type="button">取消</button>
-                <button class="sel-action-btn secondary" id="btn-select-import-select" type="button" disabled title="从本地会话列表中选择要导入的目标">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  <span>选对话...</span>
-                </button>
-                <button class="sel-action-btn secondary" id="btn-select-import" type="button" disabled title="导入到本地当前打开的对话输入框">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  <span>导入当前对话</span>
-                </button>
-                <button class="sel-action-btn primary" id="btn-select-import-new" type="button" disabled title="新建独立空白本地对话并导入">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-                  <span>+ 新建并导入</span>
+                <span class="selection-dock-divider"></span>
+                <button class="sel-action-btn primary" id="btn-select-import-select" type="button" disabled title="选择本地对话注入选中的团队内容，或新建空白对话导入">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <span>选择对话导入...</span>
                 </button>
               </div>
             </div>
@@ -2996,23 +3070,23 @@
               </div>
               <div class="snapshot-detail-footer-actions">
                 <div class="snapshot-detail-actions-left">
-                  <button class="snapshot-detail-native-open-btn" id="snapshot-detail-native-open" type="button">
+                  <button class="snapshot-detail-native-open-btn" id="snapshot-detail-native-open" type="button" title="在系统浏览器中打开此官方分享">
                     <span>网页打开</span>
                     <svg aria-hidden="true" focusable="false" height="11" viewBox="0 0 16 16" width="11" fill="currentColor" style="opacity:0.75;margin-left:2px;">
                       <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
                       <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
                     </svg>
                   </button>
-                </div>
-                <div class="snapshot-detail-actions-right">
-                  <button class="snapshot-detail-native-copy-btn" id="snapshot-detail-native-copy" type="button">
-                    <svg aria-hidden="true" focusable="false" height="15" viewBox="0 0 16 16" width="15" fill="currentColor">
+                  <button class="snapshot-detail-native-copy-btn" id="snapshot-detail-native-copy" type="button" title="复制官方公开分享链接">
+                    <svg aria-hidden="true" focusable="false" height="14" viewBox="0 0 16 16" width="14" fill="currentColor">
                       <path d="M3.69541 6.25121C3.89761 6.04427 4.22909 6.03985 4.43662 6.24145C4.64426 6.44372 4.64953 6.77691 4.44736 6.98461L3.61338 7.84008L3.6085 7.84496C2.42952 9.02432 2.40771 10.9534 3.72666 12.2727C5.04612 13.5922 6.97593 13.5702 8.15537 12.3909L8.16025 12.386L9.01572 11.553C9.22335 11.3509 9.55562 11.3553 9.75791 11.5627C9.96017 11.7704 9.9566 12.1036 9.74912 12.3059L8.89365 13.1389C7.28179 14.7455 4.68893 14.7213 2.9835 13.0159C1.27845 11.3104 1.25498 8.71842 2.86143 7.10668L3.69541 6.25121Z"></path>
                       <path d="M9.629 5.62914C9.83403 5.42415 10.1662 5.42413 10.3712 5.62914C10.5761 5.83417 10.5761 6.16634 10.3712 6.37133L6.37119 10.3713C6.16621 10.5763 5.83404 10.5762 5.629 10.3713C5.42398 10.1663 5.42398 9.83417 5.629 9.62914L9.629 5.62914Z"></path>
                       <path d="M7.10654 2.86157C8.71829 1.25511 11.3103 1.27855 13.0157 2.98364C14.7212 4.68907 14.7453 7.28193 13.1388 8.89379L12.3058 9.74926C12.1034 9.95672 11.7702 9.96029 11.5626 9.75805C11.3552 9.55576 11.3507 9.22349 11.5528 9.01586L12.3858 8.16039L12.3907 8.15551C13.5701 6.97606 13.592 5.04626 12.2726 3.7268C10.9532 2.40781 9.02419 2.42965 7.84482 3.60864L7.83994 3.61352L6.98447 4.4475C6.77678 4.64965 6.44358 4.64438 6.24131 4.43676C6.03972 4.22923 6.04415 3.89775 6.25107 3.69555L7.10654 2.86157Z"></path>
                     </svg>
                     <span id="snapshot-detail-native-copy-text">复制链接</span>
                   </button>
+                </div>
+                <div class="snapshot-detail-actions-right">
                   <button class="snapshot-detail-action-btn secondary" id="snapshot-detail-import-select" type="button" title="从历史会话列表中选择要注入的目标对话">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     <span>选对话...</span>
@@ -3025,7 +3099,7 @@
                   </button>
                   <button class="primary snapshot-detail-native-import-btn" id="snapshot-detail-import-new" type="button" title="新建空白对话并注入团队上下文，不污染手头工作">
                     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-                    <span>+ 新建并导入</span>
+                    <span>新建并导入</span>
                   </button>
                 </div>
               </div>
@@ -4304,31 +4378,29 @@
     const importIntoNewThread = (content) => {
       createNewThreadAndLink();
       closePage();
-      window.setTimeout(() => {
-        insertIntoComposer(content);
-        showToast("✓ 已新建对话并导入团队上下文！");
-      }, 500);
+      safeInsertIntoComposer(content, 3500).then((ok) => {
+        if (ok) showNativeAppToast("✓ 已新建对话并导入团队上下文！");
+      });
     };
 
     // 导入到当前已打开的对话输入框
     const importIntoCurrentThread = (content) => {
       closePage();
-      window.setTimeout(() => {
-        insertIntoComposer(content);
-        showToast("✓ 已将团队上下文导入当前对话输入框！");
-      }, 350);
+      safeInsertIntoComposer(content, 2000).then((ok) => {
+        if (ok) showNativeAppToast("✓ 已将团队上下文导入当前对话输入框！");
+      });
     };
 
     // 切换到指定的已有会话并导入
     const importIntoSpecificThread = (thread, content) => {
-      if (thread.element) {
-        thread.element.click();
-      }
+      triggerSidebarThreadClick(thread);
       closePage();
-      window.setTimeout(() => {
-        insertIntoComposer(content);
-        showToast(`✓ 已将团队上下文导入对话《${thread.title.slice(0, 14)}...》！`);
-      }, 450);
+      safeInsertIntoComposer(content, 3500).then((ok) => {
+        if (ok) {
+          const title = thread.title ? thread.title.slice(0, 14) : "目标对话";
+          showNativeAppToast(`✓ 已将团队上下文导入对话《${title}...》！`);
+        }
+      });
     };
 
     // 通用选择对话弹窗交互逻辑 (Share 时挑对话、Import 时挑对话)
@@ -4517,9 +4589,7 @@
               if (thread.selected) {
                 shareCurrentThreadToTeam();
               } else {
-                if (thread.element) {
-                  thread.element.click();
-                }
+                triggerSidebarThreadClick(thread);
                 linkedThread = thread;
                 renderLink();
                 showToast(`正在切换至对话《${thread.title.slice(0, 12)}...》并生成分享...`);
@@ -5480,9 +5550,10 @@
           openExternalUrl(shareLink);
         });
 
-        // 点击卡片主体亦可直接唤起官方原生分享详情
+        // 点击卡片主体亦可直接唤起官方原生分享详情 (多选勾选时不弹出弹层)
         const cardContainer = stack.querySelector(".snapshot-card-container");
         cardContainer?.addEventListener("click", (e) => {
+          if (isMultiSelectMode) return;
           if (e.target.closest(".snapshot-open-link")) return;
           openSnapshotDetailModal(message);
         });
@@ -6594,6 +6665,11 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
           if (picker && !picker.hidden) {
             picker.hidden = true;
             picker.innerHTML = "";
+            return;
+          }
+          const threadSelectModal = shadow.getElementById("thread-select-modal");
+          if (threadSelectModal && !threadSelectModal.hidden) {
+            threadSelectModal.hidden = true;
             return;
           }
          const contextSelectModal = shadow.getElementById("context-select-modal");
