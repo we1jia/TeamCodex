@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v91";
+  const UI_VERSION = "inline-v92";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -2924,7 +2924,7 @@
               </svg>
             </button>
             <div style="display:flex;align-items:center;gap:8px;position:relative;">
-              <h1 style="margin:0;font-size:14.5px;font-weight:600;color:var(--text-primary);">TeamCodex</h1>
+              <h1 style="margin:0;font-size:14.5px;font-weight:600;color:var(--text-primary);">Team</h1>
               
               <!-- 核心状态胶囊 -->
               <button class="room-status-pill" id="room-status-pill" type="button" title="点击切换房间或管理服务连接">
@@ -7172,13 +7172,13 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       [...button.attributes].forEach((attr) => {
         if (attr.name.startsWith("data-") || attr.name === "href") button.removeAttribute(attr.name);
       });
-      button.setAttribute("aria-label", "TeamCodex");
+      button.setAttribute("aria-label", "Team");
       const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
       const texts = [];
       while (walker.nextNode()) texts.push(walker.currentNode);
       texts.forEach((node) => {
-        if (/新对话|New chat|Pull Request|插件|Plugins|定时任务|团队协作/.test(node.textContent || "")) {
-          node.textContent = "TeamCodex";
+        if (/新对话|New chat|Pull Request|插件|Plugins|定时任务|团队协作|TeamCodex/.test(node.textContent || "")) {
+          node.textContent = "Team";
         }
       });
       const svg = button.querySelector("svg");
@@ -7201,7 +7201,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     }
     installLeaveHandler();
     setTabActive(isPageActive());
-    return { installed: true, tab: "TeamCodex", ui: UI_VERSION, threads: listSidebarThreads().length };
+    return { installed: true, tab: "Team", ui: UI_VERSION, threads: listSidebarThreads().length };
   }
 
   function ensureWatchers() {
