@@ -459,7 +459,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v76";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v77";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -517,10 +517,19 @@ test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂�
   assert.match(uiCode, /id="thread-select-search"/, "必须支持搜索过滤本地对话");
   assert.match(uiCode, /id="thread-select-list"/, "必须具备对话动态列表容器");
 
-  // 19.6 自愈检测指纹已同步升级至 v76
+  // 19.6 自愈检测指纹已同步升级至 v77
   assert.match(uiCode, /existing\.dataset\.ui !== UI_VERSION/);
   assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("snapshot-detail-import-new"\)/);
   assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("thread-select-modal"\)/);
+
+  // 19.7 具备独占防重锁与防多次狂点冲刷机制
+  assert.match(uiCode, /let isImportingInProgress = false;/, "必须具备导入独占互斥锁");
+  assert.match(uiCode, /if \(isImportingInProgress\) return;/, "进行中导入操作必须防重拦截");
+
+  // 19.8 ProseMirror 编辑器注入具备合成剪贴板事件与生命周期侦听
+  assert.match(uiCode, /new ClipboardEvent\("paste"/, "必须具备基于 DataTransfer 和 paste 事件的 ProseMirror 黄金注入方案");
+  assert.match(uiCode, /expectedThreadId/, "跨会话切换注入必须等待目标会话挂载就绪");
+  assert.match(uiCode, /isNewThread/, "新建会话导入必须侦听卸载并等待新编辑器挂载");
 });
 
 test("20. 尊重侧栏默认展开状态、项目归属提取、扁平分组与说明文案 (inline-v74/v75)", () => {

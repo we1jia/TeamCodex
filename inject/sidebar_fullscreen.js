@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v76";
+  const UI_VERSION = "inline-v77";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -703,37 +703,88 @@
   function insertIntoComposer(text) {
     const editor = document.querySelector(".ProseMirror");
     if (!editor) return false;
-    editor.focus();
-    const ok = document.execCommand("insertText", false, text);
-    if (!ok) {
-      editor.textContent = text;
+    try {
+      editor.focus();
+      // 方案 1 (最高稳定性)：构造标准剪贴板粘贴事件，ProseMirror 原生捕获并生成文档事务，完整支持富文本与多行换行
+      if (typeof DataTransfer !== "undefined" && typeof ClipboardEvent !== "undefined") {
+        const dt = new DataTransfer();
+        dt.setData("text/plain", text);
+        const pasteEvt = new ClipboardEvent("paste", {
+          clipboardData: dt,
+          bubbles: true,
+          cancelable: true,
+        });
+        editor.dispatchEvent(pasteEvt);
+        return true;
+      }
+    } catch (_) {}
+
+    try {
+      editor.focus();
+      const ok = document.execCommand("insertText", false, text);
+      if (ok) return true;
+    } catch (_) {}
+
+    try {
       editor.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
-    }
+    } catch (_) {}
     return true;
   }
 
-  function safeInsertIntoComposer(text, maxWaitMs = 3000) {
+  function safeInsertIntoComposer(text, maxWaitMs = 4000, options = {}) {
+    const { expectedThreadId = null, isNewThread = false, previousThreadId = null } = typeof options === "object" && options ? options : { expectedThreadId: options };
     return new Promise((resolve) => {
       const startTime = Date.now();
+      let waitedForNewMount = false;
+
       const attempt = () => {
-        const editor = document.querySelector(".ProseMirror");
-        if (editor) {
-          editor.focus();
-          const ok = document.execCommand("insertText", false, text);
-          if (!ok) {
-            editor.textContent = text;
-            editor.dispatchEvent(new InputEvent("input", { bubbles: true, data: text, inputType: "insertText" }));
+        // 1. 若为跨会话切换，等待左侧栏目标会话真正被选中
+        if (expectedThreadId) {
+          const currentSelected = document.querySelector('[data-app-action-sidebar-thread-selected="true"]');
+          const currentId = currentSelected?.getAttribute("data-app-action-sidebar-thread-id");
+          if (currentId !== expectedThreadId && Date.now() - startTime < maxWaitMs) {
+            setTimeout(attempt, 60);
+            return;
           }
-          resolve(true);
+        }
+
+        // 2. 若为新建会话，等待旧会话卸载（当前不再是 previousThreadId）
+        if (isNewThread && previousThreadId) {
+          const currentSelected = document.querySelector('[data-app-action-sidebar-thread-selected="true"]');
+          const currentId = currentSelected?.getAttribute("data-app-action-sidebar-thread-id");
+          if (currentId === previousThreadId && Date.now() - startTime < 1200) {
+            setTimeout(attempt, 60);
+            return;
+          }
+        }
+
+        // 3. 路由切换后的缓冲：跨会话或新建会话时，额外等待 120ms 确保 React 卸载旧编辑器并挂载全新空白 ProseMirror
+        if ((expectedThreadId || isNewThread) && !waitedForNewMount) {
+          waitedForNewMount = true;
+          setTimeout(attempt, 120);
           return;
         }
+
+        const editor = document.querySelector(".ProseMirror");
+        if (editor) {
+          const ok = insertIntoComposer(text);
+          resolve(ok);
+          return;
+        }
+
         if (Date.now() - startTime < maxWaitMs) {
-          setTimeout(attempt, 80);
+          setTimeout(attempt, 60);
         } else {
           resolve(false);
         }
       };
-      attempt();
+
+      // 跨会话或新建会话时先给 React 100ms 响应路由跳转，防止第 0ms 误中旧会话输入框
+      if (expectedThreadId || isNewThread) {
+        setTimeout(attempt, 100);
+      } else {
+        attempt();
+      }
     });
   }
 
@@ -4374,32 +4425,55 @@
      updateMultiSelectUI();
    };
 
+    // 全局导入互斥锁与防重状态
+    let isImportingInProgress = false;
+
     // 独立新建会话并导入团队上下文
     const importIntoNewThread = (content) => {
+      const prevSelected = document.querySelector('[data-app-action-sidebar-thread-selected="true"]');
+      const prevId = prevSelected?.getAttribute("data-app-action-sidebar-thread-id");
       createNewThreadAndLink();
       closePage();
-      safeInsertIntoComposer(content, 3500).then((ok) => {
-        if (ok) showNativeAppToast("✓ 已新建对话并导入团队上下文！");
+      return safeInsertIntoComposer(content, 4500, { isNewThread: true, previousThreadId: prevId }).then((ok) => {
+        if (ok) {
+          showNativeAppToast("✓ 已新建对话并导入团队上下文！");
+        } else {
+          showNativeAppToast("⚠️ 新建会话导入超时，请检查输入框");
+        }
+        return ok;
       });
     };
 
     // 导入到当前已打开的对话输入框
     const importIntoCurrentThread = (content) => {
       closePage();
-      safeInsertIntoComposer(content, 2000).then((ok) => {
-        if (ok) showNativeAppToast("✓ 已将团队上下文导入当前对话输入框！");
+      return safeInsertIntoComposer(content, 2500).then((ok) => {
+        if (ok) {
+          showNativeAppToast("✓ 已将团队上下文导入当前对话输入框！");
+        } else {
+          showNativeAppToast("⚠️ 导入超时，请检查输入框");
+        }
+        return ok;
       });
     };
 
     // 切换到指定的已有会话并导入
     const importIntoSpecificThread = (thread, content) => {
+      const currentSelected = document.querySelector('[data-app-action-sidebar-thread-selected="true"]');
+      const currentId = currentSelected?.getAttribute("data-app-action-sidebar-thread-id");
+      if (thread?.id && thread.id === currentId) {
+        return importIntoCurrentThread(content);
+      }
       triggerSidebarThreadClick(thread);
       closePage();
-      safeInsertIntoComposer(content, 3500).then((ok) => {
+      return safeInsertIntoComposer(content, 4500, { expectedThreadId: thread?.id }).then((ok) => {
         if (ok) {
-          const title = thread.title ? thread.title.slice(0, 14) : "目标对话";
+          const title = thread?.title ? thread.title.slice(0, 14) : "目标对话";
           showNativeAppToast(`✓ 已将团队上下文导入对话《${title}...》！`);
+        } else {
+          showNativeAppToast("⚠️ 切换对话导入超时，请检查目标对话输入框");
         }
+        return ok;
       });
     };
 
@@ -4408,6 +4482,7 @@
 
     const closeThreadSelectModal = () => {
       if (threadSelectModal) threadSelectModal.hidden = true;
+      if (threadSelectList) threadSelectList.style.pointerEvents = "auto";
       currentThreadSelectConfig = null;
     };
 
@@ -4505,9 +4580,21 @@
           </div>
           <span class="thread-select-item-action" style="background:#10a37f;color:#fff;border-color:transparent;">立即新建</span>
         `;
-        newBtn.addEventListener("click", () => {
+        newBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (isImportingInProgress) return;
+          isImportingInProgress = true;
+          const contentToImport = (currentThreadSelectConfig?.content || "").trim();
+          newBtn.style.opacity = "0.7";
+          const act = newBtn.querySelector(".thread-select-item-action");
+          if (act) act.textContent = "正在新建...";
+          if (threadSelectList) threadSelectList.style.pointerEvents = "none";
           closeThreadSelectModal();
-          importIntoNewThread(currentThreadSelectConfig?.content || "");
+          importIntoNewThread(contentToImport).finally(() => {
+            isImportingInProgress = false;
+            if (threadSelectList) threadSelectList.style.pointerEvents = "auto";
+          });
         });
         threadSelectList.appendChild(newBtn);
       }
@@ -4582,10 +4669,11 @@
             </div>
             <span class="thread-select-item-action">${isShare ? "分享此对话" : "导入此处"}</span>
           `;
-          item.addEventListener("click", () => {
-            const cfg = currentThreadSelectConfig;
-            closeThreadSelectModal();
+          item.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             if (isShare) {
+              closeThreadSelectModal();
               if (thread.selected) {
                 shareCurrentThreadToTeam();
               } else {
@@ -4597,13 +4685,26 @@
                   shareCurrentThreadToTeam();
                 }, 450);
               }
-            } else {
-              if (thread.selected) {
-                importIntoCurrentThread(cfg?.content || "");
-              } else {
-                importIntoSpecificThread(thread, cfg?.content || "");
-              }
+              return;
             }
+
+            // 导入模式：加互斥锁，固化内容快照，防止多次点击导致数据被冲洗
+            if (isImportingInProgress) return;
+            isImportingInProgress = true;
+            const contentToImport = (currentThreadSelectConfig?.content || "").trim();
+            const actionBtn = item.querySelector(".thread-select-item-action");
+            if (actionBtn) actionBtn.textContent = "正在导入...";
+            if (threadSelectList) threadSelectList.style.pointerEvents = "none";
+            closeThreadSelectModal();
+
+            const importTask = thread.selected
+              ? importIntoCurrentThread(contentToImport)
+              : importIntoSpecificThread(thread, contentToImport);
+
+            importTask.finally(() => {
+              isImportingInProgress = false;
+              if (threadSelectList) threadSelectList.style.pointerEvents = "auto";
+            });
           });
           threadSelectList.appendChild(item);
         });
@@ -5994,25 +6095,31 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       if (event.target === snapshotDetailModal) closeSnapshotDetailModal();
     });
 
-    // 按钮 1：【+ 新建并导入】（自动新开独立空白会话注入上下文）
+    // 按钮 1：【新建并导入】（自动新开独立空白会话注入上下文）
     snapshotDetailImportNew?.addEventListener("click", () => {
-      if (!currentViewingSnapshotMessage) return;
+      if (!currentViewingSnapshotMessage || isImportingInProgress) return;
+      isImportingInProgress = true;
       const block = buildSnapshotImportBlock(currentViewingSnapshotMessage);
       closeSnapshotDetailModal();
-      importIntoNewThread(block);
+      importIntoNewThread(block).finally(() => {
+        isImportingInProgress = false;
+      });
     });
 
     // 按钮 2：【导入到当前对话】（填入当前打开的会话输入框）
     snapshotDetailNativeImport?.addEventListener("click", () => {
-      if (!currentViewingSnapshotMessage) return;
+      if (!currentViewingSnapshotMessage || isImportingInProgress) return;
+      isImportingInProgress = true;
       const block = buildSnapshotImportBlock(currentViewingSnapshotMessage);
       closeSnapshotDetailModal();
-      importIntoCurrentThread(block);
+      importIntoCurrentThread(block).finally(() => {
+        isImportingInProgress = false;
+      });
     });
 
     // 按钮 3：【选对话...】（从历史会话列表中选择目标对话注入）
     snapshotDetailImportSelect?.addEventListener("click", () => {
-      if (!currentViewingSnapshotMessage) return;
+      if (!currentViewingSnapshotMessage || isImportingInProgress) return;
       const block = buildSnapshotImportBlock(currentViewingSnapshotMessage);
       closeSnapshotDetailModal();
       openThreadSelectModal({ mode: "import", content: block });
