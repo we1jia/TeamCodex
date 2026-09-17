@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v66";
+  const UI_VERSION = "inline-v67";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -5978,6 +5978,20 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       wrapper.remove();
       wrapper = null;
     }
+    const open = (event) => {
+      if (event && event.button !== undefined && event.button !== 0) return;
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
+      event?.stopImmediatePropagation?.();
+      const existing = document.getElementById(PAGE_ID);
+      if (existing) {
+        // 当全屏页已挂载并在 DOM 中时，禁止调用 returnToConversation()，改为保持页面并聚焦
+        positionPage(existing);
+        setTabActive(true);
+      }
+      window.__teamContextOpenPage?.();
+    };
+
     if (!wrapper || wrapper.parentElement !== parent) {
       wrapper?.remove();
       wrapper = document.createElement("div");
@@ -6008,33 +6022,16 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         svg.setAttribute("stroke", "currentColor");
         svg.innerHTML = TEAM_ICON_PATHS;
       }
-      const open = (event) => {
-        if (event.button !== undefined && event.button !== 0) return;
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        const existing = document.getElementById(PAGE_ID);
-        if (existing) {
-          // 当全屏页已挂载并在 DOM 中时，禁止调用 returnToConversation()，改为保持页面并聚焦
-          positionPage(existing);
-          setTabActive(true);
-          existing.style.display = "block";
-          existing.style.visibility = "visible";
-          hideNativeAppShellHeader();
-        } else {
-          window.__teamContextOpenPage?.();
-        }
-      };
-      button.addEventListener("pointerdown", (event) => {
-        event.stopPropagation();
-      }, true);
-      button.addEventListener("mousedown", (event) => {
-        event.stopPropagation();
-      }, true);
+      button.onclick = open;
       button.addEventListener("click", open, true);
       wrapper.appendChild(button);
       if (insertionButton?.nextSibling) parent.insertBefore(wrapper, insertionButton.nextSibling);
       else parent.appendChild(wrapper);
+    } else {
+      const currentBtn = wrapper.querySelector("button");
+      if (currentBtn) {
+        currentBtn.onclick = open;
+      }
     }
     installLeaveHandler();
     setTabActive(isPageActive());

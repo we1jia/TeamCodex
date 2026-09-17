@@ -200,9 +200,9 @@ with zipfile.ZipFile("${zipPath}", "r") as z:
   assert.match(output, /ALL_ZIP_CHECKS_PASSED/);
 });
 
-test("8. UI_VERSION inline-v66、内嵌标签删除图标、分享闭环、房间名防呆与黄金层级", () => {
+test("8. UI_VERSION inline-v67、内嵌标签删除图标、分享闭环、房间名防呆与黄金层级", () => {
   const code = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
-  assert.match(code, /const UI_VERSION = "inline-v66";/, "UI_VERSION 必须升级至 inline-v66");
+  assert.match(code, /const UI_VERSION = "inline-v67";/, "UI_VERSION 必须升级至 inline-v67");
   assert.match(code, /return 38;/, "Windows 平台下必须硬性保底 38px 避让原生菜单栏");
   assert.match(code, /zIndex:\s*"35"/, "全屏容器 zIndex 必须设为 35，既压制原生拖拽header(30)，又绝不压制原生下拉菜单(50)");
   assert.match(code, /-webkit-app-region:\s*no-drag\s*!important/, ".top 必须声明 no-drag 杜绝 Windows 拖拽拦截");
