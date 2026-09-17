@@ -866,6 +866,14 @@ test("32. 托盘控制面、Hub 热更新注入与安装包更新检查", () => 
   assert.match(runPs, /launcher_host\.mjs/);
   assert.match(swift, /NSStatusItem/);
   assert.match(swift, /127\.0\.0\.1:18767\/panel\.html/);
+
+  // 32.2 Windows 托盘左键原生弹窗与右键原版菜单闭环
+  const trayPs = fs.readFileSync(path.join(ROOT, "windows/tray-teamcodex.ps1"), "utf8");
+  assert.match(trayPs, /Toggle-PanelPopup/, "托盘必须支持左键点击唤起专属控制面板弹窗");
+  assert.match(trayPs, /\$popup\.FormBorderStyle\s*=\s*\[System\.Windows\.Forms\.FormBorderStyle\]::None/);
+  assert.match(trayPs, /\$notify\.ContextMenuStrip\s*=\s*\$menu/, "右键保持上下文菜单");
+  assert.match(trayPs, /\$exitItem = \$menu\.Items\.Add\("退出"\)/, "右键菜单必须具备原版退出");
+  assert.doesNotMatch(trayPs, /打开控制面板 \(Mini Dashboard\)/, "右键菜单不得包含多余的重复打开控制面板项");
 });
 
 test("33. 侧栏 Tab 按钮与全屏顶部 Brand 全量升级为简称 Team (inline-v92+)", () => {
