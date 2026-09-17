@@ -62,17 +62,18 @@ TeamCodex 由侧栏注入层、局域网协同中枢与多端适配脚本三层�
 
 ### 4. 快速开始与下载
 
-#### 方式 A：预编译免配置包（推荐普通用户）
+#### 方式 A：原生应用安装包（推荐普通用户，开箱即用）
 
-直接前往 [GitHub Releases](https://github.com/we1jia/TeamCodex/releases) 获取各平台最新安装包：
+前往 [GitHub Releases](https://github.com/we1jia/TeamCodex/releases) 获取各平台最新原生应用安装包：
 
 - **macOS 用户**：
-  1. 下载 `TeamCodex-macOS.zip` 并解压；
-  2. 双击解压目录下的 `TeamCodex.app` 或 `启动TeamCodex.command` 即可直接拉起并附着。
+  1. 下载原生安装镜像 **`TeamCodex-macOS.dmg`**；
+  2. 双击打开镜像，将 `TeamCodex.app` 拖入 `Applications` 目录即可在启动台或聚焦搜索中直接使用；
+  3. （亦提供免安装绿色包 `TeamCodex-macOS.zip`）。
 - **Windows 用户**（原生系统 / Parallels 虚拟机 / ARM64 / AMD64）：
-  1. 下载 `TeamCodex-Windows-arm64-amd64.zip` 并解压；
-  2. 双击运行 `一键安装到桌面.cmd`，自动适配架构、准备运行时并在桌面生成无黑框快捷方式；
-  3. 日常使用双击桌面 `TeamCodex` 图标即可。
+  1. 下载原生安装程序 **`TeamCodex-Setup.exe`**；
+  2. 双击运行安装向导，一键完成安装并在桌面与开始菜单生成带图标的启动入口；
+  3. （亦提供免安装绿色包 `TeamCodex-Windows-arm64-amd64.zip`，解压后双击 `一键安装到桌面.cmd`）。
 
 #### 方式 B：源码运行（面向开发者）
 
@@ -213,17 +214,18 @@ TeamCodex comprises three functional layers: the client injection layer, the loc
 
 ### 4. Quick Start & Downloads
 
-#### Option A: Pre-built Release Packages (Recommended)
+#### Option A: Native Application Installers (Recommended, Ready to Use)
 
-Download the latest standalone archive directly from [GitHub Releases](https://github.com/we1jia/TeamCodex/releases):
+Download pre-built installers directly from [GitHub Releases](https://github.com/we1jia/TeamCodex/releases):
 
 - **macOS Users**:
-  1. Download and extract `TeamCodex-macOS.zip`;
-  2. Double-click `TeamCodex.app` or `启动TeamCodex.command` to launch and attach immediately.
+  1. Download the native disk image **`TeamCodex-macOS.dmg`**;
+  2. Open the image and drag `TeamCodex.app` into `/Applications` to access it via Launchpad or Spotlight;
+  3. (Portable `TeamCodex-macOS.zip` is also available).
 - **Windows Users** (Native / Parallels VM / ARM64 / AMD64):
-  1. Download and extract `TeamCodex-Windows-arm64-amd64.zip`;
-  2. Run `一键安装到桌面.cmd` to automatically configure portable runtime dependencies and create a silent desktop shortcut;
-  3. Launch via the desktop `TeamCodex` icon.
+  1. Download the standalone executable installer **`TeamCodex-Setup.exe`**;
+  2. Run the installer wizard to set up the app and create desktop shortcuts automatically;
+  3. (Portable `TeamCodex-Windows-arm64-amd64.zip` is also available).
 
 #### Option B: Run from Source (Developers)
 

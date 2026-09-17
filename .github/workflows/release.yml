@@ -15,8 +15,8 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
-    runs-on: ubuntu-latest
+  build-macos:
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,10 +31,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Package macOS distribution bundle
-        run: python3 macos/build_mac_zip.py
-
-      - name: Package Windows distribution bundle
+      - name: Package Windows ZIP for regression tests
         run: python3 windows/build_zip.py
 
       - name: Run automated tests
@@ -42,9 +39,74 @@ jobs:
           node --test tests/test_boost_fixes.mjs
           node --test tests/test_rooms_and_auth.mjs
 
+      - name: Build macOS Portable Bundle (ZIP)
+        run: python3 macos/build_mac_zip.py
+
+      - name: Build macOS Native Installer (DMG)
+        run: python3 macos/build_dmg.py
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            TeamCodex-macOS.dmg
+            TeamCodex-macOS.zip
+
+  build-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install NSIS compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nsis
+
+      - name: Build Windows Portable Bundle (ZIP)
+        run: python3 windows/build_zip.py
+
+      - name: Build Windows Executable Installer (Setup.exe)
+        run: |
+          cd windows
+          makensis installer.nsi
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            TeamCodex-Setup.exe
+            TeamCodex-Windows-arm64-amd64.zip
+
+  publish-release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download macOS Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-artifacts
+          path: .
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-artifacts
+          path: .
+
       - name: Generate SHA256 checksums
         run: |
-          sha256sum TeamCodex-macOS.zip TeamCodex-Windows-arm64-amd64.zip > SHA256SUMS.txt
+          sha256sum TeamCodex-macOS.dmg TeamCodex-Setup.exe TeamCodex-macOS.zip TeamCodex-Windows-arm64-amd64.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Determine Release Tag
@@ -66,6 +128,8 @@ jobs:
           prerelease: false
           generate_release_notes: true
           files: |
+            TeamCodex-macOS.dmg
+            TeamCodex-Setup.exe
             TeamCodex-macOS.zip
             TeamCodex-Windows-arm64-amd64.zip
             SHA256SUMS.txt

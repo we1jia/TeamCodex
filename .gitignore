@@ -26,3 +26,6 @@ yarn-error.log*
 # Packages & Archives
 *.tmp
 TeamCodex-macOS.zip
+TeamCodex-macOS.dmg
+TeamCodex-Setup.exe
+dist_macos/

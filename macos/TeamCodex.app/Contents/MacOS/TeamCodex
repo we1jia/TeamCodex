@@ -1,7 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-if [[ -f "$here/../../../macos/launch.sh" ]]; then
+if [[ -f "$here/../Resources/app/macos/launch.sh" ]]; then
+  exec /bin/bash "$here/../Resources/app/macos/launch.sh"
+elif [[ -f "$here/../../../macos/launch.sh" ]]; then
   exec /bin/bash "$here/../../../macos/launch.sh"
 elif [[ -f "$here/../../launch.sh" ]]; then
   exec /bin/bash "$here/../../launch.sh"
