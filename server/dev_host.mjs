@@ -257,6 +257,84 @@ const store = loadStore();
 saveStore(store);
 
 const clients = new Set();
+const presence = new Map();
+const PRESENCE_TTL_MS = 8000;
+
+function extractMemberInfo(req, url, body = {}) {
+  return {
+    memberId: String(url?.searchParams.get("member_id") || body.member_id || body.actor_id || req?.headers?.["x-member-id"] || "").trim(),
+    memberName: String(url?.searchParams.get("member_name") || body.member_name || body.actor_name || req?.headers?.["x-member-name"] || "").trim(),
+    clientId: String(url?.searchParams.get("client_id") || body.client_id || req?.headers?.["x-client-id"] || "").trim(),
+  };
+}
+
+function upsertRoomMember(room, memberId, memberName) {
+  if (!room || !memberId || memberId === "anonymous") return false;
+  room.members = room.members || [];
+  const existing = room.members.find((m) => m.id === memberId);
+  const name = memberName || memberId;
+  if (!existing) {
+    const isMac = memberId.endsWith("_mac") || name.includes("(Mac)");
+    const isWin = memberId.endsWith("_win") || name.includes("(Win)");
+    room.members.push({
+      id: memberId,
+      name,
+      role: "collaborator",
+      title: isMac ? "Mac 协同节点" : (isWin ? "Windows 协同节点" : "协同成员"),
+      avatar: isMac ? "🍎" : (isWin ? "🪟" : "👤"),
+    });
+    return true;
+  }
+  if (memberName && existing.name !== name) {
+    existing.name = name;
+    return true;
+  }
+  return false;
+}
+
+function prunePresence(now = Date.now()) {
+  for (const [key, item] of presence) {
+    if (!item || now - item.seenAt > PRESENCE_TTL_MS) presence.delete(key);
+  }
+}
+
+function touchPresence({ roomId, memberId, memberName, clientId }) {
+  const id = String(memberId || "").trim();
+  if (!roomId || !id || id === "anonymous") return false;
+  prunePresence();
+  const beforeCount = getRoomOnlineCount(roomId);
+  const beforeMembers = getRoomActiveMembers(roomId).slice().sort().join(",");
+  const key = `${roomId}::${clientId || id}`;
+  presence.set(key, {
+    roomId,
+    memberId: id,
+    memberName: String(memberName || id).trim(),
+    clientId: String(clientId || id),
+    seenAt: Date.now(),
+  });
+  const afterCount = getRoomOnlineCount(roomId);
+  const afterMembers = getRoomActiveMembers(roomId).slice().sort().join(",");
+  if (beforeCount !== afterCount || beforeMembers !== afterMembers) {
+    broadcastStatusToRoom(roomId);
+  }
+  return true;
+}
+
+function getRoomPresence(roomId) {
+  prunePresence();
+  return [...presence.values()].filter((item) => item.roomId === roomId);
+}
+
+function getRoomActiveMembers(roomId) {
+  const ids = new Set();
+  for (const c of clients) {
+    if (c.roomId === roomId && c.memberId) ids.add(c.memberId);
+  }
+  for (const item of getRoomPresence(roomId)) {
+    if (item.memberId) ids.add(item.memberId);
+  }
+  return Array.from(ids);
+}
 
 function getRoom(roomId = "Media", autoCreate = false, initialKey = "") {
   const cleanId = String(roomId || "Media").trim() || "Media";
@@ -288,19 +366,17 @@ function getRoom(roomId = "Media", autoCreate = false, initialKey = "") {
 }
 
 function getRoomOnlineCount(roomId) {
-  const roomClients = [...clients].filter((c) => c.roomId === roomId);
-  const activeClients = new Set();
+  const people = new Set();
   let fallbackCount = 0;
-  for (const c of roomClients) {
-    const idKey = c.clientId || c.id || (c.socket ? `${c.socket.remoteAddress}:${c.socket.remotePort}` : null);
-    if (idKey) {
-      activeClients.add(idKey);
-    } else {
-      fallbackCount++;
-    }
+  for (const c of [...clients].filter((item) => item.roomId === roomId)) {
+    const personKey = c.memberId || c.clientId || c.id || (c.socket ? `${c.socket.remoteAddress}:${c.socket.remotePort}` : null);
+    if (personKey) people.add(String(personKey));
+    else fallbackCount++;
   }
-  const total = activeClients.size + fallbackCount;
-  return Math.max(1, total);
+  for (const item of getRoomPresence(roomId)) {
+    people.add(String(item.memberId || item.clientId));
+  }
+  return Math.max(1, people.size + fallbackCount);
 }
 
 function extractRoomId(req, url, body = null) {
@@ -346,11 +422,21 @@ function verifyRoomAuth(room, req, url, body = null) {
   };
 }
 
+function sanitizeLinkedThread(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const id = raw.id != null ? String(raw.id).slice(0, 256) : "";
+  const title = raw.title != null ? String(raw.title).slice(0, 512) : "";
+  if (!id && !title) return null;
+  return {
+    id: id || `thread_${Date.now()}`,
+    title: title || "当前对话",
+  };
+}
+
 function snapshot(room) {
   const activeRules = (room.rules || []).filter((r) => r.status !== "archived");
   const acceptedAdrs = (room.adrs || []).filter((a) => a.status === "accepted");
-  const roomClients = [...clients].filter((c) => c.roomId === room.id);
-  const activeMembers = Array.from(new Set(roomClients.map((c) => c.memberId).filter(Boolean)));
+  const activeMembers = getRoomActiveMembers(room.id);
   return {
     version: 3,
     room: {
@@ -519,12 +605,10 @@ function broadcastSnapshotToRoom(roomId) {
 function broadcastStatusToRoom(roomId) {
   const room = getRoom(roomId, false);
   if (!room) return;
-  const roomClients = [...clients].filter((c) => c.roomId === roomId);
-  const activeMembers = Array.from(new Set(roomClients.map((c) => c.memberId).filter(Boolean)));
   const status = {
     room: { id: room.id, name: room.name, has_key: Boolean(room.key) },
     online_count: getRoomOnlineCount(roomId),
-    active_members: activeMembers,
+    active_members: getRoomActiveMembers(roomId),
   };
   broadcastToRoom(roomId, "room_status", status);
 }
@@ -702,14 +786,18 @@ const server = http.createServer(async (req, res) => {
     const autoCreate = body.auto_create !== false;
 
     let room = getRoom(roomId, false);
+    const member = extractMemberInfo(req, url, body);
     if (!room) {
       if (autoCreate) {
         room = getRoom(roomId, true, roomKey);
+        if (upsertRoomMember(room, member.memberId, member.memberName)) saveStore(store);
+        touchPresence({ roomId: room.id, ...member });
         return sendJson(res, 200, {
           ok: true,
           created: true,
           room: { id: room.id, name: room.name, has_key: Boolean(room.key) },
           online_count: getRoomOnlineCount(room.id),
+          active_members: getRoomActiveMembers(room.id),
         });
       } else {
         return sendJson(res, 404, { ok: false, error: "room_not_found", message: "房间不存在" });
@@ -721,10 +809,13 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, auth.status, { ok: false, error: auth.error, message: auth.message });
     }
 
+    if (upsertRoomMember(room, member.memberId, member.memberName)) saveStore(store);
+    touchPresence({ roomId: room.id, ...member });
     sendJson(res, 200, {
       ok: true,
       room: { id: room.id, name: room.name, has_key: Boolean(room.key) },
       online_count: getRoomOnlineCount(room.id),
+      active_members: getRoomActiveMembers(room.id),
     });
     return;
   }
@@ -794,6 +885,11 @@ const server = http.createServer(async (req, res) => {
     const auth = verifyRoomAuth(room, req, url);
     if (!auth.ok) {
       return sendJson(res, auth.status, { ok: false, error: auth.error, message: auth.message });
+    }
+    const member = extractMemberInfo(req, url);
+    if (member.memberId) {
+      if (upsertRoomMember(room, member.memberId, member.memberName)) saveStore(store);
+      touchPresence({ roomId: room.id, ...member });
     }
     sendJson(res, 200, url.searchParams.get("compact") === "1" ? compactSnapshot(room) : snapshot(room));
     return;
@@ -1288,7 +1384,7 @@ const server = http.createServer(async (req, res) => {
       actor_id: actorId,
       actor_name: actorName,
       content,
-      linked_thread: body.linked_thread || room.linked_thread || null,
+      linked_thread: sanitizeLinkedThread(body.linked_thread) || sanitizeLinkedThread(room.linked_thread) || null,
       mentions: Array.isArray(body.mentions) ? body.mentions : [],
       metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : null,
       created_at: nowIso(),
@@ -1302,6 +1398,7 @@ const server = http.createServer(async (req, res) => {
       broadcastSnapshotToRoom(room.id);
     }
     broadcastToRoom(room.id, "message", message);
+    broadcastToRoom(room.id, "chat", message);
     sendJson(res, 201, message);
     return;
   }

@@ -327,5 +327,18 @@ $env:TEAM_CONTEXT_CDP_URL = "http://127.0.0.1:$CdpPort"
 $env:TEAM_CONTEXT_DEFAULT_ROOM = "1024"
 $env:TEAM_CONTEXT_DEFAULT_ROOM_KEY = $discoveredRoomKey
 
+$LauncherPath = Join-Path $InstallRoot "server\launcher_host.mjs"
+Log-Message "正在启动本地控制面..."
+Start-Process -FilePath $nodePath -ArgumentList @($LauncherPath) -WorkingDirectory $InstallRoot -WindowStyle Hidden
+
 Log-Message "开始连接 Codex CDP 进行 TeamCodex 注入..."
-& $nodePath $AttachPath
+Start-Process -FilePath $nodePath -ArgumentList @($AttachPath) -WorkingDirectory $InstallRoot -WindowStyle Hidden
+
+$trayScript = Join-Path $WindowsRoot "tray-teamcodex.ps1"
+if (Test-Path -LiteralPath $trayScript) {
+  Log-Message "托盘控制板已启动"
+  & $trayScript
+} else {
+  Log-Message "未找到托盘脚本，前台等待注入进程。"
+  & $nodePath $AttachPath
+}

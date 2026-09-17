@@ -8,7 +8,7 @@ if not exist "%PS_SCRIPT%" (
     set "PS_SCRIPT=%~dp0windows\run-teamcodex.ps1"
   )
 )
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%"
+powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -File "%PS_SCRIPT%"
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
 if %EXIT_CODE% neq 0 (

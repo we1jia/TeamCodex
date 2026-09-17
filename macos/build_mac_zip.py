@@ -22,6 +22,10 @@ FILES_AND_DIRS = [
     ("inject/attach_codex.mjs", "TeamCodex-macOS/inject/attach_codex.mjs", 0o644),
     ("inject/safety.mjs", "TeamCodex-macOS/inject/safety.mjs", 0o644),
     ("ui/index.html", "TeamCodex-macOS/ui/index.html", 0o644),
+    ("ui/panel.html", "TeamCodex-macOS/ui/panel.html", 0o644),
+    ("server/launcher_host.mjs", "TeamCodex-macOS/server/launcher_host.mjs", 0o644),
+    ("macos/TeamCodex.swift", "TeamCodex-macOS/macos/TeamCodex.swift", 0o644),
+    ("version.json", "TeamCodex-macOS/version.json", 0o644),
     ("data/hub_discovery.json", "TeamCodex-macOS/data/hub_discovery.json", 0o644),
 ]
 

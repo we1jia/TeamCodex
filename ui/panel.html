@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TeamCodex</title>
+  <style>
+    :root {
+      --bg: #1c1c1e;
+      --card: rgba(44, 44, 46, 0.72);
+      --line: rgba(255, 255, 255, 0.08);
+      --text: #f5f5f7;
+      --muted: #8e8e93;
+      --ok: #30d158;
+      --warn: #ffd60a;
+      --bad: #ff453a;
+      --accent: #0a84ff;
+      --fill: rgba(255, 255, 255, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: transparent;
+      color: var(--text);
+      font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    }
+    body { min-width: 320px; }
+    .sheet {
+      margin: 8px;
+      padding: 14px 14px 12px;
+      border-radius: 14px;
+      background: var(--bg);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .brand { font-weight: 620; letter-spacing: -0.02em; }
+    .ver {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+    }
+    .rows {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 52px 12px 1fr;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 12px;
+      min-height: 40px;
+    }
+    .row + .row { border-top: 1px solid var(--line); }
+    .k { color: var(--muted); font-size: 12px; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 99px;
+      background: var(--bad);
+    }
+    .dot.ok { background: var(--ok); }
+    .dot.wait { background: var(--warn); }
+    .v { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    button, .field button {
+      appearance: none;
+      border: 0;
+      border-radius: 10px;
+      min-height: 34px;
+      padding: 0 12px;
+      color: var(--text);
+      background: var(--fill);
+      font: inherit;
+      cursor: pointer;
+    }
+    button.primary { background: var(--accent); color: white; font-weight: 600; }
+    button:disabled { opacity: 0.55; cursor: default; }
+    .field {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 6px;
+    }
+    input {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #111;
+      color: var(--text);
+      padding: 0 10px;
+      font: inherit;
+    }
+    .update {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(10, 132, 255, 0.14);
+      color: #7ec2ff;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .update.show { display: flex; }
+    .msg { min-height: 16px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <header>
+      <div class="brand">TeamCodex</div>
+      <div class="ver" id="ver"></div>
+    </header>
+    <div class="rows">
+      <div class="row"><span class="k">Codex</span><span class="dot" id="codexDot"></span><span class="v" id="codexText">检测中</span></div>
+      <div class="row"><span class="k">中枢</span><span class="dot" id="hubDot"></span><span class="v" id="hubText">检测中</span></div>
+      <div class="row"><span class="k">房间</span><span class="dot ok"></span><span class="v" id="roomText">—</span></div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="startBtn" type="button">启动并挂载 Codex</button>
+      <button id="tokenBtn" type="button">复制协同口令</button>
+      <div class="field">
+        <input id="hubInput" spellcheck="false" placeholder="http://192.168.1.8:18765" />
+        <button id="hubBtn" type="button">保存</button>
+      </div>
+      <button id="restartBtn" type="button">重启注入</button>
+    </div>
+    <div class="update" id="updateBar">
+      <span id="updateText">发现新版本</span>
+      <button class="primary" id="updateBtn" type="button">立即更新</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+  <script>
+    const api = (path, opt) => fetch(path, opt).then((r) => r.json());
+    const $ = (id) => document.getElementById(id);
+    function setDot(id, ok) {
+      $(id).className = "dot " + (ok ? "ok" : "bad");
+    }
+    function say(text) { $("msg").textContent = text || ""; }
+
+    async function refresh() {
+      try {
+        const s = await api("/api/status");
+        $("ver").textContent = "v" + (s.app_version || "");
+        setDot("codexDot", s.codex?.injected || s.codex?.running);
+        $("codexText").textContent = s.codex?.injected ? "已挂载" : s.codex?.running ? "已打开，等待挂载" : "未连接";
+        $("codexDot").className = "dot " + (s.codex?.injected ? "ok" : s.codex?.running ? "wait" : "bad");
+        $("hubDot").className = "dot " + (s.hub?.ok ? "ok" : "bad");
+        $("hubText").textContent = s.hub?.ok ? (s.hub.lanUrl || s.hub.url) : "未连接";
+        $("roomText").textContent = s.room?.id || "—";
+        if (!$("hubInput").matches(":focus")) $("hubInput").value = s.hub?.url || "";
+        const up = s.update;
+        if (up?.has_update) {
+          $("updateBar").classList.add("show");
+          $("updateText").textContent = "发现 " + up.latest;
+        } else {
+          $("updateBar").classList.remove("show");
+        }
+      } catch (err) {
+        say("控制面未就绪");
+      }
+    }
+
+    $("startBtn").onclick = async () => {
+      $("startBtn").disabled = true;
+      try {
+        await api("/api/start-codex", { method: "POST" });
+        say("正在启动并挂载");
+      } catch { say("启动失败"); }
+      $("startBtn").disabled = false;
+      refresh();
+    };
+    $("restartBtn").onclick = async () => {
+      await api("/api/restart-inject", { method: "POST" });
+      say("已重启注入");
+      refresh();
+    };
+    $("tokenBtn").onclick = async () => {
+      const data = await api("/api/token");
+      try {
+        await navigator.clipboard.writeText(data.token);
+        say("口令已复制");
+      } catch {
+        say(data.token);
+      }
+    };
+    $("hubBtn").onclick = async () => {
+      const hub_url = $("hubInput").value.trim();
+      const data = await api("/api/hub", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hub_url }),
+      });
+      say(data.ok ? "中枢已切换" : (data.message || "切换失败"));
+      refresh();
+    };
+    $("updateBtn").onclick = async () => {
+      $("updateBtn").disabled = true;
+      say("正在下载更新");
+      const data = await api("/api/update/download", { method: "POST" });
+      say(data.ok ? (data.dest ? "已打开安装包" : "已是最新") : (data.error || "请打开 GitHub Releases"));
+      if (!data.ok && data.url) location.href = data.url;
+      $("updateBtn").disabled = false;
+    };
+    refresh();
+    setInterval(refresh, 2500);
+  </script>
+</body>
+</html>

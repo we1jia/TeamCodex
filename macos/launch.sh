@@ -82,6 +82,11 @@ unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy NO_PROXY
   notify "正在把「TeamCodex」加到 Codex 左栏，不改 Cockpit 代理。"
 } >>"$log_file" 2>&1
 
+LAUNCHER_PORT="${TEAM_CODEX_LAUNCHER_PORT:-18767}"
+if ! curl --noproxy '*' -fsS --max-time 1 "http://127.0.0.1:${LAUNCHER_PORT}/api/status" >/dev/null 2>&1; then
+  nohup "$node_bin" "$root/server/launcher_host.mjs" >>"$log_file" 2>&1 &
+fi
+
 # 清理已有的旧 attach_codex 实例，确保单实例独占 CDP 连接
 pgrep -f "inject/attach_codex.mjs" | grep -v "$$" | xargs kill 2>/dev/null || true
 
@@ -90,4 +95,3 @@ export TEAM_CONTEXT_DEFAULT_ROOM_KEY="${TEAM_CONTEXT_DEFAULT_ROOM_KEY:-123456}"
 
 nohup "$node_bin" "$root/inject/attach_codex.mjs" >>"$log_file" 2>&1 &
 echo "$(date '+%Y-%m-%d %H:%M:%S') attach_codex started in background" >>"$log_file"
-exit 0

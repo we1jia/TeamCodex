@@ -46,6 +46,50 @@ function getJson(url) {
   });
 }
 
+function getText(url) {
+  return new Promise((resolve, reject) => {
+    const fullUrl = new URL(url);
+    const transport = fullUrl.protocol === "https:" ? https : http;
+    const req = transport.get(fullUrl, { timeout: 2500 }, (res) => {
+      let body = "";
+      res.on("data", (chunk) => {
+        body += chunk;
+      });
+      res.on("end", () => {
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`http ${res.statusCode}`));
+          return;
+        }
+        resolve(body);
+      });
+    });
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy(new Error("timeout"));
+    });
+  });
+}
+
+let cachedRemoteScript = "";
+let cachedRemoteAt = 0;
+const REMOTE_SCRIPT_TTL_MS = 20000;
+
+async function resolveInjectScript() {
+  const now = Date.now();
+  if (cachedRemoteScript && now - cachedRemoteAt < REMOTE_SCRIPT_TTL_MS) {
+    return cachedRemoteScript;
+  }
+  try {
+    const remote = await getText(`${HOST_URL.replace(/\/$/, "")}/inject/sidebar_fullscreen.js`);
+    if (remote && remote.includes("team-context-sidebar-tab") && remote.includes("connectHub")) {
+      cachedRemoteScript = remote;
+      cachedRemoteAt = now;
+      return remote;
+    }
+  } catch {}
+  return fs.readFileSync(INJECT_FILE, "utf8");
+}
+
 function postJson(url, payload) {
   const data = JSON.stringify(payload);
   return new Promise((resolve, reject) => {
@@ -154,8 +198,7 @@ function discoverCdpPort() {
   return null;
 }
 
-function injectSource() {
-  const script = fs.readFileSync(INJECT_FILE, "utf8");
+function injectSource(script) {
   const defaultRoom = process.env.TEAM_CONTEXT_DEFAULT_ROOM || "1024";
   const defaultRoomKey = process.env.TEAM_CONTEXT_DEFAULT_ROOM_KEY || "123456";
   return `document.querySelectorAll('#team-context-fullscreen-page iframe, iframe[src*="127.0.0.1:18765"]').forEach((node) => node.remove());
@@ -431,8 +474,26 @@ async function injectTarget(target, source, sessions) {
           room_key: currentKey,
         });
       }
-      // 彻底移除每 1.5 秒从本地静态 HOST_URL 拉取快照并强行 evaluate window.__teamContextApply(snap) 的死循环覆盖逻辑，
-      // 快照与在线状态由前端根据自身连接的 Hub 主动拉取与 SSE 实时同步维护
+      const cfg = state.config || {};
+      const lastSeq = Number(cfg.lastSeq || 0);
+      const memberQs = `${currentKey ? `&room_key=${encodeURIComponent(currentKey)}` : ""}&member_id=${encodeURIComponent(cfg.memberId || "")}&member_name=${encodeURIComponent(cfg.nickname || "")}&client_id=${encodeURIComponent(cfg.clientId || "")}`;
+      const snap = await getJson(`${targetHost}/api/snapshot?room=${encodeURIComponent(currentRoom)}${memberQs}`);
+      const fresh = lastSeq > 0
+        ? (snap.messages || []).filter((item) => Number(item.seq || 0) > lastSeq)
+        : [];
+      if (fresh.length || Array.isArray(snap.active_members) || typeof snap.online_count === "number") {
+        const delta = {
+          messages: fresh,
+          members: snap.members || [],
+          active_members: snap.active_members || [],
+          online_count: snap.online_count,
+          seq: snap.seq,
+          room: snap.room,
+        };
+        await session.send("Runtime.evaluate", {
+          expression: `window.__teamContextIngestMessages && window.__teamContextIngestMessages(${JSON.stringify(delta)})`,
+        });
+      }
     } catch (syncErr) {
       console.warn(`[attach_codex] snapshot/sync failed (host=${targetHost}): ${syncErr.message}`);
       return { installed: true, syncError: syncErr.message };
@@ -460,7 +521,7 @@ async function attachLoop(port) {
   let lastOk = "";
   for (;;) {
     try {
-      const source = injectSource();
+      const source = injectSource(await resolveInjectScript());
       const targets = await getJson(`http://127.0.0.1:${port}/json/list`);
       const pages = targets.filter(isCodexPage);
       const activeIds = new Set(pages.map((p) => p.id));

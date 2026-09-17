@@ -8,7 +8,7 @@ Stop cascading errors from tossing static AI docs. Align reasoning chains and co
 
 [![Release](https://img.shields.io/github/v/release/we1jia/TeamCodex?color=ea580c&style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
 [![Build](https://img.shields.io/badge/build-passing-16a34a?style=flat-square)](https://github.com/we1jia/TeamCodex/actions)
-[![Tests](https://img.shields.io/badge/tests-37%2F37%20passed-16a34a?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/tests-55%2F55%20passed-16a34a?style=flat-square)](tests/)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-52525b?style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-f97316?style=flat-square)](server/dev_host.mjs)
 [![License](https://img.shields.io/badge/license-MIT-52525b?style=flat-square)](LICENSE)
@@ -46,15 +46,20 @@ TeamCodex 将 **AI 的动态多轮推理链路（Context Chain）** 转化为像
 
 ---
 
-### 2. 客户端下载
+### 2. 客户端下载与交互体验
 
 前往 **[GitHub Releases 最新发布页](https://github.com/we1jia/TeamCodex/releases)** 下载官方原生安装包：
 
-| 平台 | 安装包 | 安装方式 |
+| 平台 | 安装包 | 交互形态与体验 |
 |---|---|---|
-| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | 打开磁盘镜像，将 `TeamCodex.app` 拖入 `Applications` 目录即可 |
-| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | 双击安装向导，自动适配 ARM64/AMD64 并生成桌面无黑框快捷方式 |
+| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | 拖入 `Applications` 即可。启动后常驻顶部菜单栏，点击弹出原生磨砂 Mini Dashboard 悬浮卡片 |
+| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | 运行向导自动适配 ARM64/AMD64，常驻系统托盘，静默接管无黑框并支持任务栏右键菜单 |
 | **免安装便携版** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | 解压即用，适合移动介质或严格权限环境 |
+
+> **提示**：启动后应用常驻系统托盘，点击即可展开 **Mini Dashboard 控制面板**，具备：
+> - **状态自检**：实时显示 Codex 挂载状态（🟢 已挂载 / 🟡 等待挂载 / 🔴 未连接）、中枢地址与在线房间；
+> - **一键操作**：支持【启动并挂载 Codex】、【复制 Smart Token】、【切换中枢地址】与【重启注入】；
+> - **无感热更与版本检测**：自动拉取最新侧栏注入脚本，检测到底层新版本时支持一键下载。
 
 ---
 
@@ -98,11 +103,12 @@ curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deplo
 
 ### 5. 核心特性
 
-- **无侵入侧栏内嵌**：基于 CDP 动态挂载，无需反编译或修改客户端本地文件。
+- **原生内嵌与菜单栏伴侣**：基于 CDP 动态挂载侧栏，配套 macOS 菜单栏 / Windows 托盘极简 Mini Dashboard，不抢占主工作区。
+- **免重装双轨热更新**：连集中 Hub 时，侧栏注入脚本启动时自动动态下发并缓存生效，90% 的日常迭代免下载新包；底层外壳直通 Releases 检查。
 - **高亮生命周期互斥**：全屏协作与原生会话保持单选高亮，切回历史对话 100% 恢复原生高亮。
-- **跨平台多端识别**：自动探测网络与操作系统，智能区分 `Mac` 与 `Win` 设备身份，在线人数自动去重。
+- **跨平台多端识别与心跳保活**：自动探测网络与操作系统，智能区分 `Mac` 与 `Win` 设备身份，支持在线同名去重与活跃列表动态广播。
 - **脱敏快照与上下文接力**：一键打包会话并剔除本地路径与 Shell 命令，协作者可一键导入当前活动对话。
-- **智能协同口令 (Smart Token)**：支持形如 `Hub: <URL> | Room: <Name> | Key: <Password>` 的单行口令秒级加入。
+- **智能协同口令 (Smart Token)**：支持形如 `Hub: <URL> | Room: <Name> | Key: <Password>` 的单行口令秒级加入与面板快捷复制。
 
 ---
 
@@ -111,12 +117,26 @@ curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deplo
 ```text
 TeamCodex/
 ├── inject/                     # CDP 客户端侧注入层、Web Component 与全屏协作 UI
-├── server/                     # 零依赖原生 Node.js SSE 实时协作中枢 (dev_host.mjs)
-├── macos/                      # macOS 启动器 (launch.sh)、自包含 DMG 打包工程
-├── windows/                    # Windows 启动套件、NSIS 安装包脚本 (installer.nsi)
+│   ├── sidebar_fullscreen.js   # 侧栏嵌入、快照脱敏与协同状态机
+│   └── attach_codex.mjs        # 动态拉取中枢最新脚本、CDP 挂载与心跳同步
+├── server/                     # 零依赖原生 Node.js 协作服务
+│   ├── dev_host.mjs            # SSE 实时协同中枢 (18765端口，在线人数/多房间/鉴权)
+│   └── launcher_host.mjs       # 本地托盘控制面服务 (18767端口，自检/更新/口令)
+├── ui/                         # 前端 UI 资源
+│   ├── index.html              # 独立全屏协作网页端
+│   └── panel.html              # 菜单栏/托盘 Mini Dashboard 悬浮控制卡片
+├── macos/                      # macOS 菜单栏客户端与打包套件
+│   ├── TeamCodex.swift         # 原生 Swift 状态栏应用源码 (Cocoa + WebKit)
+│   ├── launch.sh               # 运行时自检与守护脚本
+│   └── build_dmg.py            # 自包含 DMG 构建器 (集成 swiftc 自动编译)
+├── windows/                    # Windows 托盘套件与 NSIS 安装包工程
+│   ├── tray-teamcodex.ps1      # 原生任务栏托盘与右键控制逻辑
+│   ├── run-teamcodex.ps1       # 启动守护与优雅退出接管
+│   └── installer.nsi           # NSIS 安装向导配置
 ├── scripts/                    # 运维与自动化部署脚本 (deploy-hub.sh)
 ├── docs/                       # 架构设计与网络接入全景指南 (HUB_DEPLOYMENT.md)
-├── tests/                      # 37 项自动化单元测试与端到端状态机测试套件
+├── tests/                      # 55 项全自动化测试套件 (单测与端到端状态机)
+├── version.json                # 客户端版本定义 (v1.1.0)
 ├── Dockerfile                  # 极简 Alpine Node 生产镜像定义
 ├── docker-compose.yml          # 一键容器化服务编排
 └── README.md
@@ -129,12 +149,15 @@ TeamCodex/
 ```bash
 node --test tests/test_boost_fixes.mjs
 node --test tests/test_rooms_and_auth.mjs
+# 输出：55 tests passed (32 状态机与注入测试 + 23 房间鉴权与隔离测试)
 ```
 
 ---
 
 ### 8. 常见问题 (FAQ)
 
+- **Q: 以后功能更新需要全员重新下载安装包吗？**  
+  **日常更新完全不需要**。TeamCodex 采用双轨更新机制：侧栏协作界面与注入逻辑会在连接团队集中中枢时自动热加载最新脚本；仅在涉及操作系统底层驱动或托盘框架升级时，控制面板才会提示下载新版安装包。
 - **Q: 个人在本地单机使用，需要额外搭建服务器吗？**  
   **不需要**。macOS 启动时会自动常驻轻量中枢，Windows 虚拟机客户端通过虚拟网络自动发现并连入，完全免配置。
 - **Q: 数据安全与隐私边界如何保证？**  
@@ -173,15 +196,20 @@ TeamCodex turns **AI conversation state into a first-class collaborative asset**
 
 ---
 
-### 2. Client Downloads
+### 2. Client Downloads & Tray Companion
 
 Grab pre-built installers directly from **[GitHub Releases](https://github.com/we1jia/TeamCodex/releases)**:
 
-| Platform | Installer | Setup Method |
+| Platform | Installer | Setup & Experience |
 |---|---|---|
-| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | Mount the disk image and drag `TeamCodex.app` into `/Applications` |
-| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | Run setup wizard for automated ARM64/AMD64 setup and desktop shortcuts |
+| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | Drag `TeamCodex.app` into `/Applications`. Runs in the top menu bar with a native frosted Mini Dashboard popover |
+| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | Runs setup wizard for ARM64/AMD64, lives silently in the system tray with context menu controls |
 | **Portable Archives** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | Standalone portable green packages |
+
+> **Note**: TeamCodex runs as a lightweight tray companion. Click the menu bar or tray icon to open the **Mini Dashboard**:
+> - **Live Diagnostics**: Instantly inspect Codex attachment status (🟢 Injected / 🟡 Waiting / 🔴 Disconnected), active Hub, and room occupancy;
+> - **One-Click Actions**: Launch & attach Codex, copy Smart Token, switch Hub URL, and restart injection;
+> - **In-Place Hot Sync & Updates**: Automatically pulls fresh injection logic; notifies when a new native binary release is available.
 
 ---
 
@@ -225,11 +253,12 @@ Full documentation and Nginx TLS templates available at: **[Hub Deployment & Net
 
 ### 5. Core Capabilities
 
-- **Non-Intrusive Mounting**: Injects via CDP without modifying binary executables or user configurations.
+- **Native Embedding & Tray Companion**: Injects via CDP into Codex sidebars paired with a native macOS menubar / Windows tray Mini Dashboard that never intrudes on your main workspace.
+- **In-Place Hot Updates**: Automatically synchronizes and caches updated sidebar injection scripts from centralized Hubs without forcing users to re-download binaries.
 - **State Machine Mutual Exclusion**: Enforces single-selection highlighting during active collaboration, restoring native thread selections upon exit.
-- **Cross-Platform Presence**: Cleanly isolates `Mac` vs `Win` node identities with deduplicated active presence counters.
+- **Cross-Platform Presence**: Cleanly isolates `Mac` vs `Win` node identities with deduplicated active presence counters and heartbeat tracking.
 - **Sanitized Snapshot Relay**: Serializes conversation threads into privacy-safe snapshots, enabling peers to import context with a single click.
-- **Smart Token Protocol**: Resolves connection strings formatted as `Hub: <URL> | Room: <Name> | Key: <Password>` instantly.
+- **Smart Token Protocol**: Resolves connection strings formatted as `Hub: <URL> | Room: <Name> | Key: <Password>` instantly with quick clipboard actions.
 
 ---
 
@@ -238,12 +267,26 @@ Full documentation and Nginx TLS templates available at: **[Hub Deployment & Net
 ```text
 TeamCodex/
 ├── inject/                     # Client CDP injection, Web Components & UI logic
-├── server/                     # Zero-dependency Node.js SSE Hub (dev_host.mjs)
-├── macos/                      # macOS launcher (launch.sh) & self-contained DMG builder
-├── windows/                    # Windows launcher suite & NSIS script (installer.nsi)
+│   ├── sidebar_fullscreen.js   # Sidebar mount, snapshot scrub, and UI state machine
+│   └── attach_codex.mjs        # Dynamic script sync, CDP attachment, and heartbeat loop
+├── server/                     # Zero-dependency Node.js services
+│   ├── dev_host.mjs            # SSE Collab Hub (Port 18765: presence, multi-room, auth)
+│   └── launcher_host.mjs       # Local control plane service (Port 18767: status, updates)
+├── ui/                         # Frontend UI assets
+│   ├── index.html              # Fullscreen standalone collaboration canvas
+│   └── panel.html              # Frosted Mini Dashboard floating card
+├── macos/                      # macOS menubar application & DMG builder
+│   ├── TeamCodex.swift         # Native Swift status item popover (Cocoa + WebKit)
+│   ├── launch.sh               # Runtime healthcheck and daemon script
+│   └── build_dmg.py            # Self-contained DMG builder with automated swiftc compilation
+├── windows/                    # Windows tray suite & NSIS installer
+│   ├── tray-teamcodex.ps1      # Native taskbar tray and context menu logic
+│   ├── run-teamcodex.ps1       # Launch daemon with graceful shutdown safeguards
+│   └── installer.nsi           # NSIS installation script
 ├── scripts/                    # Deployment & maintenance tools (deploy-hub.sh)
 ├── docs/                       # Architectural & deployment manuals (HUB_DEPLOYMENT.md)
-├── tests/                      # 37 automated unit and end-to-end test cases
+├── tests/                      # 55 automated unit and end-to-end test cases
+├── version.json                # Client version manifest (v1.1.0)
 ├── Dockerfile                  # Lightweight Alpine production container definition
 ├── docker-compose.yml          # Container orchestration configuration
 └── README.md
@@ -256,12 +299,15 @@ TeamCodex/
 ```bash
 node --test tests/test_boost_fixes.mjs
 node --test tests/test_rooms_and_auth.mjs
+# Output: 55 tests passed (32 state machine & injection tests + 23 room auth & isolation tests)
 ```
 
 ---
 
 ### 8. FAQ
 
+- **Q: Do team members need to re-download binaries for regular updates?**  
+  **No**. TeamCodex uses dual-track updates: sidebar collaboration scripts update dynamically in-place when connected to a team Hub. Native installers are only required when underlying platform drivers change.
 - **Q: Does a solo developer on one machine need to host a cloud server?**  
   **No**. macOS auto-starts the hub in the background, and Windows VM guests auto-detect the bridge IP out of the box.
 - **Q: Is conversation data transmitted to external third parties?**  

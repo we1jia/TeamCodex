@@ -293,10 +293,9 @@ test("11. 在线人数统计多设备同名去重、SSE 动态追加成员与前
   const hostCode = fs.readFileSync(path.join(ROOT, "server/dev_host.mjs"), "utf8");
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
-  // 11.1 服务端多设备同名去重与设备计数
-  assert.match(hostCode, /const idKey = c\.clientId \|\| c\.id/);
-  assert.match(hostCode, /activeClients\.add\(idKey\)/);
-  assert.doesNotMatch(hostCode, /uniqueMembers\.add\(c\.memberId\)/, "不得简单对 memberId 去重导致同名多设备计为1人");
+  // 11.1 在线人数按设备 memberId 去重：同一台 Mac 的 SSE+心跳只算 1 人，Mac/Win 仍算 2 人
+  assert.match(hostCode, /const personKey = c\.memberId \|\| c\.clientId/);
+  assert.match(hostCode, /people\.add\(String\(personKey\)\)/);
 
   // 11.2 SSE 动态追加非 anonymous 新成员并广播
   assert.match(hostCode, /memberId !== "anonymous" && !room\.members\.some/);
@@ -459,7 +458,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v85";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v(?:8[5-9]|9\d)";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -686,7 +685,7 @@ test("26. 严格提纯发送消息 payload，彻底根除 DOM 元素循环引用
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 26.1 版本标识升级至 inline-v84+
-  assert.match(uiCode, /const UI_VERSION = "inline-v8[45]";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v(?:8[4-9]|9\d)";/);
 
   // 26.2 listSidebarThreadsDetailed 彻底移除 element: el，仅返回纯数据
   assert.match(uiCode, /return\s*\{\s*id,\s*title,\s*selected,\s*project\s*\};/);
@@ -706,8 +705,8 @@ test("26. 严格提纯发送消息 payload，彻底根除 DOM 元素循环引用
 test("27. 成员头像栏全量接入背景色切割环、双重留白光环与设备微图标 (inline-v85)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
-  // 27.1 版本标识升级至 inline-v85
-  assert.match(uiCode, /const UI_VERSION = "inline-v85";/);
+  // 27.1 版本标识升级至 inline-v85+
+  assert.match(uiCode, /const UI_VERSION = "inline-v(?:8[5-9]|9\d)";/);
 
   // 27.2 彻底消灭 --bg-body 与 #18181b 纯黑硬编码描边，全量使用 var(--bg-page)
   assert.doesNotMatch(uiCode, /var\(--bg-body/);
@@ -724,3 +723,148 @@ test("27. 成员头像栏全量接入背景色切割环、双重留白光环与�
   // 27.5 邀请加号按钮升级为微胶囊并具备平滑 hover
   assert.match(uiCode, /\.stack-invite-btn\s*\{[\s\S]*?background:\s*var\(--bg-chip\);/);
 });
+
+test("28. Windows→Mac 实时接收不得只依赖跨域 EventSource message 事件 (inline-v86+)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+  const hostCode = fs.readFileSync(path.join(ROOT, "server/dev_host.mjs"), "utf8");
+  const attachCode = fs.readFileSync(path.join(ROOT, "inject/attach_codex.mjs"), "utf8");
+
+  // 28.1 版本升级
+  assert.match(uiCode, /const UI_VERSION = "inline-v(?:8[89]|9\d)";/);
+
+  // 28.2 发送走 Node RPC，接收必须有同通道快照轮询兜底，避免 Mac EventSource 静默丢包
+  assert.match(uiCode, /const startSnapshotPoll = /);
+  assert.match(uiCode, /const stopSnapshotPoll = /);
+  assert.match(uiCode, /const pollSnapshotOnce = /);
+  assert.match(uiCode, /startSnapshotPoll\(\)/);
+  assert.match(uiCode, /stopSnapshotPoll\(\)/);
+  assert.match(uiCode, /setInterval\(\(\) => \{ pollSnapshotOnce\(\); \}, 2000\)/);
+  assert.match(uiCode, /const snap = await api\("\/api\/snapshot"\)/);
+
+  // 28.3 SSE 同时监听 chat 与默认 message，并绑定 onmessage，规避 Chromium 事件名碰撞
+  assert.match(uiCode, /addEventListener\("chat"/);
+  assert.match(uiCode, /sseSource\.onmessage\s*=/);
+  assert.match(hostCode, /broadcastToRoom\(room\.id, "chat", message\)/);
+  assert.match(hostCode, /broadcastToRoom\(room\.id, "message", message\)/);
+
+  // 28.4 EventSource 必须在 bridge iframe 同 Realm 内创建，再 postMessage 回页面
+  assert.match(uiCode, /__tcSse/);
+  assert.match(uiCode, /parent\.postMessage/);
+  assert.match(uiCode, /contentDocument/);
+
+  // 28.5 收发房间回退值统一，禁止 SSE 默认 Media、发送默认 1024
+  assert.match(uiCode, /const defaultRoomId = \(\) =>/);
+  assert.doesNotMatch(uiCode, /room: config\.roomId \|\| "1024"/);
+  assert.doesNotMatch(uiCode, /params = new URLSearchParams\(\{[\s\S]*?room: config\.roomId \|\| "Media"/);
+
+  // 28.6 isMe 不得把裸 weijia / liu weijia 一律当成当前 Mac 自己，避免把 Win 消息画成自己或直接滤掉
+  assert.doesNotMatch(uiCode, /senderId === "liuweijia" \|\| senderId === "weijia" \|\| senderName === "liu weijia"/);
+
+  // 28.7 服务端落库前提纯 linked_thread，双端旧客户端即使仍夹带 DOM 字段也不会污染广播
+  assert.match(hostCode, /function sanitizeLinkedThread/);
+  assert.match(hostCode, /linked_thread: sanitizeLinkedThread\(body\.linked_thread\)/);
+
+  // 28.8 快照卡片不得引用未定义 snapMarkdown，单条渲染失败不得中断后续消息
+  assert.match(uiCode, /const snapMarkdown = String\(message\.metadata\?\.full_markdown \|\| contentText \|\| ""\)/);
+  assert.match(uiCode, /try \{ renderMessage\(msg\); \} catch/);
+
+  // 28.9 Node 守护循环按页面 hubUrl 投递增量消息，接收与发送走同一条 CDP 通道
+  assert.match(uiCode, /window\.__teamContextIngestMessages = /);
+  assert.match(uiCode, /lastSeq: Number\(lastSnapshot\?\.seq \|\| 0\)/);
+  assert.match(attachCode, /__teamContextIngestMessages/);
+  assert.match(attachCode, /\/api\/snapshot\?room=/);
+  assert.match(attachCode, /Number\(cfg\.lastSeq \|\| 0\)/);
+  assert.match(uiCode, /startSnapshotPoll\(\);/);
+});
+
+test("29. 历史空间标签允许移除 Media，删除图标跟随主题色而非硬编码红 (inline-v89)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  assert.match(uiCode, /const UI_VERSION = "inline-v(?:89|9\d)";/);
+
+  // 29.1 本地历史记录允许移除 Media，不再把系统空间排除在标签删除之外
+  assert.doesNotMatch(uiCode, /if \(!cleanRoom \|\| cleanRoom === "Media"\) return false;/);
+  assert.doesNotMatch(uiCode, /系统默认主空间 Media 不可删除/);
+  assert.doesNotMatch(uiCode, /系统主空间 Media 不允许删除，自建空间内嵌删除图标/);
+  assert.doesNotMatch(uiCode, /if \(r !== "Media"\) \{\s*const delBtn/);
+
+  // 29.2 删除当前空间时不得写死切回 Media，应按剩余历史回退
+  assert.doesNotMatch(uiCode, /if \(r === config\.roomId\) \{\s*switchRoom\("Media"\);/);
+
+  // 29.3 删除图标使用当前标签文字色，严禁硬编码红
+  assert.match(uiCode, /\.room-tag-chip-del\s*\{[\s\S]*?color:\s*inherit;/);
+  assert.doesNotMatch(uiCode, /\.room-tag-chip-del:hover\s*\{[^}]*#ef4444/);
+  assert.match(uiCode, /\.room-tag-chip-del:hover\s*\{[\s\S]*?color:\s*inherit;/);
+});
+
+test("30. 邀请口令进房必须登记在线心跳，快速切换能解析口令 (inline-v90)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+  const hostCode = fs.readFileSync(path.join(ROOT, "server/dev_host.mjs"), "utf8");
+  const attachCode = fs.readFileSync(path.join(ROOT, "inject/attach_codex.mjs"), "utf8");
+
+  assert.match(uiCode, /const UI_VERSION = "inline-v9[01]";/);
+
+  // 30.1 快照请求携带 member_id / client_id，服务端按心跳统计在线
+  assert.match(uiCode, /member_id=\$\{encodeURIComponent/);
+  assert.match(uiCode, /client_id=\$\{encodeURIComponent/);
+  assert.match(hostCode, /function touchPresence/);
+  assert.match(hostCode, /function getRoomActiveMembers/);
+  assert.match(hostCode, /PRESENCE_TTL_MS/);
+  assert.match(hostCode, /touchPresence\(\{/);
+
+  // 30.2 快速切换输入框粘贴邀请口令时必须解析 room/key，而不是把整段口令当房间名
+  assert.match(uiCode, /const switchRoom = \(roomId\) => \{[\s\S]*?parseCollabToken/);
+
+  // 30.3 verify 进房时带上当前设备身份
+  assert.match(uiCode, /member_id: config\.memberId/);
+  assert.match(uiCode, /member_name: config\.nickname/);
+
+  // 30.4 空房间 lastSeq=0 时守护进程仍要拉快照做心跳，不能跳过
+  assert.doesNotMatch(attachCode, /if \(lastSeq > 0\) \{\s*const snap = await getJson/);
+  assert.match(attachCode, /member_id=\$\{encodeURIComponent\(cfg\.memberId/);
+});
+
+test("31. 房间弹层底部操作改为纵向菜单，在线人数按 memberId 去重 (inline-v91)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+  const hostCode = fs.readFileSync(path.join(ROOT, "server/dev_host.mjs"), "utf8");
+
+  assert.match(uiCode, /const UI_VERSION = "inline-v91";/);
+
+  // 31.1 底部三个操作不得挤在一行 space-between，改为纵向全宽菜单
+  assert.match(uiCode, /\.popover-footer\s*\{[\s\S]*?flex-direction:\s*column/);
+  assert.doesNotMatch(uiCode, /\.popover-footer\s*\{[^}]*justify-content:\s*space-between/);
+  assert.match(uiCode, /\.popover-link-btn\s*\{[\s\S]*?width:\s*100%/);
+  assert.doesNotMatch(uiCode, /\.popover-link-btn\.danger:hover \{ color: #ef4444; \}/);
+
+  // 31.2 同一 memberId 的多个 clientId 不得把 1 台设备计成多人
+  assert.match(hostCode, /people\.add\(String\(item\.memberId \|\| item\.clientId\)\)/);
+});
+
+test("32. 托盘控制面、Hub 热更新注入与安装包更新检查", () => {
+  const attach = fs.readFileSync(path.join(ROOT, "inject/attach_codex.mjs"), "utf8");
+  const launcher = fs.readFileSync(path.join(ROOT, "server/launcher_host.mjs"), "utf8");
+  const panel = fs.readFileSync(path.join(ROOT, "ui/panel.html"), "utf8");
+  const launchSh = fs.readFileSync(path.join(ROOT, "macos/launch.sh"), "utf8");
+  const runPs = fs.readFileSync(path.join(ROOT, "windows/run-teamcodex.ps1"), "utf8");
+  const swift = fs.readFileSync(path.join(ROOT, "macos/TeamCodex.swift"), "utf8");
+
+  assert.ok(fs.existsSync(path.join(ROOT, "windows/tray-teamcodex.ps1")));
+  assert.ok(fs.existsSync(path.join(ROOT, "version.json")));
+  assert.match(attach, /async function resolveInjectScript/);
+  assert.match(attach, /\/inject\/sidebar_fullscreen\.js/);
+  assert.match(attach, /function injectSource\(script\)/);
+  assert.match(attach, /querySelectorAll\('#team-context-fullscreen-page iframe,\s*iframe\[src\*="127\.0\.0\.1:18765"\]'\)/);
+  assert.match(launcher, /\/api\/status/);
+  assert.match(launcher, /\/api\/token/);
+  assert.match(launcher, /\/api\/update/);
+  assert.match(launcher, /api\.github\.com\/repos\/\$\{GITHUB_REPO\}\/releases\/latest/);
+  assert.match(panel, /启动并挂载 Codex/);
+  assert.match(panel, /复制协同口令/);
+  assert.match(panel, /立即更新/);
+  assert.match(launchSh, /launcher_host\.mjs/);
+  assert.match(runPs, /tray-teamcodex\.ps1/);
+  assert.match(runPs, /launcher_host\.mjs/);
+  assert.match(swift, /NSStatusItem/);
+  assert.match(swift, /127\.0\.0\.1:18767\/panel\.html/);
+});
+

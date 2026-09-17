@@ -7,6 +7,6 @@ If Not fso.FileExists(psScript) Then
     psScript = currentDir & "\windows\run-teamcodex.ps1"
   End If
 End If
-cmdLine = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & psScript & """"
+cmdLine = "powershell.exe -STA -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & psScript & """"
 ws.Run cmdLine, 0, False
 

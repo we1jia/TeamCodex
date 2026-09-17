@@ -380,6 +380,111 @@ test("Multi-room, Room Key Authentication & Static Asset Suite", async (t) => {
     assert.equal(res.body.metadata.tool_io_included, false);
   });
 
+  await t.test("14.2. 新消息同时广播 chat 与 message，且 linked_thread 被提纯为纯 JSON", async () => {
+    await request(
+      { path: "/api/rooms/verify", method: "POST" },
+      { room: "CrossDeviceRoom", auto_create: true },
+    );
+
+    const sseClient = http.request({
+      hostname: "127.0.0.1",
+      port: TEST_PORT,
+      path: "/api/events?room=CrossDeviceRoom&member_id=weijia_mac&member_name=weijia%20(Mac)",
+      method: "GET",
+    });
+
+    const events = await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("chat event timeout")), 4000);
+      let buffer = "";
+      let ready = false;
+      sseClient.on("response", (res) => {
+        res.on("data", (chunk) => {
+          buffer += chunk.toString();
+          if (!ready && buffer.includes("event: snapshot")) {
+            ready = true;
+            request(
+              { path: "/api/messages", method: "POST" },
+              {
+                room: "CrossDeviceRoom",
+                actor_id: "weijia_win",
+                actor_name: "weijia (Win)",
+                content: "win-to-mac-live",
+                linked_thread: {
+                  id: "thread_win_1",
+                  title: "from windows",
+                  selected: true,
+                  element: { nested: true },
+                },
+              },
+            ).catch(reject);
+          }
+          if (ready && buffer.includes("event: chat") && buffer.includes("event: message") && buffer.includes("win-to-mac-live")) {
+            clearTimeout(timer);
+            resolve(buffer);
+          }
+        });
+      });
+      sseClient.on("error", reject);
+      sseClient.end();
+    });
+
+    assert.match(events, /event: chat/);
+    assert.match(events, /event: message/);
+    assert.match(events, /win-to-mac-live/);
+    assert.doesNotMatch(events, /"element"/);
+    sseClient.destroy();
+
+    const snap = await request({ path: "/api/snapshot?room=CrossDeviceRoom", method: "GET" });
+    assert.equal(snap.status, 200);
+    const last = snap.body.messages[snap.body.messages.length - 1];
+    assert.equal(last.actor_id, "weijia_win");
+    assert.equal(last.content, "win-to-mac-live");
+    assert.deepEqual(last.linked_thread, { id: "thread_win_1", title: "from windows" });
+  });
+
+  await t.test("14.3. 快照心跳可把 Mac/Win 登记为同一房间的两名在线成员", async () => {
+    await request(
+      { path: "/api/rooms/verify", method: "POST" },
+      { room: "PresenceRoom", auto_create: true, member_id: "weijia_win", member_name: "weijia (Win)", client_id: "client_win_1" },
+    );
+    const winSnap = await request({
+      path: "/api/snapshot?room=PresenceRoom&member_id=weijia_win&member_name=weijia%20(Win)&client_id=client_win_1",
+      method: "GET",
+    });
+    const macSnap = await request({
+      path: "/api/snapshot?room=PresenceRoom&member_id=weijia_mac&member_name=weijia%20(Mac)&client_id=client_mac_1",
+      method: "GET",
+    });
+    assert.equal(macSnap.status, 200);
+    assert.equal(macSnap.body.online_count, 2);
+    assert.equal(new Set(macSnap.body.active_members).has("weijia_mac"), true);
+    assert.equal(new Set(macSnap.body.active_members).has("weijia_win"), true);
+    assert.equal(macSnap.body.members.some((m) => m.id === "weijia_mac"), true);
+    assert.equal(macSnap.body.members.some((m) => m.id === "weijia_win"), true);
+    assert.ok(winSnap.status === 200);
+  });
+
+  await t.test("14.4. 同一设备两条心跳只计 1 人，Mac+Win 计 2 人", async () => {
+    await request(
+      { path: "/api/rooms/verify", method: "POST" },
+      { room: "DedupePresenceRoom", auto_create: true },
+    );
+    await request({
+      path: "/api/snapshot?room=DedupePresenceRoom&member_id=weijia_mac&member_name=weijia%20(Mac)&client_id=client_mac_a",
+      method: "GET",
+    });
+    const dup = await request({
+      path: "/api/snapshot?room=DedupePresenceRoom&member_id=weijia_mac&member_name=weijia%20(Mac)&client_id=client_mac_b",
+      method: "GET",
+    });
+    assert.equal(dup.body.online_count, 1, "同一 weijia_mac 两个 client 仍应显示 1 人");
+    const both = await request({
+      path: "/api/snapshot?room=DedupePresenceRoom&member_id=weijia_win&member_name=weijia%20(Win)&client_id=client_win_a",
+      method: "GET",
+    });
+    assert.equal(both.body.online_count, 2, "Mac + Win 应显示 2 人");
+  });
+
   await t.test("15. 删除空间需要二次确认，且不允许删除系统空间 Media", async () => {
     const createRes = await request(
       { path: "/api/rooms/verify", method: "POST" },

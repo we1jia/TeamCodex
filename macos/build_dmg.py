@@ -48,7 +48,9 @@ def build_dmg():
         ("inject", True),
         ("ui", True),
         ("macos/launch.sh", False),
+        ("macos/TeamCodex.swift", False),
         ("data/hub_discovery.json", False),
+        ("version.json", False),
         ("README.md", False),
     ]
 
@@ -61,10 +63,24 @@ def build_dmg():
         else:
             shutil.copy2(src, dst)
 
-    # 3. 赋予可执行文件 755 权限
+    # 3. 编译菜单栏客户端，替换 bash 占位可执行文件
+    swift_src = os.path.join(TC_DIR, "macos", "TeamCodex.swift")
+    binary = os.path.join(app_target, "Contents", "MacOS", "TeamCodex")
+    print("[build_dmg] 编译 macOS 菜单栏客户端...")
+    compile = subprocess.run(
+        ["swiftc", "-O", swift_src, "-o", binary, "-framework", "Cocoa", "-framework", "WebKit"],
+        capture_output=True,
+        text=True,
+    )
+    if compile.returncode != 0:
+        print(compile.stdout)
+        print(compile.stderr, file=sys.stderr)
+        sys.exit(compile.returncode)
+
+    # 4. 赋予可执行文件 755 权限
     ensure_permissions(app_target)
 
-    # 4. 创建 /Applications 快捷软链接以实现开箱即拖拽安装
+    # 5. 创建 /Applications 快捷软链接以实现开箱即拖拽安装
     apps_symlink = os.path.join(DMG_STAGING, "Applications")
     if not os.path.exists(apps_symlink):
         try:

@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v85";
+  const UI_VERSION = "inline-v91";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -132,7 +132,7 @@
 
           const roomKey = (roomId === "1024" ? (roomKeys["1024"] || "123456") : "") || roomKeys[roomId] || (typeof parsed.roomKey === "string" && parsed.roomKey ? parsed.roomKey : "");
           const historyRooms = Array.isArray(parsed.historyRooms) && parsed.historyRooms.length
-            ? Array.from(new Set([roomId, "1024", ...parsed.historyRooms.filter((r) => typeof r === "string" && r.trim())]))
+            ? Array.from(new Set([roomId, ...parsed.historyRooms.filter((r) => typeof r === "string" && r.trim())]))
             : def.historyRooms;
 
           const rawNick = typeof parsed.nickname === "string" && parsed.nickname.trim() ? parsed.nickname.trim() : def.nickname;
@@ -832,7 +832,19 @@
       availableRooms: [],
     };
     let sseSource = null;
+    let snapshotPollTimer = null;
+    let snapshotPollInFlight = false;
+    let bridgeSseListenerBound = false;
     let roomDeletionInFlight = false;
+
+    const defaultRoomId = () => {
+      const fromConfig = String(config.roomId || "").trim();
+      if (fromConfig) return fromConfig;
+      const runtimeRoom = typeof window.__TEAM_CONTEXT_DEFAULT_ROOM__ === "string"
+        ? String(window.__TEAM_CONTEXT_DEFAULT_ROOM__).trim()
+        : "";
+      return runtimeRoom || "1024";
+    };
 
     const isWindows = /Windows|Win32|Win64/i.test(navigator.userAgent || navigator.platform || "");
     if (isWindows) {
@@ -1080,7 +1092,7 @@
           position: absolute;
           top: calc(100% + 8px);
           left: 0;
-          width: 290px;
+          width: 320px;
           background: var(--bg-page);
           color: var(--text-primary);
           border: 1px solid var(--border-strong);
@@ -1158,7 +1170,8 @@
           border-radius: 50%;
           border: none;
           background: transparent;
-          color: var(--text-muted);
+          color: inherit;
+          opacity: 0.55;
           cursor: pointer;
           font-size: 11px;
           line-height: 1;
@@ -1168,11 +1181,13 @@
           flex-shrink: 0;
         }
         .room-tag-chip[data-active="true"] .room-tag-chip-del {
-          color: rgba(255, 255, 255, 0.7);
+          color: inherit;
+          opacity: 0.8;
         }
         .room-tag-chip-del:hover {
-          background: rgba(239, 68, 68, 0.25) !important;
-          color: #ef4444 !important;
+          background: color-mix(in srgb, currentColor 16%, transparent);
+          color: inherit;
+          opacity: 1;
         }
         .room-tag-chip.new-room-chip {
           border-style: dashed;
@@ -1269,21 +1284,39 @@
         }
         .popover-footer {
           display: flex;
-          align-items: center;
-          justify-content: space-between;
+          flex-direction: column;
+          gap: 2px;
           padding-top: 8px;
           border-top: 1px solid var(--border-subtle);
         }
         .popover-link-btn {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          width: 100%;
+          margin: 0;
           background: transparent;
           border: 0;
+          border-radius: 8px;
           color: var(--text-secondary);
-          font-size: 11.5px;
+          font-size: 12px;
+          line-height: 1.2;
           cursor: pointer;
-          padding: 2px 4px;
+          padding: 8px 10px;
+          text-align: left;
         }
-        .popover-link-btn:hover { color: var(--text-primary); text-decoration: underline; }
-        .popover-link-btn.danger:hover { color: #ef4444; }
+        .popover-link-btn svg {
+          flex-shrink: 0;
+        }
+        .popover-link-btn:hover {
+          background: var(--bg-card-hover);
+          color: var(--text-primary);
+          text-decoration: none;
+        }
+        .popover-link-btn.danger:hover {
+          background: var(--bg-card-hover);
+          color: var(--text-primary);
+        }
 
         .ghost { border: 0; cursor: pointer; font: 13px inherit; border-radius: 999px; padding: 6px 12px; background: transparent; color: var(--text-secondary); }
         .ghost:hover { background: var(--bg-chip); color: var(--text-primary); }
@@ -2920,15 +2953,18 @@
                   </div>
                 </div>
                 <div class="popover-footer">
-                  <button class="popover-link-btn" id="btn-copy-collab-token" type="button" style="display:inline-flex;align-items:center;gap:6px;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <button class="popover-link-btn" id="btn-copy-collab-token" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                     <span>复制空间邀请口令</span>
                   </button>
-                  <button class="popover-link-btn" id="btn-open-config-modal" type="button" style="display:inline-flex;align-items:center;gap:6px;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  <button class="popover-link-btn" id="btn-open-config-modal" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     <span>连接与密码设置</span>
                   </button>
-                  <button class="popover-link-btn danger" id="btn-disconnect" type="button">断开连接</button>
+                  <button class="popover-link-btn danger" id="btn-disconnect" type="button">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span>断开连接</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -3497,7 +3533,7 @@
           path: fullPath,
           method: options.method || "GET",
           headers: {
-            "X-Room-Id": config.roomId || "Media",
+            "X-Room-Id": defaultRoomId(),
             ...(config.roomKey ? { "X-Room-Key": config.roomKey } : {}),
             ...(options.headers || {}),
           },
@@ -3522,10 +3558,15 @@
     };
     window.__teamContextCallRpc = callRpc;
 
+    window.__teamContextClientId = window.__teamContextClientId || `client_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+
     // API 通用封装 (自动携带 room 和 roomKey，统一走守护进程原生网络桥接，避免渲染层 fetch 拦截)
     const api = async (path, options = {}) => {
       const separator = path.includes("?") ? "&" : "?";
-      const roomParams = `room=${encodeURIComponent(config.roomId || "Media")}${config.roomKey ? `&room_key=${encodeURIComponent(config.roomKey)}` : ""}`;
+      const devUser = typeof formatDeviceUser === "function" ? formatDeviceUser(config.nickname) : { nickname: config.nickname, memberId: config.nickname };
+      const myMemberId = config.memberId || devUser.memberId || "";
+      const myMemberName = config.nickname || devUser.nickname || "";
+      const roomParams = `room=${encodeURIComponent(defaultRoomId())}${config.roomKey ? `&room_key=${encodeURIComponent(config.roomKey)}` : ""}&member_id=${encodeURIComponent(myMemberId)}&member_name=${encodeURIComponent(myMemberName)}&client_id=${encodeURIComponent(window.__teamContextClientId || "")}`;
       const fullPath = `${path}${separator}${roomParams}`;
       logTrace("api_call", { path, fullPath });
 
@@ -3596,8 +3637,10 @@
 
     const forgetRoomLocally = (roomId) => {
       const cleanRoom = String(roomId || "").trim();
-      if (!cleanRoom || cleanRoom === "Media") return false;
-      config.historyRooms = (config.historyRooms || []).filter((item) => item !== cleanRoom);
+      if (!cleanRoom) return false;
+      const remaining = (config.historyRooms || []).filter((item) => item !== cleanRoom);
+      if (!remaining.length && cleanRoom === config.roomId) return false;
+      config.historyRooms = remaining;
       const roomKeys = { ...(config.roomKeys || {}) };
       delete roomKeys[cleanRoom];
       config.roomKeys = roomKeys;
@@ -3624,8 +3667,7 @@
         });
         chip.appendChild(nameSpan);
 
-        // 系统默认主空间 Media 不可删除；其他历史空间内嵌关闭小图标
-        if (r !== "Media") {
+        if (rooms.length > 1) {
           const delBtn = document.createElement("button");
           delBtn.type = "button";
           delBtn.className = "room-tag-chip-del";
@@ -3633,10 +3675,12 @@
           delBtn.title = `从历史记录中移除空间 ${r}`;
           delBtn.addEventListener("click", (event) => {
             event.preventDefault();
-            event.stopPropagation(); // 关键：严格阻止冒泡，绝对不触发切换空间
+            event.stopPropagation();
+            const wasCurrent = r === config.roomId;
             if (forgetRoomLocally(r)) {
-              if (r === config.roomId) {
-                switchRoom("Media");
+              if (wasCurrent) {
+                const fallback = (config.historyRooms || []).find((item) => item && item !== r) || "1024";
+                switchRoom(fallback);
               }
               renderPopoverHistory();
               showToast(`已从历史记录中移除空间 ${r}`);
@@ -3690,57 +3734,63 @@
       }
     };
 
-    // 建立 SSE 实时监听
-    const setupSSE = () => {
-      if (sseSource) {
-        sseSource.close();
-        sseSource = null;
+    const stopSnapshotPoll = () => {
+      if (snapshotPollTimer) {
+        clearInterval(snapshotPollTimer);
+        snapshotPollTimer = null;
       }
-      const hub = (config.hubUrl || "http://127.0.0.1:18765").replace(/\/$/, "");
-      const myClientId = window.__teamContextClientId || (window.__teamContextClientId = `client_${Math.random().toString(36).slice(2)}_${Date.now()}`);
-      const devUser = typeof formatDeviceUser === "function" ? formatDeviceUser(config.nickname) : { nickname: config.nickname, memberId: config.nickname };
-      const myMemberId = config.memberId || devUser.memberId;
-      const myMemberName = config.nickname || devUser.nickname;
-      const params = new URLSearchParams({
-        room: config.roomId || "Media",
-        room_key: config.roomKey || "",
-        member_id: myMemberId,
-        member_name: myMemberName,
-        client_id: myClientId,
-      });
+      snapshotPollInFlight = false;
+    };
 
+    const pollSnapshotOnce = async () => {
+      if (snapshotPollInFlight) return;
+      if (connState.status === "disconnected") return;
+      snapshotPollInFlight = true;
       try {
-        const RawEventSource = getRawEventSource();
-        if (!RawEventSource) return;
-        sseSource = new RawEventSource(`${hub}/api/events?${params.toString()}`);
-        sseSource.addEventListener("snapshot", (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            apply(data);
-          } catch {}
-        });
-        sseSource.addEventListener("message", (e) => {
-          try {
-            const msg = JSON.parse(e.data);
-            renderMessage(msg);
-          } catch {}
-        });
-        sseSource.addEventListener("room_status", (e) => {
-          try {
-            const st = JSON.parse(e.data);
-            if (typeof st.online_count === "number") {
-              connState.onlineCount = st.online_count;
-            }
-            if (Array.isArray(st.active_members)) {
-              activeMemberIds = new Set(st.active_members);
-              renderPeople(true);
-            }
-            updatePillUI();
-          } catch {}
-        });
-        sseSource.addEventListener("room_deleted", (e) => {
-          let info = {};
-          try { info = JSON.parse(e.data || "{}"); } catch {}
+        const snap = await api("/api/snapshot");
+        apply(snap);
+      } catch (err) {
+        logTrace("snapshot_poll_failed", { err: err?.message || String(err) });
+      } finally {
+        snapshotPollInFlight = false;
+      }
+    };
+
+    const startSnapshotPoll = () => {
+      stopSnapshotPoll();
+      snapshotPollTimer = setInterval(() => { pollSnapshotOnce(); }, 2000);
+    };
+
+    const ingestSsePayload = (kind, raw) => {
+      try {
+        if (kind === "open") {
+          connState.status = "connected";
+          updatePillUI();
+          return;
+        }
+        if (kind === "error") return;
+        const data = typeof raw === "string" ? JSON.parse(raw || "null") : raw;
+        if (kind === "snapshot") {
+          apply(data);
+          return;
+        }
+        if (kind === "chat" || kind === "message") {
+          renderMessage(data);
+          return;
+        }
+        if (kind === "room_status") {
+          if (typeof data?.online_count === "number") {
+            connState.onlineCount = data.online_count;
+          }
+          if (Array.isArray(data?.active_members)) {
+            activeMemberIds = new Set(data.active_members);
+            renderPeople(true);
+          }
+          updatePillUI();
+          return;
+        }
+        if (kind === "room_deleted") {
+          const info = data || {};
           connState.status = "disconnected";
           updatePillUI();
           if (roomDeletionInFlight || info.room_id !== config.roomId) return;
@@ -3755,26 +3805,114 @@
           saveConfig(config);
           connectHub(config, true);
           showToast(info.message || `空间 ${deletedRoom} 已删除，已切换到 ${config.roomId}`);
-        });
-        sseSource.addEventListener("auth_revoked", (e) => {
-          try {
-            const st = JSON.parse(e.data);
-            connState.status = "error";
-            connState.errorMessage = "密钥已更新";
-            updatePillUI();
-            showConnectModal(st.message || "房间访问密钥已更新，请输入新密钥");
-          } catch {}
-        });
-        sseSource.onopen = () => {
-          connState.status = "connected";
+          return;
+        }
+        if (kind === "auth_revoked") {
+          connState.status = "error";
+          connState.errorMessage = "密钥已更新";
           updatePillUI();
+          showConnectModal(data?.message || "房间访问密钥已更新，请输入新密钥");
+        }
+      } catch {}
+    };
+
+    // 建立 SSE 实时监听
+    const setupSSE = () => {
+      if (sseSource) {
+        sseSource.close();
+        sseSource = null;
+      }
+      const hub = (config.hubUrl || "http://127.0.0.1:18765").replace(/\/$/, "");
+      const myClientId = window.__teamContextClientId || (window.__teamContextClientId = `client_${Math.random().toString(36).slice(2)}_${Date.now()}`);
+      const devUser = typeof formatDeviceUser === "function" ? formatDeviceUser(config.nickname) : { nickname: config.nickname, memberId: config.nickname };
+      const myMemberId = config.memberId || devUser.memberId;
+      const myMemberName = config.nickname || devUser.nickname;
+      const params = new URLSearchParams({
+        room: defaultRoomId(),
+        room_key: config.roomKey || "",
+        member_id: myMemberId,
+        member_name: myMemberName,
+        client_id: myClientId,
+      });
+      const sseUrl = `${hub}/api/events?${params.toString()}`;
+
+      if (!bridgeSseListenerBound) {
+        bridgeSseListenerBound = true;
+        window.addEventListener("message", (event) => {
+          const payload = event && event.data;
+          if (!payload || payload.__tcSse !== true) return;
+          ingestSsePayload(payload.kind, payload.data);
+        });
+      }
+
+      try {
+        const bootSseInBridge = () => {
+          const ifr = document.getElementById("__team_context_bridge_frame__") || getBridgeWindow()?.frameElement;
+          const idoc = ifr && ifr.contentDocument;
+          if (!idoc) return false;
+          const existing = idoc.getElementById("__tc_sse_boot__");
+          if (existing) existing.remove();
+          try {
+            if (idoc.defaultView && idoc.defaultView.__tcEs) {
+              idoc.defaultView.__tcEs.close();
+              idoc.defaultView.__tcEs = null;
+            }
+          } catch {}
+          const boot = idoc.createElement("script");
+          boot.id = "__tc_sse_boot__";
+          boot.textContent = `
+            (function () {
+              try { if (window.__tcEs) { window.__tcEs.close(); window.__tcEs = null; } } catch (e) {}
+              var es = new EventSource(${JSON.stringify(sseUrl)});
+              window.__tcEs = es;
+              function emit(kind, ev) {
+                try { parent.postMessage({ __tcSse: true, kind: kind, data: ev && ev.data }, "*"); } catch (e) {}
+              }
+              es.addEventListener("snapshot", function (e) { emit("snapshot", e); });
+              es.addEventListener("chat", function (e) { emit("chat", e); });
+              es.addEventListener("message", function (e) { emit("chat", e); });
+              es.onmessage = function (e) { emit("chat", e); };
+              es.addEventListener("room_status", function (e) { emit("room_status", e); });
+              es.addEventListener("room_deleted", function (e) { emit("room_deleted", e); });
+              es.addEventListener("auth_revoked", function (e) { emit("auth_revoked", e); });
+              es.onopen = function () { emit("open", { data: "{}" }); };
+              es.onerror = function () { emit("error", { data: String(es.readyState) }); };
+            })();
+          `;
+          (idoc.documentElement || idoc.body || idoc).appendChild(boot);
+          sseSource = {
+            close() {
+              try {
+                if (idoc.defaultView && idoc.defaultView.__tcEs) {
+                  idoc.defaultView.__tcEs.close();
+                  idoc.defaultView.__tcEs = null;
+                }
+              } catch {}
+            },
+            readyState: 1,
+          };
+          return true;
         };
-        sseSource.onerror = () => {
-          if (sseSource?.readyState === EventSource.CLOSED) {
-            connState.status = "disconnected";
-            updatePillUI();
-          }
-        };
+
+        if (!bootSseInBridge()) {
+          const RawEventSource = getRawEventSource();
+          if (!RawEventSource) return;
+          sseSource = new RawEventSource(sseUrl);
+          const onChat = (e) => ingestSsePayload("chat", e.data);
+          sseSource.addEventListener("chat", onChat);
+          sseSource.addEventListener("message", onChat);
+          sseSource.onmessage = onChat;
+          sseSource.addEventListener("snapshot", (e) => ingestSsePayload("snapshot", e.data));
+          sseSource.addEventListener("room_status", (e) => ingestSsePayload("room_status", e.data));
+          sseSource.addEventListener("room_deleted", (e) => ingestSsePayload("room_deleted", e.data));
+          sseSource.addEventListener("auth_revoked", (e) => ingestSsePayload("auth_revoked", e.data));
+          sseSource.onopen = () => ingestSsePayload("open");
+          sseSource.onerror = () => {
+            if (sseSource?.readyState === EventSource.CLOSED) {
+              ingestSsePayload("error", String(sseSource.readyState));
+            }
+          };
+        }
       } catch (err) {
         connState.status = "error";
         connState.errorMessage = "SSE 连接失败";
@@ -3820,6 +3958,9 @@
           room: newConfig.roomId,
           room_key: newConfig.roomKey,
           auto_create: true,
+          member_id: config.memberId,
+          member_name: config.nickname,
+          client_id: window.__teamContextClientId || "",
         };
 
         let verifyData;
@@ -3881,6 +4022,7 @@
         const snap = await api("/api/snapshot");
         apply(snap);
         setupSSE();
+        startSnapshotPoll();
       } catch (err) {
         if (err.message.includes("401") || err.message.includes("密码")) {
           const curRoom = config.roomId || "Media";
@@ -3928,9 +4070,19 @@
     };
 
     const switchRoom = (roomId) => {
-      const cleanRoom = String(roomId || "Media").trim();
-      const targetKey = config.roomKeys?.[cleanRoom] || (cleanRoom === config.roomId ? config.roomKey : "") || "";
-      connectHub({ ...config, roomId: cleanRoom, roomKey: targetKey }, true);
+      let cleanRoom = String(roomId || "Media").trim();
+      let hubUrl = config.hubUrl;
+      let roomKey = "";
+      const token = typeof parseCollabToken === "function" ? parseCollabToken(cleanRoom) : null;
+      if (token) {
+        cleanRoom = token.roomId;
+        hubUrl = token.hubUrl || hubUrl;
+        roomKey = token.roomKey || config.roomKeys?.[cleanRoom] || "";
+      } else {
+        cleanRoom = sanitizeRoomName(cleanRoom);
+        roomKey = config.roomKeys?.[cleanRoom] || (cleanRoom === config.roomId ? config.roomKey : "") || "";
+      }
+      connectHub({ ...config, hubUrl, roomId: cleanRoom, roomKey }, true);
     };
 
     const sanitizeRoomName = (raw) => {
@@ -3988,8 +4140,7 @@
           });
           chip.appendChild(nameSpan);
 
-          // 系统主空间 Media 不允许删除，自建空间内嵌删除图标
-          if (r !== "Media") {
+          if ((config.historyRooms || []).length > 1) {
             const delBtn = document.createElement("button");
             delBtn.type = "button";
             delBtn.className = "room-tag-chip-del";
@@ -3997,10 +4148,10 @@
             delBtn.title = `从历史中移除空间 ${r}`;
             delBtn.addEventListener("click", (event) => {
               event.preventDefault();
-              event.stopPropagation(); // 关键：严格阻止冒泡，避免触发填入房间
+              event.stopPropagation();
               if (forgetRoomLocally(r)) {
                 if (cfgRoomId.value === r) {
-                  cfgRoomId.value = "Media";
+                  cfgRoomId.value = (config.historyRooms || [])[0] || "1024";
                 }
                 renderQuickRooms();
                 renderPopoverHistory();
@@ -4183,6 +4334,7 @@
           sseSource.close();
           sseSource = null;
         }
+        stopSnapshotPoll();
         connState.status = "disconnected";
         updatePillUI();
       }
@@ -5630,25 +5782,16 @@
      const devUser = typeof formatDeviceUser === "function" ? formatDeviceUser(config.nickname) : { nickname: config.nickname, memberId: config.nickname };
      const myMemberId = String(config.memberId || devUser.memberId || "").trim().toLowerCase();
      const myNickname = String(config.nickname || devUser.nickname || "").trim().toLowerCase();
-     const currentOS = detectDeviceOS();
 
      const senderId = String(message.actor_id || "").trim().toLowerCase();
      const senderName = String(message.actor_name || "").trim().toLowerCase();
 
-     // 判定是否为当前本地设备发出的消息
+     // 判定是否为当前本地设备发出的消息：只认精确 memberId / 昵称，禁止用裸 weijia 把对端消息画成自己
      let isMe = false;
      if (senderId && myMemberId && senderId === myMemberId) {
        isMe = true;
      } else if (senderName && myNickname && senderName === myNickname) {
        isMe = true;
-     } else if (currentOS === "mac") {
-       if (senderId.endsWith("_mac") || senderName.includes("(mac)") || senderId === "liuweijia" || senderId === "weijia" || senderName === "liu weijia") {
-         isMe = true;
-       }
-     } else if (currentOS === "win") {
-       if (senderId.endsWith("_win") || senderName.includes("(win)")) {
-         isMe = true;
-       }
      }
 
      const row = document.createElement("div");
@@ -5679,6 +5822,7 @@
        const msgCount = Number(capture.message_count || 0);
        const hasCodex = Boolean(capture.has_codex_response);
        const modelLabel = capture.model_label ? ` · ${escapeHtml(capture.model_label)}` : "";
+       const snapMarkdown = String(message.metadata?.full_markdown || contentText || "");
 
         // 提取第一条提问内容作为气泡卡片预览
         let previewText = (message.metadata?.first_user_prompt || "").trim();
@@ -5837,6 +5981,9 @@
 
      messagesEl.appendChild(row);
      messagesEl.scrollTop = messagesEl.scrollHeight;
+     if (Number(message.seq || 0) > Number(lastSnapshot?.seq || 0)) {
+       lastSnapshot = { ...(lastSnapshot || {}), seq: Number(message.seq) };
+     }
      rebuildMinimap();
      syncMinimap();
    };
@@ -5902,7 +6049,11 @@
       } else {
         const emptyEl = messagesEl.querySelector(".room-empty-state");
         if (emptyEl) emptyEl.remove();
-        msgs.forEach(renderMessage);
+        msgs.forEach((msg) => {
+          try { renderMessage(msg); } catch (err) {
+            logTrace("render_message_failed", { id: msg?.id, err: err?.message || String(err) });
+          }
+        });
       }
 
       renderPeople();
@@ -6076,6 +6227,35 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
 
     page.__teamContextApply = apply;
     window.__teamContextApply = apply;
+    window.__teamContextIngestMessages = (data) => {
+      if (!data || typeof data !== "object") return { ok: false };
+      try {
+        if (Array.isArray(data.members) && data.members.length) members = data.members;
+        if (Array.isArray(data.active_members)) {
+          activeMemberIds = new Set(data.active_members);
+        }
+        if (typeof data.online_count === "number") {
+          connState.onlineCount = Math.max(data.online_count, activeMemberIds.size || 0);
+        }
+        if (data.room?.id && connState.status !== "disconnected") {
+          connState.status = "connected";
+        }
+        updatePillUI();
+        renderPeople();
+        (data.messages || []).forEach((msg) => {
+          try { renderMessage(msg); } catch (err) {
+            logTrace("render_message_failed", { id: msg?.id, err: err?.message || String(err) });
+          }
+        });
+        if (Number(data.seq || 0) > Number(lastSnapshot?.seq || 0)) {
+          lastSnapshot = { ...(lastSnapshot || {}), seq: Number(data.seq) };
+        }
+        return { ok: true, lastSeq: Number(lastSnapshot?.seq || 0) };
+      } catch (err) {
+        logTrace("ingest_messages_failed", { err: err?.message || String(err) });
+        return { ok: false, error: err?.message || String(err) };
+      }
+    };
     window.__teamContextTakePending = () => {
       const message = window.__teamContextPending || null;
       const context = window.__teamContextPendingContext || null;
@@ -6083,7 +6263,11 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       window.__teamContextPendingContext = null;
       return message || context ? { message, context } : null;
     };
-    window.__teamContextGetConfig = () => config;
+    window.__teamContextGetConfig = () => ({
+      ...config,
+      lastSeq: Number(lastSnapshot?.seq || 0),
+      clientId: window.__teamContextClientId || "",
+    });
     window.__teamContextApplyConfigResult = (res) => {
       if (res && res.ok) {
         if (window.__teamContextRetryTimer) {
@@ -6108,6 +6292,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
           console.warn("[TeamContext] snapshot after proxy config failed:", err);
         });
         setupSSE();
+        startSnapshotPoll();
       } else if (res && !res.ok) {
         connState.status = "error";
         connState.errorMessage = res.error?.includes("401") || res.error?.includes("密码") ? "密钥错误" : "连接失败";
@@ -6410,7 +6595,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
           client_message_id: `msg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
           linked_thread: safeLinkedThread,
           metadata,
-          room: config.roomId || "1024",
+          room: defaultRoomId(),
           room_key: config.roomKey || "",
         };
 
