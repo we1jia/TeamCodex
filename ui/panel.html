@@ -6,30 +6,49 @@
   <title>TeamCodex</title>
   <style>
     :root {
-      --bg: #1c1c1e;
-      --card: rgba(44, 44, 46, 0.72);
-      --line: rgba(255, 255, 255, 0.08);
-      --text: #f5f5f7;
-      --muted: #8e8e93;
-      --ok: #30d158;
-      --warn: #ffd60a;
-      --bad: #ff453a;
-      --accent: #0a84ff;
-      --fill: rgba(255, 255, 255, 0.08);
+      --bg: transparent;
+      --card: rgba(0, 0, 0, 0.04);
+      --line: rgba(0, 0, 0, 0.08);
+      --text: #1d1d1f;
+      --muted: #86868b;
+      --ok: #34c759;
+      --warn: #ff9f0a;
+      --bad: #ff3b30;
+      --accent: #0071e3;
+      --fill: rgba(0, 0, 0, 0.05);
+      --input-bg: rgba(255, 255, 255, 0.82);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: transparent;
+        --card: rgba(255, 255, 255, 0.06);
+        --line: rgba(255, 255, 255, 0.10);
+        --text: #f5f5f7;
+        --muted: #8e8e93;
+        --ok: #30d158;
+        --warn: #ffd60a;
+        --bad: #ff453a;
+        --accent: #0a84ff;
+        --fill: rgba(255, 255, 255, 0.08);
+        --input-bg: rgba(0, 0, 0, 0.35);
+      }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      background: transparent;
+      background: transparent !important;
       color: var(--text);
       font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+      overflow: hidden;
     }
-    body { min-width: 320px; }
+    body { width: 100%; min-width: 310px; }
     .sheet {
-      margin: 8px;
-      padding: 14px 14px 12px;
-      border-radius: 14px;
-      background: var(--bg);
-      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+      margin: 0;
+      padding: 16px 16px 14px;
+      background: transparent !important;
+      border-radius: 0;
+      box-shadow: none;
     }
     header {
       display: flex;
@@ -37,7 +56,7 @@
       justify-content: space-between;
       margin-bottom: 12px;
     }
-    .brand { font-weight: 620; letter-spacing: -0.02em; }
+    .brand { font-weight: 620; letter-spacing: -0.02em; font-size: 14px; }
     .ver {
       color: var(--muted);
       font-variant-numeric: tabular-nums;
@@ -51,11 +70,11 @@
     }
     .row {
       display: grid;
-      grid-template-columns: 52px 12px 1fr;
+      grid-template-columns: 50px 12px 1fr;
       gap: 8px;
       align-items: center;
-      padding: 10px 12px;
-      min-height: 40px;
+      padding: 9px 12px;
+      min-height: 38px;
     }
     .row + .row { border-top: 1px solid var(--line); }
     .k { color: var(--muted); font-size: 12px; }
@@ -65,20 +84,31 @@
     }
     .dot.ok { background: var(--ok); }
     .dot.wait { background: var(--warn); }
-    .v { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+    .v { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; }
+    .actions { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; }
     button, .field button {
       appearance: none;
       border: 0;
-      border-radius: 10px;
-      min-height: 34px;
+      border-radius: 9px;
+      min-height: 33px;
       padding: 0 12px;
       color: var(--text);
       background: var(--fill);
       font: inherit;
+      font-size: 12.5px;
       cursor: pointer;
+      transition: background 0.12s ease;
+    }
+    button:hover:not(:disabled), .field button:hover:not(:disabled) {
+      background: rgba(0, 0, 0, 0.08);
+    }
+    @media (prefers-color-scheme: dark) {
+      button:hover:not(:disabled), .field button:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.13);
+      }
     }
     button.primary { background: var(--accent); color: white; font-weight: 600; }
+    button.primary:hover:not(:disabled) { filter: brightness(1.05); }
     button:disabled { opacity: 0.55; cursor: default; }
     .field {
       display: grid;
@@ -87,27 +117,30 @@
     }
     input {
       width: 100%;
-      min-height: 34px;
+      min-height: 33px;
       border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #111;
+      border-radius: 9px;
+      background: var(--input-bg);
       color: var(--text);
       padding: 0 10px;
       font: inherit;
+      font-size: 12px;
+      outline: none;
     }
+    input:focus { border-color: var(--accent); }
     .update {
       display: none;
-      margin-top: 12px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(10, 132, 255, 0.14);
-      color: #7ec2ff;
+      margin-top: 10px;
+      padding: 9px 12px;
+      border-radius: 10px;
+      background: rgba(0, 113, 227, 0.12);
+      color: var(--accent);
       align-items: center;
       justify-content: space-between;
       gap: 8px;
     }
     .update.show { display: flex; }
-    .msg { min-height: 16px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .msg { min-height: 16px; margin-top: 6px; color: var(--muted); font-size: 11.5px; }
   </style>
 </head>
 <body>

@@ -72,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
   private func setupPopover() {
     let config = WKWebViewConfiguration()
-    webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 336, height: 468), configuration: config)
+    webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 320, height: 382), configuration: config)
     webView.setValue(false, forKey: "drawsBackground")
     if let url = URL(string: "http://127.0.0.1:18767/panel.html") {
       webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8))
@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let controller = NSViewController()
     controller.view = webView
     popover = NSPopover()
-    popover.contentSize = NSSize(width: 336, height: 468)
+    popover.contentSize = NSSize(width: 320, height: 382)
     popover.behavior = .transient
     popover.animates = true
     popover.delegate = self
