@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v72";
+  const UI_VERSION = "inline-v73";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -2483,8 +2483,8 @@
 
         /* 通用对话选择模态框 (Share 时挑对话、Import 时挑对话) */
         .thread-select-card {
-          width: min(520px, calc(100vw - 32px));
-          max-height: min(640px, calc(100vh - 80px));
+          width: min(560px, calc(100vw - 32px));
+          max-height: min(680px, calc(100vh - 80px));
           background: var(--bg-page);
           border: 1px solid var(--border-subtle);
           border-radius: 16px;
@@ -2613,6 +2613,68 @@
           color: #10a37f;
           font-weight: 500;
           flex-shrink: 0;
+        }
+        .thread-select-item-project {
+          font-size: 11px;
+          padding: 2px 7px;
+          border-radius: 5px;
+          background: var(--bg-chip);
+          color: var(--text-muted);
+          border: 1px solid var(--border-subtle);
+          font-weight: 400;
+          flex-shrink: 0;
+        }
+        .thread-select-group-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 10px 4px 10px;
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--text-muted);
+          letter-spacing: 0.02em;
+          border-top: 1px solid var(--border-subtle);
+          margin-top: 6px;
+        }
+        .thread-select-group-header:first-child {
+          border-top: none;
+          margin-top: 0;
+        }
+        .thread-select-group-title {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .thread-select-group-badge {
+          font-size: 10.5px;
+          color: var(--text-muted);
+          font-weight: 400;
+        }
+        .thread-select-scan-hint {
+          padding: 6px 18px;
+          font-size: 11.5px;
+          color: var(--text-muted);
+          background: rgba(255, 255, 255, 0.02);
+          border-bottom: 1px solid var(--border-subtle);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .thread-select-scan-btn {
+          background: transparent;
+          border: none;
+          color: #10a37f;
+          font-size: 11.5px;
+          cursor: pointer;
+          padding: 2px 6px;
+          border-radius: 4px;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          transition: background 0.12s ease;
+        }
+        .thread-select-scan-btn:hover {
+          background: rgba(16, 163, 127, 0.12);
         }
         .thread-select-item-action {
           font-size: 11.5px;
@@ -3017,7 +3079,14 @@
             </div>
             <div class="thread-select-search-wrap">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input type="text" id="thread-select-search" placeholder="搜索本地对话标题..." autocomplete="off">
+              <input type="text" id="thread-select-search" placeholder="搜索对话标题或所属项目 (如 Media / HengFang)..." autocomplete="off">
+            </div>
+            <div class="thread-select-scan-hint" id="thread-select-scan-hint">
+              <span id="thread-select-scan-text">正在扫描项目与历史对话...</span>
+              <button type="button" class="thread-select-scan-btn" id="thread-select-rescan-btn" title="重新扫描并展开侧边栏全部项目">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                <span>展开并刷新</span>
+              </button>
             </div>
             <div class="thread-select-list scroll" id="thread-select-list"></div>
           </div>
@@ -3145,6 +3214,8 @@
     const threadSelectTitle = root.getElementById("thread-select-title");
     const threadSelectSubtitle = root.getElementById("thread-select-subtitle");
     const threadSelectSearch = root.getElementById("thread-select-search");
+    const threadSelectScanText = root.getElementById("thread-select-scan-text");
+    const threadSelectRescanBtn = root.getElementById("thread-select-rescan-btn");
     const threadSelectList = root.getElementById("thread-select-list");
     const threadSelectClose = root.getElementById("thread-select-close");
 
@@ -4269,6 +4340,68 @@
       if (e.target === threadSelectModal) closeThreadSelectModal();
     });
 
+    // 自动在后台静默展开侧栏折叠的项目文件夹与长列表的“展开显示”按钮
+    const expandAllSidebarFoldersAndMore = () => {
+      // 1. 展开所有折叠的项目文件夹行 (Playground, Studio-LawHome, 最近 等)
+      const folderRows = Array.from(document.querySelectorAll(".group\\/folder-row, [role=button], button"));
+      folderRows.forEach(el => {
+        if (el.getAttribute("aria-expanded") === "false") {
+          const t = (el.textContent || "").trim();
+          // 排除个人信息、模型切换菜单等
+          if (t && !t.includes("weijia") && !t.includes("语音") && !t.includes("完全访问") && !t.includes("选择强度") && !t.includes("用时")) {
+            try { el.click(); } catch {}
+          }
+        }
+      });
+
+      // 2. 点击所有已展开项目下方的“展开显示”按钮
+      const moreBtns = Array.from(document.querySelectorAll("button, a")).filter(el => (el.textContent || "").trim() === "展开显示");
+      moreBtns.forEach(b => {
+        try { b.click(); } catch {}
+      });
+    };
+
+    // 增强版：获取包含所属项目名称的所有会话列表
+    function listSidebarThreadsDetailed() {
+      const folderEls = Array.from(document.querySelectorAll(".group\\/folder-row, button.group\\/section-toggle"));
+      const detectedProjects = folderEls.map(el => (el.textContent || "").trim().split("\n")[0].trim()).filter(Boolean);
+      if (!detectedProjects.includes("最近")) detectedProjects.push("最近");
+
+      const allThreads = Array.from(document.querySelectorAll("[data-app-action-sidebar-thread-id]"));
+      return allThreads.map((el) => {
+        const id = el.getAttribute("data-app-action-sidebar-thread-id") || "";
+        const title = (
+          el.getAttribute("data-app-action-sidebar-thread-title") ||
+          el.getAttribute("aria-label") ||
+          el.textContent ||
+          ""
+        ).replace(/\s+/g, " ").trim();
+        const selected = el.getAttribute("data-app-action-sidebar-thread-selected") === "true";
+
+        // 向上查找所属的项目文件夹
+        let project = "最近";
+        let p = el;
+        while (p && p !== document.body) {
+          let s = p.previousElementSibling;
+          while (s) {
+            const text = (s.textContent || "").trim();
+            for (const name of detectedProjects) {
+              if (text.startsWith(name)) {
+                project = name;
+                break;
+              }
+            }
+            if (project !== "最近") break;
+            s = s.previousElementSibling;
+          }
+          if (project !== "最近") break;
+          p = p.parentElement;
+        }
+
+        return { id, title, selected, project, element: el };
+      }).filter((item) => item.id && item.title && item.title !== "true");
+    }
+
     const openThreadSelectModal = ({ mode = "share", content = "" } = {}) => {
       if (!threadSelectModal) return;
       currentThreadSelectConfig = { mode, content };
@@ -4286,24 +4419,37 @@
         threadSelectSearch.value = "";
       }
 
-      renderThreadSelectList();
+      // 打开时自动做一次后台项目展开扫描，并在 160ms 内渲染全量列表
+      expandAllSidebarFoldersAndMore();
       threadSelectModal.hidden = false;
-      if (threadSelectSearch) threadSelectSearch.focus();
+      renderThreadSelectList();
+
+      setTimeout(() => {
+        expandAllSidebarFoldersAndMore();
+        renderThreadSelectList();
+        if (threadSelectSearch) threadSelectSearch.focus();
+      }, 160);
     };
 
     const renderThreadSelectList = () => {
       if (!threadSelectList) return;
       threadSelectList.innerHTML = "";
       const q = (threadSelectSearch?.value || "").trim().toLowerCase();
-      const allThreads = listSidebarThreads();
-      const filtered = allThreads.filter((t) => !q || t.title.toLowerCase().includes(q));
+      const allThreads = listSidebarThreadsDetailed();
       const isShare = currentThreadSelectConfig?.mode === "share";
 
-      // 导入模式下：顶部增加【+ 新建空白会话并导入】快捷操作
+      // 统计项目数量与更新提示栏
+      const projectSet = new Set(allThreads.map(t => t.project));
+      if (threadSelectScanText) {
+        threadSelectScanText.textContent = `已发现 ${projectSet.size} 个项目，共 ${allThreads.length} 条对话`;
+      }
+
+      // 导入模式下：顶部置顶【+ 新建空白会话并导入】快捷操作
       if (!isShare) {
         const newBtn = document.createElement("button");
         newBtn.type = "button";
         newBtn.className = "thread-select-item is-current";
+        newBtn.style.marginBottom = "4px";
         newBtn.innerHTML = `
           <div class="thread-select-item-left">
             <span class="thread-select-item-icon" style="background:rgba(16,163,127,0.15);color:#10a37f;">
@@ -4322,63 +4468,113 @@
         threadSelectList.appendChild(newBtn);
       }
 
+      // 过滤匹配 (支持同时搜索标题与所属项目)
+      const filtered = allThreads.filter((t) => {
+        if (!q) return true;
+        return t.title.toLowerCase().includes(q) || t.project.toLowerCase().includes(q);
+      });
+
       if (!filtered.length) {
         const empty = document.createElement("div");
-        empty.style.cssText = "padding:20px;text-align:center;color:var(--text-muted);font-size:12.5px;";
-        empty.textContent = "未找到匹配的本地对话";
+        empty.style.cssText = "padding:24px;text-align:center;color:var(--text-muted);font-size:12.5px;";
+        empty.textContent = q ? `未找到包含 "${q}" 的对话` : "未找到本地对话";
         threadSelectList.appendChild(empty);
         return;
       }
 
-      filtered.forEach((thread) => {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = `thread-select-item ${thread.selected ? "is-current" : ""}`;
-        item.innerHTML = `
-          <div class="thread-select-item-left">
-            <span class="thread-select-item-icon">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            </span>
-            <div class="thread-select-item-content">
-              <div class="thread-select-item-title">${escapeHtml(thread.title)}</div>
-            </div>
-            ${thread.selected ? `<span class="thread-select-item-badge">当前对话</span>` : ""}
+      // 按项目分组组织数据
+      const currentThreadObj = allThreads.find(t => t.selected);
+      const currentProject = currentThreadObj?.project || "Media";
+
+      const grouped = new Map();
+      filtered.forEach(item => {
+        const pName = item.project || "最近";
+        if (!grouped.has(pName)) grouped.set(pName, []);
+        grouped.get(pName).push(item);
+      });
+
+      // 排序分组：当前对话所属项目置顶，其次为其他项目，最后为“最近”
+      const sortedGroupKeys = Array.from(grouped.keys()).sort((a, b) => {
+        if (a === currentProject) return -1;
+        if (b === currentProject) return 1;
+        if (a === "最近") return 1;
+        if (b === "最近") return -1;
+        return a.localeCompare(b);
+      });
+
+      sortedGroupKeys.forEach(projKey => {
+        const items = grouped.get(projKey) || [];
+        if (!items.length) return;
+
+        // 弱化极简分组分割头 (扁平清晰，不画树形折叠组件)
+        const header = document.createElement("div");
+        header.className = "thread-select-group-header";
+        header.innerHTML = `
+          <div class="thread-select-group-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span>${escapeHtml(projKey)}</span>
+            ${projKey === currentProject ? `<span style="font-size:10px;color:#10a37f;font-weight:500;">(当前项目)</span>` : ""}
           </div>
-          <span class="thread-select-item-action">${isShare ? "分享此对话" : "导入此处"}</span>
+          <span class="thread-select-group-badge">${items.length} 个对话</span>
         `;
-        item.addEventListener("click", () => {
-          const cfg = currentThreadSelectConfig;
-          closeThreadSelectModal();
-          if (isShare) {
-            // 分享模式
-            if (thread.selected) {
-              shareCurrentThreadToTeam();
-            } else {
-              // 切换到目标对话后提取并分享
-              if (thread.element) {
-                thread.element.click();
-              }
-              linkedThread = thread;
-              renderLink();
-              showToast(`正在切换至对话《${thread.title.slice(0, 12)}...》并生成分享...`);
-              window.setTimeout(() => {
+        threadSelectList.appendChild(header);
+
+        items.forEach((thread) => {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = `thread-select-item ${thread.selected ? "is-current" : ""}`;
+          item.innerHTML = `
+            <div class="thread-select-item-left">
+              <span class="thread-select-item-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </span>
+              <div class="thread-select-item-content">
+                <div class="thread-select-item-title">${escapeHtml(thread.title)}</div>
+              </div>
+              <span class="thread-select-item-project">${escapeHtml(thread.project)}</span>
+              ${thread.selected ? `<span class="thread-select-item-badge">当前对话</span>` : ""}
+            </div>
+            <span class="thread-select-item-action">${isShare ? "分享此对话" : "导入此处"}</span>
+          `;
+          item.addEventListener("click", () => {
+            const cfg = currentThreadSelectConfig;
+            closeThreadSelectModal();
+            if (isShare) {
+              if (thread.selected) {
                 shareCurrentThreadToTeam();
-              }, 450);
-            }
-          } else {
-            // 导入模式
-            if (thread.selected) {
-              importIntoCurrentThread(cfg?.content || "");
+              } else {
+                if (thread.element) {
+                  thread.element.click();
+                }
+                linkedThread = thread;
+                renderLink();
+                showToast(`正在切换至对话《${thread.title.slice(0, 12)}...》并生成分享...`);
+                window.setTimeout(() => {
+                  shareCurrentThreadToTeam();
+                }, 450);
+              }
             } else {
-              importIntoSpecificThread(thread, cfg?.content || "");
+              if (thread.selected) {
+                importIntoCurrentThread(cfg?.content || "");
+              } else {
+                importIntoSpecificThread(thread, cfg?.content || "");
+              }
             }
-          }
+          });
+          threadSelectList.appendChild(item);
         });
-        threadSelectList.appendChild(item);
       });
     };
 
     threadSelectSearch?.addEventListener("input", renderThreadSelectList);
+    threadSelectRescanBtn?.addEventListener("click", () => {
+      expandAllSidebarFoldersAndMore();
+      if (threadSelectScanText) threadSelectScanText.textContent = "正在展开全部项目与历史对话...";
+      setTimeout(() => {
+        renderThreadSelectList();
+        showToast("✓ 已扫描并加载侧栏全部项目对话");
+      }, 200);
+    });
 
     // 导入消息主体选中的对话到当前 Codex 对话或新对话
     const importSelectedMessagesToComposer = ({ newThread = false } = {}) => {

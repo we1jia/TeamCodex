@@ -455,11 +455,11 @@ test("17. windows/run-teamcodex.ps1 具备优雅退出与平滑接管防丢机�
   assert.match(psCode, /"--remote-debugging-address=127\.0\.0\.1"/);
 });
 
-test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v71/v72)", () => {
+test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v71/v72/v73)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v72";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v73";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -482,7 +482,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   assert.doesNotMatch(uiCode, /⚡ 检测到协同口令/);
 });
 
-test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂毛玻璃样式 (inline-v72)", () => {
+test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂毛玻璃样式 (inline-v72/v73)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 19.1 输入框底部工具栏拔除鸡肋按钮：不再存在 + New、@ Link、Secure
@@ -514,10 +514,35 @@ test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂�
   assert.match(uiCode, /id="thread-select-search"/, "必须支持搜索过滤本地对话");
   assert.match(uiCode, /id="thread-select-list"/, "必须具备对话动态列表容器");
 
-  // 19.6 自愈检测指纹已同步升级至 v72
+  // 19.6 自愈检测指纹已同步升级至 v72/v73
   assert.match(uiCode, /existing\.dataset\.ui !== UI_VERSION/);
   assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("snapshot-detail-import-new"\)/);
   assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("thread-select-modal"\)/);
 });
+
+test("20. 跨项目自动展开扫描、项目归属提取与扁平分组排版 (inline-v73)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 20.1 必须定义并执行自动展开函数 expandAllSidebarFoldersAndMore
+  assert.match(uiCode, /const expandAllSidebarFoldersAndMore = \(\) => \{/);
+  assert.match(uiCode, /el\.getAttribute\("aria-expanded"\) === "false"/);
+  assert.match(uiCode, /el\.textContent \|\| ""\)\.trim\(\) === "展开显示"/);
+
+  // 20.2 必须具备精准提取项目所属的 listSidebarThreadsDetailed
+  assert.match(uiCode, /function listSidebarThreadsDetailed\(\)/);
+  assert.match(uiCode, /const detectedProjects = folderEls\.map/);
+
+  // 20.3 弹窗包含扫描统计栏与重新扫描按钮
+  assert.match(uiCode, /id="thread-select-scan-hint"/);
+  assert.match(uiCode, /id="thread-select-rescan-btn"/);
+
+  // 20.4 支持项目弱化分割头与项目微标样式
+  assert.match(uiCode, /\.thread-select-group-header\s*\{/);
+  assert.match(uiCode, /\.thread-select-item-project\s*\{/);
+
+  // 20.5 搜索支持同时搜索对话标题与所属项目
+  assert.match(uiCode, /t\.title\.toLowerCase\(\)\.includes\(q\) \|\| t\.project\.toLowerCase\(\)\.includes\(q\)/);
+});
+
 
 
