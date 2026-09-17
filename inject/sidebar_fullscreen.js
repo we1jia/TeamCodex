@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v82";
+  const UI_VERSION = "inline-v83";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -3172,6 +3172,11 @@
                   <span class="snapshot-native-badge" id="snapshot-native-badge">已查看 1 张图像</span>
                 </div>
               </div>
+              <div class="snapshot-detail-context-toggle" id="snapshot-detail-context-toggle" role="button" tabindex="0">
+                <span id="snapshot-detail-context-toggle-text">展开查看完整对话记录</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
+              <pre class="snapshot-detail-full-content" id="snapshot-detail-full-content" hidden></pre>
             </div>
 
             <div class="snapshot-detail-footer">
@@ -3390,6 +3395,10 @@
     const snapshotNativeThumb = root.getElementById("snapshot-native-thumb");
     const snapshotNativeBadgeRow = root.getElementById("snapshot-native-badge-row");
     const snapshotNativeBadge = root.getElementById("snapshot-native-badge");
+    const snapshotDetailContextToggle = root.getElementById("snapshot-detail-context-toggle");
+    const snapshotDetailContextToggleText = root.getElementById("snapshot-detail-context-toggle-text");
+    const snapshotDetailFullContent = root.getElementById("snapshot-detail-full-content");
+    const snapshotDetailFooterNote = root.querySelector(".snapshot-detail-footer-note");
 
     // 通用选择对话弹窗引用 (用于 Share 时挑对话、Import 时挑对话)
     const threadSelectModal = root.getElementById("thread-select-modal");
@@ -4915,7 +4924,26 @@
         }
       }
 
-      // 4. 重置【复制链接】按钮状态
+      // 4. 填充完整对话全文 (无论是否有公开外链，均可点击展开查看全部 N 条对话记录)
+      const fullText = message.metadata?.full_markdown || content || "";
+      if (snapshotDetailFullContent) {
+        snapshotDetailFullContent.textContent = fullText;
+        snapshotDetailFullContent.hidden = true;
+      }
+      if (snapshotDetailContextToggleText) {
+        snapshotDetailContextToggleText.textContent = `展开查看完整对话记录 (${count} 条消息)`;
+      }
+
+      // 5. 根据是否有 shareUrl，自适应底部说明与按钮
+      if (shareUrl) {
+        if (snapshotDetailNativeOpen) snapshotDetailNativeOpen.style.display = "inline-flex";
+        if (snapshotDetailFooterNote) snapshotDetailFooterNote.textContent = "任何拥有此链接的人都可以查看此聊天";
+      } else {
+        if (snapshotDetailNativeOpen) snapshotDetailNativeOpen.style.display = "none";
+        if (snapshotDetailFooterNote) snapshotDetailFooterNote.textContent = "当前为团队本地数据快照，已完整保存至本空间";
+      }
+
+      // 6. 重置【复制链接】按钮状态
       if (snapshotDetailNativeCopyText) {
         snapshotDetailNativeCopyText.textContent = "复制链接";
       }
@@ -5068,10 +5096,10 @@
           shareBtn.click();
         }
 
-        // 轮询等待后台生成完毕，最长等待 1800ms，避免全屏下卡死
+        // 轮询等待后台生成完毕，最长等待 3200ms，避免全屏下卡死
         const start = Date.now();
-        while (Date.now() - start < 1800) {
-          await new Promise(r => setTimeout(r, 150));
+        while (Date.now() - start < 3200) {
+          await new Promise(r => setTimeout(r, 120));
           dialog = document.querySelector("div[role='dialog'].codex-dialog");
           if (!dialog) continue;
 
@@ -5085,18 +5113,18 @@
               copyBtn.click();
             }
 
-            await new Promise(r => setTimeout(r, 350));
-
-            // 关闭原生弹窗
-            const closeBtn = dialog.querySelector("button[aria-label='关闭对话框']") ||
-              Array.from(dialog.querySelectorAll("button")).find(b => b.innerText?.trim() === "关闭对话框");
-            if (closeBtn) closeBtn.click();
-
-            // 从剪贴板提取刚刚生成写入的链接
-            const generated = await readClipboardSafe();
-            if (generated) {
-              if (threadKey) threadShareUrlCache.set(threadKey, generated);
-              return generated;
+            // 循环多读几次剪贴板（重试4次，每次间隔120ms），防系统异步延迟丢失
+            for (let retry = 0; retry < 4; retry++) {
+              await new Promise(r => setTimeout(r, 120));
+              const generated = await readClipboardSafe();
+              if (generated) {
+                // 关闭原生弹窗
+                const closeBtn = dialog.querySelector("button[aria-label='关闭对话框']") ||
+                  Array.from(dialog.querySelectorAll("button")).find(b => b.innerText?.trim() === "关闭对话框");
+                if (closeBtn) closeBtn.click();
+                if (threadKey) threadShareUrlCache.set(threadKey, generated);
+                return generated;
+              }
             }
             break;
           }
@@ -6268,6 +6296,18 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     root.querySelector(".official-help-link")?.addEventListener("click", (e) => {
       e.preventDefault();
       openExternalUrl("https://help.openai.com/en/articles/7925741-chatgpt-shared-links-faq");
+    });
+
+    snapshotDetailContextToggle?.addEventListener("click", () => {
+      if (!snapshotDetailFullContent) return;
+      const isHidden = snapshotDetailFullContent.hidden;
+      snapshotDetailFullContent.hidden = !isHidden;
+      if (snapshotDetailContextToggleText) {
+        const count = Number(currentViewingSnapshotMessage?.metadata?.capture?.message_count || 0) || 1;
+        snapshotDetailContextToggleText.textContent = isHidden
+          ? "收起完整对话记录"
+          : `展开查看完整对话记录 (${count} 条消息)`;
+      }
     });
 
    // 点击消息区域空白或聚焦输入框时退出多选模式

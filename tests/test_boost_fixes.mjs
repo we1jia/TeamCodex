@@ -459,7 +459,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v82";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v83";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -580,8 +580,9 @@ test("21. 对话选择列表纯展示容器规范、解绑整行点击与双击�
   assert.match(shareBranch, /window\.__teamContextSilentSwitch = true;/);
   assert.match(shareBranch, /window\.__teamContextSilentSwitch = false;/);
 
-  // 21.5 原生分享链接等待超时收敛至 1800ms
-  assert.match(uiCode, /while\s*\(Date\.now\(\)\s*-\s*start\s*<\s*1800\)/);
+  // 21.5 原生分享链接等待超时收敛至 3200ms 并具备剪贴板重试
+  assert.match(uiCode, /while\s*\(Date\.now\(\)\s*-\s*start\s*<\s*3200\)/);
+  assert.match(uiCode, /for\s*\(let retry = 0;\s*retry < 4;\s*retry\+\+\)/);
 });
 
 test("22. 外链专属隔离、DOM就绪等待防漏读、短提问语境结构化杜绝孤立小写 n (inline-v80)", () => {
@@ -657,6 +658,28 @@ test("24. 全量主题变量重构、紫色主题家族适配与弹窗/微胶囊
   // 24.5 微胶囊辅助按钮高对比度自然跟随
   assert.match(uiCode, /\.snapshot-open-link\s*\{[\s\S]*?color:\s*var\(--text-secondary\);[\s\S]*?background:\s*var\(--bg-chip\);/);
   assert.match(uiCode, /\.snapshot-open-link:hover\s*\{[\s\S]*?background:\s*var\(--bg-card-hover\);/);
+});
+
+test("25. 详情弹窗支持展开完整会话内容与外链状态自适应 (inline-v83)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 25.1 具备可折叠的上下文对话区结构与 DOM 引用
+  assert.match(uiCode, /id="snapshot-detail-context-toggle"/);
+  assert.match(uiCode, /id="snapshot-detail-full-content"/);
+  assert.match(uiCode, /const snapshotDetailContextToggle = root\.getElementById\("snapshot-detail-context-toggle"\);/);
+  assert.match(uiCode, /const snapshotDetailFullContent = root\.getElementById\("snapshot-detail-full-content"\);/);
+
+  // 25.2 openSnapshotDetailModal 填充 full_markdown 并默认收起
+  assert.match(uiCode, /snapshotDetailFullContent\.textContent = fullText;/);
+  assert.match(uiCode, /snapshotDetailFullContent\.hidden = true;/);
+
+  // 25.3 根据是否具备 shareUrl 进行外链自适应展示与文案切换
+  assert.match(uiCode, /snapshotDetailNativeOpen\.style\.display = "none";/);
+  assert.match(uiCode, /snapshotDetailFooterNote\.textContent = "当前为团队本地数据快照，已完整保存至本空间";/);
+
+  // 25.4 具备点击展开/收起切换逻辑
+  assert.match(uiCode, /snapshotDetailContextToggle\?\.addEventListener\("click"/);
+  assert.match(uiCode, /snapshotDetailFullContent\.hidden = !isHidden;/);
 });
 
 
