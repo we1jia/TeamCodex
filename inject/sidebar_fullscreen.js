@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v77";
+  const UI_VERSION = "inline-v79";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -694,10 +694,7 @@
   }
 
   function returnToConversation() {
-    const thread = window.__teamContextReturnThread;
     closePage();
-    if (!thread?.id) return;
-    triggerSidebarThreadClick(thread);
   }
 
   function insertIntoComposer(text) {
@@ -2685,24 +2682,24 @@
           align-items: center;
           justify-content: space-between;
           gap: 12px;
-          padding: 9px 12px;
+          padding: 8px 12px;
           border-radius: 9px;
           border: 1px solid transparent;
           background: transparent;
           color: var(--text-primary);
-          cursor: pointer;
+          cursor: default;
+          user-select: text;
           text-align: left;
           font-family: inherit;
           font-size: 13px;
-          transition: all 0.12s ease;
+          transition: background 0.12s ease;
         }
         .thread-select-item:hover {
-          background: var(--bg-card-hover);
-          border-color: var(--border-subtle);
+          background: rgba(255, 255, 255, 0.025);
         }
         .thread-select-item.is-current {
-          background: rgba(16, 163, 127, 0.08);
-          border-color: rgba(16, 163, 127, 0.25);
+          background: rgba(16, 163, 127, 0.06);
+          border-color: rgba(16, 163, 127, 0.2);
         }
         .thread-select-item-left {
           display: flex;
@@ -2803,19 +2800,32 @@
         }
         .thread-select-item-action {
           font-size: 11.5px;
-          padding: 4px 9px;
+          padding: 4px 10px;
           border-radius: 6px;
           background: var(--bg-chip);
           color: var(--text-secondary);
           border: 1px solid var(--border-subtle);
           font-weight: 500;
           flex-shrink: 0;
+          cursor: pointer;
+          user-select: none;
           transition: all 0.12s ease;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 1.3;
         }
-        .thread-select-item:hover .thread-select-item-action {
-          background: #10a37f;
-          color: #fff;
-          border-color: transparent;
+        .thread-select-item-action:hover:not(:disabled) {
+          background: #10a37f !important;
+          color: #fff !important;
+          border-color: #10a37f !important;
+        }
+        .thread-select-item-action:active:not(:disabled) {
+          transform: scale(0.97);
+        }
+        .thread-select-item-action:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
         .context-select-checkbox { width: 15px; height: 15px; margin: 1px 0 0; accent-color: var(--accent-color); opacity: 1; transform: scale(1); transition: opacity 120ms ease, transform 120ms ease; pointer-events: none; }
         .context-message-meta { display: flex; align-items: center; gap: 7px; color: var(--text-secondary); font-size: 11px; margin-bottom: 3px; }
@@ -4563,42 +4573,6 @@
       const allThreads = listSidebarThreadsDetailed();
       const isShare = currentThreadSelectConfig?.mode === "share";
 
-      // 导入模式下：顶部置顶【+ 新建空白会话并导入】快捷操作
-      if (!isShare) {
-        const newBtn = document.createElement("button");
-        newBtn.type = "button";
-        newBtn.className = "thread-select-item is-current";
-        newBtn.style.marginBottom = "4px";
-        newBtn.innerHTML = `
-          <div class="thread-select-item-left">
-            <span class="thread-select-item-icon" style="background:rgba(16,163,127,0.15);color:#10a37f;">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </span>
-            <div class="thread-select-item-content">
-              <div class="thread-select-item-title" style="color:#10a37f;font-weight:600;">新建空白对话并导入</div>
-            </div>
-          </div>
-          <span class="thread-select-item-action" style="background:#10a37f;color:#fff;border-color:transparent;">立即新建</span>
-        `;
-        newBtn.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          if (isImportingInProgress) return;
-          isImportingInProgress = true;
-          const contentToImport = (currentThreadSelectConfig?.content || "").trim();
-          newBtn.style.opacity = "0.7";
-          const act = newBtn.querySelector(".thread-select-item-action");
-          if (act) act.textContent = "正在新建...";
-          if (threadSelectList) threadSelectList.style.pointerEvents = "none";
-          closeThreadSelectModal();
-          importIntoNewThread(contentToImport).finally(() => {
-            isImportingInProgress = false;
-            if (threadSelectList) threadSelectList.style.pointerEvents = "auto";
-          });
-        });
-        threadSelectList.appendChild(newBtn);
-      }
-
       // 过滤匹配 (支持同时搜索标题与所属项目)
       const filtered = allThreads.filter((t) => {
         if (!q) return true;
@@ -4653,8 +4627,8 @@
         threadSelectList.appendChild(header);
 
         items.forEach((thread) => {
-          const item = document.createElement("button");
-          item.type = "button";
+          // 容器为纯 div 展示项，彻底废除整行点击与双击跳转，防止误触与数据丢失
+          const item = document.createElement("div");
           item.className = `thread-select-item ${thread.selected ? "is-current" : ""}`;
           item.innerHTML = `
             <div class="thread-select-item-left">
@@ -4667,33 +4641,65 @@
               <span class="thread-select-item-project">${escapeHtml(thread.project)}</span>
               ${thread.selected ? `<span class="thread-select-item-badge">当前对话</span>` : ""}
             </div>
-            <span class="thread-select-item-action">${isShare ? "分享此对话" : "导入此处"}</span>
+            <button type="button" class="thread-select-item-action">${isShare ? "分享此对话" : "导入此处"}</button>
           `;
-          item.addEventListener("click", (e) => {
+
+          // 事件严格且唯一绑定在右侧操作按钮上，整行文本与背景点击完全无副作用
+          const actionBtn = item.querySelector(".thread-select-item-action");
+          actionBtn?.addEventListener("click", (e) => {
             e.preventDefault();
             e.stopPropagation();
+
+            // 模式 A：分享对话到 TeamCodex 团队空间（全屏页面常驻，绝不退出）
             if (isShare) {
+              if (shareInFlight) return;
+              actionBtn.disabled = true;
+              actionBtn.textContent = "正在分享...";
               closeThreadSelectModal();
+              window.__teamContextSilentSwitch = true;
+
               if (thread.selected) {
-                shareCurrentThreadToTeam();
+                shareCurrentThreadToTeam().finally(() => {
+                  window.__teamContextSilentSwitch = false;
+                });
               } else {
+                showToast(`正在提取《${thread.title.slice(0, 12)}...》并分享至空间...`);
                 triggerSidebarThreadClick(thread);
                 linkedThread = thread;
                 renderLink();
-                showToast(`正在切换至对话《${thread.title.slice(0, 12)}...》并生成分享...`);
-                window.setTimeout(() => {
-                  shareCurrentThreadToTeam();
-                }, 450);
+
+                const waitForSwitch = async () => {
+                  const start = Date.now();
+                  while (Date.now() - start < 1200) {
+                    const curSel = document.querySelector('[data-app-action-sidebar-thread-selected="true"]');
+                    const curId = curSel?.getAttribute("data-app-action-sidebar-thread-id");
+                    if (curId && thread.id && curId === thread.id) {
+                      await new Promise((r) => setTimeout(r, 120));
+                      break;
+                    }
+                    await new Promise((r) => setTimeout(r, 50));
+                  }
+                };
+
+                waitForSwitch()
+                  .then(() => shareCurrentThreadToTeam())
+                  .catch((err) => {
+                    console.warn("[TeamContext] share remote thread failed:", err);
+                    showToast(`分享失败: ${err.message || "请求失败"}`);
+                  })
+                  .finally(() => {
+                    window.__teamContextSilentSwitch = false;
+                  });
               }
               return;
             }
 
-            // 导入模式：加互斥锁，固化内容快照，防止多次点击导致数据被冲洗
+            // 模式 B：导入团队内容到目标对话输入框并跳转原生工作区
             if (isImportingInProgress) return;
             isImportingInProgress = true;
             const contentToImport = (currentThreadSelectConfig?.content || "").trim();
-            const actionBtn = item.querySelector(".thread-select-item-action");
-            if (actionBtn) actionBtn.textContent = "正在导入...";
+            actionBtn.disabled = true;
+            actionBtn.textContent = "正在导入...";
             if (threadSelectList) threadSelectList.style.pointerEvents = "none";
             closeThreadSelectModal();
 
@@ -4706,6 +4712,7 @@
               if (threadSelectList) threadSelectList.style.pointerEvents = "auto";
             });
           });
+
           threadSelectList.appendChild(item);
         });
       });
@@ -4993,9 +5000,9 @@
           shareBtn.click();
         }
 
-        // 轮询等待后台生成完毕，直到复制链接按钮变为 enabled
+        // 轮询等待后台生成完毕，最长等待 1800ms，避免全屏下卡死
         const start = Date.now();
-        while (Date.now() - start < 8000) {
+        while (Date.now() - start < 1800) {
           await new Promise(r => setTimeout(r, 150));
           dialog = document.querySelector("div[role='dialog'].codex-dialog");
           if (!dialog) continue;
@@ -6748,6 +6755,8 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       document.removeEventListener("keydown", window.__teamContextKeyHandler, true);
     }
     window.__teamContextLeaveHandler = (event) => {
+      // 内部静默抓取/分享时，严禁关闭 TeamCodex 全屏页面
+      if (window.__teamContextSilentSwitch) return;
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
       if (!target) return;
       if (target.closest(`#${TAB_ID}`) || target.closest(`#${PAGE_ID}`)) return;

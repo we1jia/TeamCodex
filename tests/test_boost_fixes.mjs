@@ -459,7 +459,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v77";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v79";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -553,6 +553,35 @@ test("20. 尊重侧栏默认展开状态、项目归属提取、扁平分组与�
 
   // 20.5 搜索支持同时搜索对话标题与所属项目
   assert.match(uiCode, /t\.title\.toLowerCase\(\)\.includes\(q\) \|\| t\.project\.toLowerCase\(\)\.includes\(q\)/);
+});
+
+test("21. 对话选择列表纯展示容器规范、解绑整行点击与双击、空间常驻分享 (inline-v79)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 21.1 样式：.thread-select-item 为 default 光标并允许文字选择，彻底移除整行 hover 变色与联动
+  assert.match(uiCode, /\.thread-select-item\s*\{[\s\S]*?cursor:\s*default;[\s\S]*?user-select:\s*text;/);
+  assert.doesNotMatch(uiCode, /\.thread-select-item:hover\s*\.thread-select-item-action/);
+
+  // 21.2 DOM：条目容器由 button 重构为 div，整行绝无 click/dblclick 绑定
+  assert.match(uiCode, /const item = document\.createElement\("div"\);/);
+  assert.match(uiCode, /item\.className = `thread-select-item/);
+  assert.match(uiCode, /<button type="button" class="thread-select-item-action">/);
+
+  // 21.3 事件唯一绑定在 actionBtn 上，绝不在 item 容器上监听 click
+  assert.match(uiCode, /actionBtn\?\.addEventListener\("click"/);
+  assert.doesNotMatch(uiCode, /item\.addEventListener\("click"/);
+  assert.doesNotMatch(uiCode, /item\.addEventListener\("dblclick"/);
+
+  // 21.4 分享模式下绝对不调用 closePage()，并在静默锁保护下完成空间内卡片上屏
+  const shareBranchMatch = uiCode.match(/if\s*\(isShare\)\s*\{([\s\S]*?return;\s*\n\s*\})/);
+  assert.ok(shareBranchMatch, "必须具备 isShare 分支");
+  const shareBranch = shareBranchMatch[1];
+  assert.doesNotMatch(shareBranch, /closePage\(\)/);
+  assert.match(shareBranch, /window\.__teamContextSilentSwitch = true;/);
+  assert.match(shareBranch, /window\.__teamContextSilentSwitch = false;/);
+
+  // 21.5 原生分享链接等待超时收敛至 1800ms
+  assert.match(uiCode, /while\s*\(Date\.now\(\)\s*-\s*start\s*<\s*1800\)/);
 });
 
 
