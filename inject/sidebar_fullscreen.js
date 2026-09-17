@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v81";
+  const UI_VERSION = "inline-v82";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -165,9 +165,11 @@
 
   function isCodexLight() {
     const html = document.documentElement;
-    const theme = html.getAttribute("data-theme") || html.getAttribute("theme");
+    const theme = html.getAttribute("data-theme") || html.getAttribute("theme") || document.body?.getAttribute?.("data-theme");
     if (theme === "light") return true;
     if (theme === "dark") return false;
+    if (html.classList.contains("dark") || document.body?.classList?.contains("dark")) return false;
+    if (html.classList.contains("light") || document.body?.classList?.contains("light")) return true;
     return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
   }
 
@@ -195,11 +197,17 @@
       return (val && val !== "rgba(0, 0, 0, 0)" && val !== "transparent") ? val : null;
     }
 
+    const realBodyBg = typeof window !== "undefined" ? window.getComputedStyle(document.body).backgroundColor : null;
+    const validBodyBg = (realBodyBg && realBodyBg !== "rgba(0, 0, 0, 0)" && realBodyBg !== "transparent") ? realBodyBg : null;
     const hostBg = probeStyle("bg-token-main-surface-primary") ||
                    probeStyle("bg-surface") ||
-                   (isLight ? "rgb(255, 255, 255)" : "rgb(24, 24, 24)");
+                   validBodyBg ||
+                   (isLight ? "rgb(246, 246, 246)" : "rgb(24, 24, 24)");
+    const realBodyColor = typeof window !== "undefined" ? window.getComputedStyle(document.body).color : null;
+    const validBodyColor = (realBodyColor && realBodyColor !== "rgba(0, 0, 0, 0)" && realBodyColor !== "transparent") ? realBodyColor : null;
     const hostColor = probeStyle("text-token-text-primary", "color") ||
                       probeStyle("text-primary", "color") ||
+                      validBodyColor ||
                       (isLight ? "rgb(26, 28, 31)" : "rgb(255, 255, 255)");
 
     let probedInfoBg = probeStyle("bg-info-solid");
@@ -214,18 +222,27 @@
       if (cs.color) probedBubbleText = cs.color;
     }
 
+    const nativeSend = document.querySelector("button.bg-composer-primary, button[data-testid*='send'], button[aria-label*='发送'], button[aria-label*='Send']");
+    if (nativeSend) {
+      const cs = window.getComputedStyle(nativeSend);
+      if (cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)") probedSendBg = cs.backgroundColor;
+    }
+
     let detectedFamily = "blue";
-    const asideDots = Array.from(document.querySelectorAll("aside span.bg-info-solid, aside [class*=\"bg-info\"]"));
+    const asideDots = Array.from(document.querySelectorAll("aside span.bg-info-solid, aside [class*=\"bg-info\"], aside [class*=\"bg-composer\"]"));
     let foundDotFamily = null;
     for (const dot of asideDots) {
       const cs = window.getComputedStyle(dot).backgroundColor;
       const rgb = parseRgb(cs);
       if (rgb && (rgb.r > 20 || rgb.g > 20 || rgb.b > 20)) {
-        if (rgb.b > rgb.r && rgb.b > rgb.g && (rgb.b - Math.max(rgb.r, rgb.g) >= 10)) {
-          foundDotFamily = "blue";
+        if ((rgb.r > 100 && rgb.b > 140 && rgb.g < 170) || (Math.abs(rgb.r - rgb.b) < 85 && rgb.r > rgb.g && rgb.b > rgb.g)) {
+          foundDotFamily = "purple";
           break;
-        } else if (rgb.g > rgb.r && rgb.g > rgb.b && (rgb.g - Math.max(rgb.g, rgb.b) >= 10)) {
+        } else if (rgb.g > rgb.r && rgb.g > rgb.b && (rgb.g - Math.max(rgb.r, rgb.b) >= 10)) {
           foundDotFamily = "green";
+          break;
+        } else if (rgb.b > rgb.r && rgb.b > rgb.g && (rgb.b - Math.max(rgb.r, rgb.g) >= 10)) {
+          foundDotFamily = "blue";
           break;
         }
       }
@@ -234,17 +251,21 @@
     if (foundDotFamily) {
       detectedFamily = foundDotFamily;
     } else {
-      const colorSamples = [probedInfoBg, probedSendBg, probedBubbleBg].map(parseRgb).filter(Boolean);
+      const colorSamples = [probedSendBg, probedInfoBg, probedBubbleBg].map(parseRgb).filter(Boolean);
+      let purpleVotes = 0;
       let greenVotes = 0;
       let blueVotes = 0;
       for (const c of colorSamples) {
-        if (c.g > c.r && c.g > c.b && (c.g - Math.max(c.r, c.b) >= 8)) {
+        if ((c.r > 100 && c.b > 140 && c.g < 170) || (Math.abs(c.r - c.b) < 85 && c.r > c.g && c.b > c.g)) {
+          purpleVotes++;
+        } else if (c.g > c.r && c.g > c.b && (c.g - Math.max(c.r, c.b) >= 8)) {
           greenVotes++;
         } else if (c.b > c.r && c.b > c.g && (c.b - Math.max(c.r, c.g) >= 8)) {
           blueVotes++;
         }
       }
-      if (greenVotes > blueVotes) detectedFamily = "green";
+      if (purpleVotes >= greenVotes && purpleVotes >= blueVotes && purpleVotes > 0) detectedFamily = "purple";
+      else if (greenVotes > blueVotes) detectedFamily = "green";
       else if (blueVotes > greenVotes) detectedFamily = "blue";
     }
 
@@ -253,28 +274,38 @@
     let accentColor = null;
     let composerSendBg = null;
 
-    if (detectedFamily === "green") {
+    if (detectedFamily === "purple") {
+      accentColor = probedSendBg || (isLight ? "rgb(137, 82, 238)" : "rgb(166, 125, 242)");
+      composerSendBg = probedSendBg || (isLight ? "rgb(137, 82, 238)" : "rgb(147, 51, 234)");
+      if (isLight) {
+        bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("232, 243, 254") && !probedBubbleBg.includes("222, 243, 229")) ? probedBubbleBg : "rgb(243, 238, 253)";
+        bubbleText = (probedBubbleText && !probedBubbleText.includes("12, 39, 74") && !probedBubbleText.includes("20, 54, 26")) ? probedBubbleText : "rgb(38, 20, 60)";
+      } else {
+        bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("23, 62, 118") && !probedBubbleBg.includes("44, 103, 50")) ? probedBubbleBg : "rgb(74, 43, 124)";
+        bubbleText = (probedBubbleText && !probedBubbleText.includes("246, 250, 254") && !probedBubbleText.includes("239, 250, 243")) ? probedBubbleText : "rgb(250, 246, 255)";
+      }
+    } else if (detectedFamily === "green") {
       if (isLight) {
         bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("232, 243, 254") && !probedBubbleBg.includes("23, 62, 118")) ? probedBubbleBg : "rgb(222, 243, 229)";
         bubbleText = (probedBubbleText && !probedBubbleText.includes("12, 39, 74") && !probedBubbleText.includes("246, 250, 254")) ? probedBubbleText : "rgb(20, 54, 26)";
-        accentColor = (probedInfoBg && !probedInfoBg.includes("58, 131, 247")) ? probedInfoBg : "rgb(83, 181, 89)";
+        accentColor = (probedSendBg && !probedSendBg.includes("58, 131, 247")) ? probedSendBg : (probedInfoBg || "rgb(83, 181, 89)");
         composerSendBg = (probedSendBg && !probedSendBg.includes("58, 131, 247")) ? probedSendBg : "rgb(83, 181, 89)";
       } else {
         bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("232, 243, 254") && !probedBubbleBg.includes("23, 62, 118")) ? probedBubbleBg : "rgb(44, 103, 50)";
         bubbleText = (probedBubbleText && !probedBubbleText.includes("12, 39, 74") && !probedBubbleText.includes("246, 250, 254")) ? probedBubbleText : "rgb(239, 250, 243)";
-        accentColor = (probedInfoBg && !probedInfoBg.includes("58, 131, 247")) ? probedInfoBg : "rgb(83, 181, 89)";
+        accentColor = (probedSendBg && !probedSendBg.includes("58, 131, 247")) ? probedSendBg : (probedInfoBg || "rgb(83, 181, 89)");
         composerSendBg = (probedSendBg && !probedSendBg.includes("58, 131, 247")) ? probedSendBg : "rgb(72, 160, 76)";
       }
     } else {
       if (isLight) {
         bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("222, 243, 229") && !probedBubbleBg.includes("44, 103, 50")) ? probedBubbleBg : "rgb(232, 243, 254)";
         bubbleText = (probedBubbleText && !probedBubbleText.includes("20, 54, 26") && !probedBubbleText.includes("239, 250, 243")) ? probedBubbleText : "rgb(12, 39, 74)";
-        accentColor = (probedInfoBg && !probedInfoBg.includes("83, 181, 89") && !probedInfoBg.includes("72, 160, 76")) ? probedInfoBg : "rgb(58, 131, 247)";
+        accentColor = (probedSendBg && !probedSendBg.includes("83, 181, 89") && !probedSendBg.includes("72, 160, 76")) ? probedSendBg : (probedInfoBg || "rgb(58, 131, 247)");
         composerSendBg = (probedSendBg && !probedSendBg.includes("83, 181, 89") && !probedSendBg.includes("72, 160, 76")) ? probedSendBg : "rgb(58, 131, 247)";
       } else {
         bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("222, 243, 229") && !probedBubbleBg.includes("44, 103, 50")) ? probedBubbleBg : "rgb(23, 62, 118)";
         bubbleText = (probedBubbleText && !probedBubbleText.includes("20, 54, 26") && !probedBubbleText.includes("239, 250, 243")) ? probedBubbleText : "rgb(246, 250, 254)";
-        accentColor = (probedInfoBg && !probedInfoBg.includes("83, 181, 89") && !probedInfoBg.includes("72, 160, 76")) ? probedInfoBg : "rgb(58, 131, 247)";
+        accentColor = (probedSendBg && !probedSendBg.includes("83, 181, 89") && !probedSendBg.includes("72, 160, 76")) ? probedSendBg : (probedInfoBg || "rgb(58, 131, 247)");
         composerSendBg = (probedSendBg && !probedSendBg.includes("83, 181, 89") && !probedSendBg.includes("72, 160, 76")) ? probedSendBg : "rgb(44, 103, 197)";
       }
     }
@@ -1354,11 +1385,11 @@
           box-shadow: 0 0 0 2px var(--bg-body, #18181b), 0 3px 8px rgba(0, 0, 0, 0.35);
         }
         .stack-avatar.is-active {
-          box-shadow: 0 0 0 2px var(--accent-color, #10a37f);
+          box-shadow: 0 0 0 2px var(--accent-color);
           z-index: 5;
         }
         .stack-avatar.is-active:hover {
-          box-shadow: 0 0 0 2px var(--accent-color, #10a37f), 0 3px 8px rgba(16, 163, 127, 0.35);
+          box-shadow: 0 0 0 2px var(--accent-color), 0 3px 8px color-mix(in srgb, var(--accent-color) 35%, transparent);
         }
         .stack-avatar.is-ai {
           background: linear-gradient(135deg, #10a37f 0%, #059669 100%);
@@ -1425,15 +1456,15 @@
           outline: none;
         }
         .stack-invite-btn:hover {
-          border-color: var(--accent-color, #10a37f);
-          color: var(--accent-color, #10a37f);
-          background: rgba(16, 163, 127, 0.1);
+          border-color: var(--accent-color);
+          color: var(--accent-color);
+          background: color-mix(in srgb, var(--accent-color) 12%, transparent);
           transform: scale(1.08);
         }
         .stack-invite-btn.is-copied {
-          border-color: var(--accent-color, #10a37f);
-          color: var(--accent-color, #10a37f);
-          background: rgba(16, 163, 127, 0.15);
+          border-color: var(--accent-color);
+          color: var(--accent-color);
+          background: color-mix(in srgb, var(--accent-color) 18%, transparent);
         }
 
         .tool-btn {
@@ -1684,8 +1715,8 @@
           font-size: 11px;
         }
         .picker-item-icon.member-ai {
-          background: rgba(16, 163, 127, 0.14);
-          color: #10a37f;
+          background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+          color: var(--accent-color);
         }
         .picker-item-content {
           flex: 1;
@@ -1717,8 +1748,8 @@
           flex-shrink: 0;
         }
         .picker-item-badge.active-thread {
-          background: rgba(16, 163, 127, 0.15);
-          color: #10a37f;
+          background: color-mix(in srgb, var(--accent-color) 15%, transparent);
+          color: var(--accent-color);
         }
         .picker-item-action {
           background: var(--bg-card, rgba(255, 255, 255, 0.04));
@@ -1731,8 +1762,8 @@
           border-color: var(--border-strong);
         }
         .picker-item-icon.action-icon {
-          background: rgba(16, 163, 127, 0.14);
-          color: #10a37f;
+          background: color-mix(in srgb, var(--accent-color) 14%, transparent);
+          color: var(--accent-color);
         }
         .room-tag-btn.new-room-tag {
           border: 1px solid var(--border-subtle);
@@ -2234,9 +2265,9 @@
           font-size: 11.5px;
           font-weight: 550;
           line-height: 1;
-          color: var(--accent-color);
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          color: var(--text-secondary);
+          background: var(--bg-chip);
+          border: 1px solid var(--border-subtle);
           cursor: pointer;
           padding: 0 8px;
           border-radius: 6px;
@@ -2251,9 +2282,9 @@
           flex-shrink: 0;
         }
         .snapshot-open-link:hover {
-          background: color-mix(in srgb, var(--accent-color) 12%, transparent);
-          border-color: color-mix(in srgb, var(--accent-color) 35%, transparent);
-          color: var(--accent-color);
+          color: var(--text-primary);
+          background: var(--bg-card-hover);
+          border-color: var(--border-strong);
           text-decoration: none;
         }
         .snapshot-open-link:active {
@@ -2262,13 +2293,13 @@
 
         /* 快照与原生分享详情弹窗 (对齐官方图 2 原生分享) */
         .snapshot-detail-card {
-          background: rgba(33, 33, 33, 0.96);
+          background: var(--bg-page);
           color: var(--text-primary);
           width: min(600px, calc(100vw - 32px));
           max-height: 90vh;
           border-radius: 24px;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+          border: 1px solid var(--border-strong);
+          box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
           backdrop-filter: blur(24px);
           display: flex;
           flex-direction: column;
@@ -2304,13 +2335,13 @@
           color: var(--text-secondary);
         }
         .snapshot-detail-subtitle a {
-          color: #10a37f;
+          color: var(--accent-color);
           text-decoration: underline;
           text-underline-offset: 2px;
           cursor: pointer;
         }
         .snapshot-detail-subtitle a:hover {
-          color: #1a7f64;
+          opacity: 0.85;
         }
         .snapshot-detail-close-btn {
           width: 28px;
@@ -2327,7 +2358,7 @@
           transition: background 0.12s ease, color 0.12s ease;
         }
         .snapshot-detail-close-btn:hover {
-          background: rgba(255, 255, 255, 0.08);
+          background: var(--bg-card-hover);
           color: var(--text-primary);
         }
         .snapshot-detail-body {
@@ -2341,8 +2372,8 @@
         /* 中部对话气泡预览卡片 (完全复刻图 2 原生卡片) */
         .snapshot-native-preview-card {
           position: relative;
-          background: #171717;
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: var(--bg-card);
+          border: 1px solid var(--border-subtle);
           border-radius: 12px;
           min-height: 160px;
           max-height: 260px;
@@ -2362,13 +2393,14 @@
           width: 64px;
           height: 64px;
           border-radius: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.15);
+          border: 1px solid var(--border-subtle);
           object-fit: cover;
-          background: #222;
+          background: var(--bg-chip);
         }
         .snapshot-native-bubble {
           max-width: 85%;
-          background: rgba(255, 255, 255, 0.07);
+          background: var(--bg-card-hover);
+          border: 1px solid var(--border-subtle);
           border-radius: 16px;
           padding: 10px 14px;
           font-size: 13.5px;
@@ -2388,14 +2420,15 @@
           gap: 5px;
           font-size: 11px;
           color: var(--text-secondary);
-          background: rgba(255, 255, 255, 0.06);
+          background: var(--bg-chip);
+          border: 1px solid var(--border-subtle);
           padding: 3px 8px;
           border-radius: 10px;
         }
         /* 官方链接状态栏 */
         .snapshot-detail-linkbar {
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.06);
+          background: var(--bg-chip);
+          border: 1px solid var(--border-subtle);
           border-radius: 10px;
           padding: 8px 12px;
           display: flex;
@@ -2423,7 +2456,7 @@
         }
         .snapshot-detail-link-copy-inline:hover {
           color: var(--text-primary);
-          background: rgba(255, 255, 255, 0.1);
+          background: var(--bg-card-hover);
         }
         /* 可折叠的上下文对话区 */
         .snapshot-detail-context-toggle {
@@ -2449,10 +2482,10 @@
           word-break: break-word;
           max-height: 180px;
           overflow-y: auto;
-          background: rgba(0, 0, 0, 0.25);
+          background: var(--bg-card);
           padding: 10px 12px;
           border-radius: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.06);
+          border: 1px solid var(--border-subtle);
         }
         /* 底部操作区 (高颜值双层布局：整行说明置顶 + 底部操作左右平衡) */
         .snapshot-detail-footer {
@@ -2460,8 +2493,8 @@
           flex-direction: column;
           gap: 16px;
           padding: 18px 24px 22px;
-          border-top: 1px solid rgba(255, 255, 255, 0.08);
-          background: transparent;
+          border-top: 1px solid var(--border-subtle);
+          background: var(--bg-page);
         }
         .snapshot-detail-footer-info {
           display: flex;
@@ -2505,7 +2538,7 @@
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          background: #10a37f;
+          background: var(--accent-color);
           color: #ffffff;
           border: none;
           padding: 7px 15px;
@@ -2515,12 +2548,12 @@
           cursor: pointer;
           white-space: nowrap !important;
           flex-shrink: 0;
-          box-shadow: 0 2px 10px rgba(16, 163, 127, 0.35);
+          box-shadow: 0 2px 10px color-mix(in srgb, var(--accent-color) 35%, transparent);
           transition: background 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
         }
         .snapshot-detail-native-import-btn:hover {
-          background: #1a7f64;
-          box-shadow: 0 4px 14px rgba(16, 163, 127, 0.45);
+          opacity: 0.92;
+          box-shadow: 0 4px 14px color-mix(in srgb, var(--accent-color) 45%, transparent);
         }
         .snapshot-detail-native-import-btn:active {
           transform: scale(0.98);
@@ -2529,9 +2562,9 @@
           display: inline-flex;
           align-items: center;
           gap: 5px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: var(--text-secondary);
+          background: var(--bg-chip);
+          border: 1px solid var(--border-subtle);
+          color: var(--text-primary);
           padding: 6.5px 12px;
           border-radius: 9999px;
           font-size: 12.5px;
@@ -2543,8 +2576,8 @@
         }
         .snapshot-detail-native-copy-btn:hover {
           color: var(--text-primary);
-          background: rgba(255, 255, 255, 0.12);
-          border-color: rgba(255, 255, 255, 0.2);
+          background: var(--bg-card-hover);
+          border-color: var(--border-strong);
         }
         .snapshot-detail-native-copy-btn:active {
           transform: scale(0.98);
@@ -2554,8 +2587,8 @@
           align-items: center;
           gap: 4px;
           background: transparent;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: var(--text-secondary);
+          border: 1px solid var(--border-subtle);
+          color: var(--text-primary);
           padding: 6.5px 12px;
           border-radius: 9999px;
           font-size: 12.5px;
@@ -2567,15 +2600,15 @@
         }
         .snapshot-detail-native-open-btn:hover {
           color: var(--text-primary);
-          background: rgba(255, 255, 255, 0.08);
-          border-color: rgba(255, 255, 255, 0.22);
+          background: var(--bg-card-hover);
+          border-color: var(--border-strong);
         }
         .snapshot-detail-native-open-btn:active {
           transform: scale(0.98);
         }
         .snapshot-detail-aux-btn {
-          background: transparent;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background: var(--bg-chip);
+          border: 1px solid var(--border-subtle);
           color: var(--text-secondary);
           padding: 7px 14px;
           border-radius: 8px;
@@ -2587,8 +2620,8 @@
         }
         .snapshot-detail-aux-btn:hover {
           color: var(--text-primary);
-          background: rgba(255, 255, 255, 0.06);
-          border-color: rgba(255, 255, 255, 0.2);
+          background: var(--bg-card-hover);
+          border-color: var(--border-strong);
         }
         .snapshot-detail-aux-btn.primary {
           background: var(--accent-color);
@@ -2603,7 +2636,7 @@
           display: inline-flex;
           align-items: center;
           gap: 5px;
-          background: rgba(255, 255, 255, 0.08);
+          background: var(--bg-chip);
           border: 1px solid var(--border-subtle);
           color: var(--text-primary);
           padding: 6.5px 12px;
@@ -2685,7 +2718,8 @@
           transition: border-color 0.15s ease;
         }
         .thread-select-search-wrap input:focus {
-          border-color: #10a37f;
+          border-color: var(--accent-color);
+          box-shadow: 0 0 0 1px var(--accent-color);
         }
         .thread-select-list {
           flex: 1;
@@ -2713,11 +2747,11 @@
           transition: background 0.12s ease;
         }
         .thread-select-item:hover {
-          background: rgba(255, 255, 255, 0.025);
+          background: var(--bg-card-hover);
         }
         .thread-select-item.is-current {
-          background: rgba(16, 163, 127, 0.06);
-          border-color: rgba(16, 163, 127, 0.2);
+          background: color-mix(in srgb, var(--accent-color) 8%, transparent);
+          border-color: color-mix(in srgb, var(--accent-color) 25%, transparent);
         }
         .thread-select-item-left {
           display: flex;
@@ -2738,8 +2772,8 @@
           flex-shrink: 0;
         }
         .thread-select-item.is-current .thread-select-item-icon {
-          background: rgba(16, 163, 127, 0.15);
-          color: #10a37f;
+          background: color-mix(in srgb, var(--accent-color) 15%, transparent);
+          color: var(--accent-color);
         }
         .thread-select-item-content {
           min-width: 0;
@@ -2756,8 +2790,8 @@
           font-size: 10.5px;
           padding: 2px 7px;
           border-radius: 4px;
-          background: rgba(16, 163, 127, 0.15);
-          color: #10a37f;
+          background: color-mix(in srgb, var(--accent-color) 15%, transparent);
+          color: var(--accent-color);
           font-weight: 500;
           flex-shrink: 0;
         }
@@ -2801,7 +2835,7 @@
           padding: 8px 18px;
           font-size: 11.5px;
           color: var(--text-muted);
-          background: rgba(255, 255, 255, 0.03);
+          background: var(--bg-chip);
           border-bottom: 1px solid var(--border-subtle);
           display: flex;
           align-items: center;
@@ -2811,7 +2845,7 @@
         .thread-select-notice svg {
           flex-shrink: 0;
           opacity: 0.85;
-          color: #10a37f;
+          color: var(--accent-color);
         }
         .thread-select-notice span {
           flex: 1;
@@ -2834,9 +2868,9 @@
           line-height: 1.3;
         }
         .thread-select-item-action:hover:not(:disabled) {
-          background: #10a37f !important;
-          color: #fff !important;
-          border-color: #10a37f !important;
+          background: var(--accent-color) !important;
+          color: #ffffff !important;
+          border-color: var(--accent-color) !important;
         }
         .thread-select-item-action:active:not(:disabled) {
           transform: scale(0.97);
@@ -3092,7 +3126,7 @@
                   <button class="ghost" id="btn-copy-share" type="button" style="padding:4px 10px;font-size:12px;background:var(--bg-card);">复制</button>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
-                  <button class="share-btn-primary" id="btn-send-share-to-room" type="button" style="background:#10a37f;flex:1;font-size:12.5px;padding:6px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+                  <button class="share-btn-primary" id="btn-send-share-to-room" type="button" style="background:var(--accent-color);flex:1;font-size:12.5px;padding:6px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
                     <span>发送到当前协作房间</span>
                   </button>
@@ -3930,7 +3964,7 @@
       if (cfgHubStatus) {
         if (connState.status === "connected") {
           cfgHubStatus.textContent = `● 协同服务正常 (${config.hubUrl.replace(/^https?:\/\//, "")})`;
-          cfgHubStatus.style.color = "#10a37f";
+          cfgHubStatus.style.color = "var(--accent-color)";
         } else if (connState.status === "connecting") {
           cfgHubStatus.textContent = `● 正在尝试连接协同服务...`;
           cfgHubStatus.style.color = "var(--text-secondary)";
@@ -4041,9 +4075,9 @@
           }
           if (connectErrorBanner) {
             connectErrorBanner.hidden = false;
-            connectErrorBanner.style.color = "#10a37f";
-            connectErrorBanner.style.borderColor = "rgba(16, 163, 127, 0.3)";
-            connectErrorBanner.style.background = "rgba(16, 163, 127, 0.1)";
+            connectErrorBanner.style.color = "var(--accent-color)";
+            connectErrorBanner.style.borderColor = "color-mix(in srgb, var(--accent-color) 30%, transparent)";
+            connectErrorBanner.style.background = "color-mix(in srgb, var(--accent-color) 10%, transparent)";
             connectErrorBanner.textContent = `✓ 已自动识别空间口令并分拆填入：${token.roomId} (${token.hubUrl.replace(/^https?:\/\//, "")})`;
           }
           showToast(`✓ 已自动识别空间口令并分拆填入配置`);
@@ -4631,7 +4665,7 @@
           <div class="thread-select-group-title">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             <span>${escapeHtml(projKey)}</span>
-            ${projKey === currentProject ? `<span style="font-size:10px;color:#10a37f;font-weight:500;">(当前项目)</span>` : ""}
+            ${projKey === currentProject ? `<span style="font-size:10px;color:var(--accent-color);font-weight:500;">(当前项目)</span>` : ""}
           </div>
           <span class="thread-select-group-badge">${items.length} 个对话</span>
         `;
@@ -5667,7 +5701,7 @@
           : "";
 
         const badgeHtml = shareLink
-          ? `<span style="color:#10a37f;font-weight:600;">官方原生分享</span> · ${msgCount} 条对话${hasCodex ? " (含 Codex 回复)" : ""}${modelLabel}`
+          ? `<span style="color:var(--accent-color);font-weight:600;">官方原生分享</span> · ${msgCount} 条对话${hasCodex ? " (含 Codex 回复)" : ""}${modelLabel}`
           : `<span>对话分享 · ${msgCount} 条${hasCodex ? " (含 Codex 回复)" : ""}${modelLabel}</span>`;
 
         stack.innerHTML = `

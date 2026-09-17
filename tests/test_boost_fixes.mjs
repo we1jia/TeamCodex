@@ -459,7 +459,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v81";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v82";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -626,6 +626,37 @@ test("23. 快照卡片底部操作按钮尺寸统一与微胶囊规范 (inline-v
 
   // 23.5 card-detail-link 补齐 12x12 矢量图标，杜绝无图标文字参差不齐
   assert.match(uiCode, /class="snapshot-open-link card-detail-link"[^>]*>[\s\S]*?<svg[\s\S]*?<span>查看详情<\/span>/);
+});
+
+test("24. 全量主题变量重构、紫色主题家族适配与弹窗/微胶囊无硬编码 (inline-v82)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 24.1 readHostThemeTokens 支持 purple 色彩家族识别，优先嗅探原生发送按钮
+  assert.match(uiCode, /detectedFamily === "purple"/);
+  assert.match(uiCode, /button\.bg-composer-primary/);
+
+  // 24.2 对话选择模态框 (#thread-select-modal) 彻底接入主题变量
+  assert.match(uiCode, /\.thread-select-search-wrap input:focus\s*\{[\s\S]*?border-color:\s*var\(--accent-color\);/);
+  assert.match(uiCode, /\.thread-select-item\.is-current\s*\{[\s\S]*?var\(--accent-color\)/);
+  assert.match(uiCode, /\.thread-select-notice svg\s*\{[\s\S]*?color:\s*var\(--accent-color\);/);
+  assert.match(uiCode, /\.thread-select-item-action:hover:not\(:disabled\)\s*\{[\s\S]*?background:\s*var\(--accent-color\)\s*!important;/);
+
+  // 24.3 快照详情原生弹窗 (#snapshot-detail-modal) 彻底根除纯黑硬编码，接入卡片与页面背景变量
+  assert.match(uiCode, /\.snapshot-detail-card\s*\{[\s\S]*?background:\s*var\(--bg-page\);/);
+  assert.match(uiCode, /\.snapshot-native-preview-card\s*\{[\s\S]*?background:\s*var\(--bg-card\);/);
+  assert.match(uiCode, /\.snapshot-detail-footer\s*\{[\s\S]*?background:\s*var\(--bg-page\);/);
+  assert.match(uiCode, /\.snapshot-detail-native-import-btn\s*\{[\s\S]*?background:\s*var\(--accent-color\);/);
+  assert.match(uiCode, /\.snapshot-detail-native-copy-btn\s*\{[\s\S]*?background:\s*var\(--bg-chip\);/);
+  assert.doesNotMatch(uiCode, /rgba\(33,\s*33,\s*33/);
+  assert.doesNotMatch(uiCode, /#171717/);
+
+  // 24.4 官方原生分享徽章与状态提示统一绑定 var(--accent-color)
+  assert.match(uiCode, /<span style="color:var\(--accent-color\);font-weight:600;">官方原生分享<\/span>/);
+  assert.match(uiCode, /cfgHubStatus\.style\.color\s*=\s*"var\(--accent-color\)";/);
+
+  // 24.5 微胶囊辅助按钮高对比度自然跟随
+  assert.match(uiCode, /\.snapshot-open-link\s*\{[\s\S]*?color:\s*var\(--text-secondary\);[\s\S]*?background:\s*var\(--bg-chip\);/);
+  assert.match(uiCode, /\.snapshot-open-link:hover\s*\{[\s\S]*?background:\s*var\(--bg-card-hover\);/);
 });
 
 
