@@ -1,10 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
-if [[ -f "$here/../../../launch.sh" ]]; then
-  exec /bin/bash "$here/../../../launch.sh"
+if [[ -f "$here/../../../macos/launch.sh" ]]; then
+  exec /bin/bash "$here/../../../macos/launch.sh"
 elif [[ -f "$here/../../launch.sh" ]]; then
   exec /bin/bash "$here/../../launch.sh"
+elif [[ -f "$here/../../../launch.sh" ]]; then
+  exec /bin/bash "$here/../../../launch.sh"
+elif [[ -f "$here/launch.sh" ]]; then
+  exec /bin/bash "$here/launch.sh"
 else
-  exec /bin/bash "/Users/liuweijia/Desktop/Media/team-context/macos/launch.sh"
+  /usr/bin/osascript -e 'display dialog "无法找到 launch.sh 启动脚本，请确认 TeamCodex 目录完整。" buttons {"确定"} default button 1 with icon stop with title "TeamCodex"'
+  exit 1
 fi

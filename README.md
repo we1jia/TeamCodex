@@ -60,33 +60,38 @@ TeamCodex 由侧栏注入层、局域网协同中枢与多端适配脚本三层�
 - **复合协同口令 (Smart Token)**：支持形如 `Hub: <URL> | Room: <Name> | Key: <Password>` 的智能口令，支持输入框与设置栏剪贴板自动解析并分拆填充。
 - **纯局域网数据闭环**：基于轻量 Node.js SSE (Server-Sent Events) 事件总线架构，所有消息与快照仅在本地网络流转，零云端遥测与外部依赖。
 
-### 4. 快速开始
+### 4. 快速开始与下载
 
-#### 环境要求
+#### 方式 A：预编译免配置包（推荐普通用户）
 
+直接前往 [GitHub Releases](https://github.com/we1jia/TeamCodex/releases) 获取各平台最新安装包：
+
+- **macOS 用户**：
+  1. 下载 `TeamCodex-macOS.zip` 并解压；
+  2. 双击解压目录下的 `TeamCodex.app` 或 `启动TeamCodex.command` 即可直接拉起并附着。
+- **Windows 用户**（原生系统 / Parallels 虚拟机 / ARM64 / AMD64）：
+  1. 下载 `TeamCodex-Windows-arm64-amd64.zip` 并解压；
+  2. 双击运行 `一键安装到桌面.cmd`，自动适配架构、准备运行时并在桌面生成无黑框快捷方式；
+  3. 日常使用双击桌面 `TeamCodex` 图标即可。
+
+#### 方式 B：源码运行（面向开发者）
+
+##### 环境要求
 - macOS 13+ 或 Windows 10/11 (x64 / ARM64)
 - Node.js >= 18.0.0
 
-#### macOS 启动
-
+##### macOS 启动
 ```bash
-# 1. 克隆代码仓库
+# 克隆代码仓库
 git clone https://github.com/we1jia/TeamCodex.git
 cd TeamCodex
 
-# 2. 执行启动脚本（自动探测现有实例或以调试端口拉起 Codex）
+# 执行启动脚本
 bash macos/launch.sh
-
-# 亦可直接双击运行
-./启动TeamCodex.command
 ```
 
-#### Windows (原生系统 / Parallels Desktop 虚拟机)
-
-1. 解压根目录下的 `TeamCodex-Windows-arm64-amd64.zip`；
-2. **首次配置**：右键以管理员或普通用户运行 `一键安装到桌面.cmd`，自动生成桌面快捷方式；
-3. **日常启动**：双击桌面的 `TeamCodex` 快捷方式或直接运行 `启动TeamCodex.cmd`，脚本将自动探测 Mac 宿主机中枢服务并完成注入；
-4. **独立测试模式**：运行 `启动测试模式.cmd`，将在独立的数据目录和隔离端口中启动沙箱会话。
+##### Windows 独立测试模式
+直接运行 `windows/启动测试模式.cmd`，将在独立的数据目录和隔离端口中启动沙箱会话。
 
 ### 5. 协同口令规范 (Smart Token)
 
@@ -206,33 +211,38 @@ TeamCodex comprises three functional layers: the client injection layer, the loc
 - **Composite Smart Token Protocol**: Parses connection strings structured as `Hub: <URL> | Room: <Name> | Key: <Password>`, automatically populating host endpoints, room credentials, and access keys.
 - **LAN-Bounded Data Privacy**: Built upon a lightweight Node.js Server-Sent Events (SSE) event bus. All message transactions and snapshot transfers remain confined to the local network.
 
-### 4. Quick Start
+### 4. Quick Start & Downloads
 
-#### Prerequisites
+#### Option A: Pre-built Release Packages (Recommended)
 
+Download the latest standalone archive directly from [GitHub Releases](https://github.com/we1jia/TeamCodex/releases):
+
+- **macOS Users**:
+  1. Download and extract `TeamCodex-macOS.zip`;
+  2. Double-click `TeamCodex.app` or `启动TeamCodex.command` to launch and attach immediately.
+- **Windows Users** (Native / Parallels VM / ARM64 / AMD64):
+  1. Download and extract `TeamCodex-Windows-arm64-amd64.zip`;
+  2. Run `一键安装到桌面.cmd` to automatically configure portable runtime dependencies and create a silent desktop shortcut;
+  3. Launch via the desktop `TeamCodex` icon.
+
+#### Option B: Run from Source (Developers)
+
+##### Prerequisites
 - macOS 13+ or Windows 10/11 (x64 / ARM64)
 - Node.js >= 18.0.0
 
-#### macOS Setup
-
+##### macOS Launch
 ```bash
-# 1. Clone repository
+# Clone repository
 git clone https://github.com/we1jia/TeamCodex.git
 cd TeamCodex
 
-# 2. Execute launcher (automatically attaches to existing instance or starts debug port)
+# Run launcher
 bash macos/launch.sh
-
-# Or double-click
-./启动TeamCodex.command
 ```
 
-#### Windows Setup (Native / Parallels Desktop VM)
-
-1. Extract `TeamCodex-Windows-arm64-amd64.zip` located in the root directory;
-2. **First-time configuration**: Run `一键安装到桌面.cmd` to generate a desktop shortcut;
-3. **Daily launch**: Double-click the `TeamCodex` desktop shortcut or run `启动TeamCodex.cmd`. The script will probe the Mac host hub and attach automatically;
-4. **Isolated test mode**: Execute `启动测试模式.cmd` to start an isolated sandbox instance with a dedicated profile directory.
+##### Windows Test Mode
+Execute `windows/启动测试模式.cmd` to launch an isolated sandbox session with a dedicated profile directory.
 
 ### 5. Smart Token Specification
 
