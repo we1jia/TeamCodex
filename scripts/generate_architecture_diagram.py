@@ -29,7 +29,7 @@ def get_html_template(lang="zh"):
     if lang == "zh":
         data = {
             "title": "TeamCodex 系统架构全景",
-            "subtitle": "面向桌面端 AI 的无侵入 CDP 挂载注入层与零第三方依赖原生 Node.js SSE 协同中枢",
+            "subtitle": "告别甩二手 AI 文档产生的误差，实现团队对话上下文与思维链的毫秒级无损对齐",
             "version_tag": "v1.0.2  •  原生 Node.js 18+  •  零外部依赖",
             "client_panel_title": "客户端运行时与 CDP 注入层",
             "client_tag": "CDP: 9222",
@@ -151,7 +151,7 @@ def get_html_template(lang="zh"):
     else:
         data = {
             "title": "TeamCodex System Architecture",
-            "subtitle": "Non-intrusive CDP Injection Layer & Zero-dependency Native Node.js SSE Collaboration Hub",
+            "subtitle": "Stop cascading errors from tossing static AI docs. Align reasoning chains and context instantly across teams",
             "version_tag": "v1.0.2  •  Native Node.js 18+  •  Zero Dependencies",
             "client_panel_title": "Client Runtime & CDP Injection Layer",
             "client_tag": "CDP: 9222",
