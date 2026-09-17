@@ -459,7 +459,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v83";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v84";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -682,5 +682,23 @@ test("25. 详情弹窗支持展开完整会话内容与外链状态自适应 (in
   assert.match(uiCode, /snapshotDetailFullContent\.hidden = !isHidden;/);
 });
 
+test("26. 严格提纯发送消息 payload，彻底根除 DOM 元素循环引用导致的 JSON 序列化崩溃 (inline-v84)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
+  // 26.1 版本标识升级至 inline-v84
+  assert.match(uiCode, /const UI_VERSION = "inline-v84";/);
 
+  // 26.2 listSidebarThreadsDetailed 彻底移除 element: el，仅返回纯数据
+  assert.match(uiCode, /return\s*\{\s*id,\s*title,\s*selected,\s*project\s*\};/);
+  assert.doesNotMatch(uiCode, /return\s*\{\s*id,\s*title,\s*selected,\s*project,\s*element:\s*el\s*\};/);
+
+  // 26.3 triggerSidebarThreadClick 解除对 thread.element 的依赖，改用 title 安全兜底
+  assert.doesNotMatch(uiCode, /if \(!target && thread\.element\) \{\s*target = thread\.element;\s*\}/);
+  assert.match(uiCode, /if \(!target && thread\.title\)/);
+
+  // 26.4 submitCurrentMessage 中具备严格提纯的 safeLinkedThread 逻辑
+  assert.match(uiCode, /const safeLinkedThread = threadInfo \? \{/);
+  assert.match(uiCode, /id: String\(threadInfo\.id/);
+  assert.match(uiCode, /title: String\(threadInfo\.title/);
+  assert.match(uiCode, /linked_thread:\s*safeLinkedThread,/);
+});

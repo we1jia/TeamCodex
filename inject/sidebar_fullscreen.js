@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v83";
+  const UI_VERSION = "inline-v84";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -713,8 +713,10 @@
     if (thread.id) {
       target = document.querySelector(`[data-app-action-sidebar-thread-id="${CSS.escape(thread.id)}"]`);
     }
-    if (!target && thread.element) {
-      target = thread.element;
+    if (!target && thread.title) {
+      target = Array.from(document.querySelectorAll("[data-app-action-sidebar-thread-id]")).find(
+        (el) => (el.getAttribute("data-app-action-sidebar-thread-title") || el.getAttribute("aria-label") || el.textContent || "").trim() === thread.title.trim()
+      );
     }
     if (!target) return false;
     target.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
@@ -4592,7 +4594,7 @@
           p = p.parentElement;
         }
 
-        return { id, title, selected, project, element: el };
+        return { id, title, selected, project };
       }).filter((item) => item.id && item.title && item.title !== "true");
     }
 
@@ -6395,6 +6397,12 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
           threadInfo = { id: `thread_${Date.now()}`, title: isOfficialShare ? "官方原生对话分享" : "当前对话" };
         }
 
+        // 关键防御：严格提纯为纯净的 JSON 可序列化对象，绝不携带任何 DOM 元素或 Fiber 内部对象，杜绝循环引用
+        const safeLinkedThread = threadInfo ? {
+          id: String(threadInfo.id || `thread_${Date.now()}`),
+          title: String(threadInfo.title || (isOfficialShare ? "官方原生对话分享" : "当前对话")),
+        } : null;
+
         const devUser = typeof formatDeviceUser === "function" ? formatDeviceUser(config.nickname) : { nickname: config.nickname, memberId: config.nickname };
         const myMemberId = config.memberId || devUser.memberId;
         const myMemberName = config.nickname || devUser.nickname;
@@ -6408,7 +6416,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
           actor_id: sendActorId,
           actor_name: sendActorName,
           client_message_id: `msg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-          linked_thread: threadInfo,
+          linked_thread: safeLinkedThread,
           metadata,
           room: config.roomId || "1024",
           room_key: config.roomKey || "",
