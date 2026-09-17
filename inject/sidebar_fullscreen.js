@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v73";
+  const UI_VERSION = "inline-v75";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -2650,31 +2650,24 @@
           color: var(--text-muted);
           font-weight: 400;
         }
-        .thread-select-scan-hint {
-          padding: 6px 18px;
+        .thread-select-notice {
+          padding: 8px 18px;
           font-size: 11.5px;
           color: var(--text-muted);
-          background: rgba(255, 255, 255, 0.02);
+          background: rgba(255, 255, 255, 0.03);
           border-bottom: 1px solid var(--border-subtle);
           display: flex;
           align-items: center;
-          justify-content: space-between;
+          gap: 7px;
+          line-height: 1.4;
         }
-        .thread-select-scan-btn {
-          background: transparent;
-          border: none;
+        .thread-select-notice svg {
+          flex-shrink: 0;
+          opacity: 0.85;
           color: #10a37f;
-          font-size: 11.5px;
-          cursor: pointer;
-          padding: 2px 6px;
-          border-radius: 4px;
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          transition: background 0.12s ease;
         }
-        .thread-select-scan-btn:hover {
-          background: rgba(16, 163, 127, 0.12);
+        .thread-select-notice span {
+          flex: 1;
         }
         .thread-select-item-action {
           font-size: 11.5px;
@@ -2804,13 +2797,17 @@
                 <button class="sel-action-btn" id="btn-select-all" type="button">全选</button>
                 <button class="sel-action-btn" id="btn-select-clear" type="button">清空</button>
                 <button class="sel-action-btn" id="btn-select-cancel" type="button">取消</button>
-                <button class="sel-action-btn primary" id="btn-select-import-new" type="button" disabled title="新建独立空白对话并导入">
-                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-                  <span>新建并导入</span>
+                <button class="sel-action-btn secondary" id="btn-select-import-select" type="button" disabled title="从本地会话列表中选择要导入的目标">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <span>选对话...</span>
                 </button>
-                <button class="sel-action-btn secondary" id="btn-select-import" type="button" disabled title="导入到当前对话输入框">
+                <button class="sel-action-btn secondary" id="btn-select-import" type="button" disabled title="导入到本地当前打开的对话输入框">
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  <span>导入当前</span>
+                  <span>导入当前对话</span>
+                </button>
+                <button class="sel-action-btn primary" id="btn-select-import-new" type="button" disabled title="新建独立空白本地对话并导入">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+                  <span>+ 新建并导入</span>
                 </button>
               </div>
             </div>
@@ -3081,12 +3078,9 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               <input type="text" id="thread-select-search" placeholder="搜索对话标题或所属项目 (如 Media / HengFang)..." autocomplete="off">
             </div>
-            <div class="thread-select-scan-hint" id="thread-select-scan-hint">
-              <span id="thread-select-scan-text">正在扫描项目与历史对话...</span>
-              <button type="button" class="thread-select-scan-btn" id="thread-select-rescan-btn" title="重新扫描并展开侧边栏全部项目">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                <span>展开并刷新</span>
-              </button>
+            <div class="thread-select-notice" id="thread-select-notice">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <span id="thread-select-notice-text">提示：列表仅显示左侧栏当前已展开的对话。如需选择其他会话，请先在左侧栏展开对应项目。</span>
             </div>
             <div class="thread-select-list scroll" id="thread-select-list"></div>
           </div>
@@ -3194,6 +3188,7 @@
     const btnSelectCancel = root.getElementById("btn-select-cancel");
     const btnSelectImport = root.getElementById("btn-select-import");
     const btnSelectImportNew = root.getElementById("btn-select-import-new");
+    const btnSelectImportSelect = root.getElementById("btn-select-import-select");
     const snapshotDetailModal = root.getElementById("snapshot-detail-modal");
     const snapshotDetailTitle = root.getElementById("snapshot-detail-title");
     const snapshotDetailClose = root.getElementById("snapshot-detail-close");
@@ -3214,8 +3209,8 @@
     const threadSelectTitle = root.getElementById("thread-select-title");
     const threadSelectSubtitle = root.getElementById("thread-select-subtitle");
     const threadSelectSearch = root.getElementById("thread-select-search");
-    const threadSelectScanText = root.getElementById("thread-select-scan-text");
-    const threadSelectRescanBtn = root.getElementById("thread-select-rescan-btn");
+    const threadSelectNotice = root.getElementById("thread-select-notice");
+    const threadSelectNoticeText = root.getElementById("thread-select-notice-text");
     const threadSelectList = root.getElementById("thread-select-list");
     const threadSelectClose = root.getElementById("thread-select-close");
 
@@ -4219,12 +4214,21 @@
      if (selectionCount) {
        selectionCount.textContent = count ? `已选 ${count} 条` : "未选择消息";
      }
-     if (btnSelectImport) {
-       btnSelectImport.disabled = count === 0;
-     }
-     if (btnSelectImportNew) {
-       btnSelectImportNew.disabled = count === 0;
-     }
+      if (btnSelectImportSelect) {
+        btnSelectImportSelect.disabled = count === 0;
+      }
+      if (btnSelectImport) {
+        btnSelectImport.disabled = count === 0;
+        const curThread = currentThread();
+        if (curThread?.title) {
+          btnSelectImport.title = `导入到当前本地会话: 《${curThread.title}》`;
+        } else {
+          btnSelectImport.title = "导入到当前打开的本地会话输入框";
+        }
+      }
+      if (btnSelectImportNew) {
+        btnSelectImportNew.disabled = count === 0;
+      }
      if (btnSelectClear) {
        btnSelectClear.disabled = count === 0;
      }
@@ -4340,28 +4344,7 @@
       if (e.target === threadSelectModal) closeThreadSelectModal();
     });
 
-    // 自动在后台静默展开侧栏折叠的项目文件夹与长列表的“展开显示”按钮
-    const expandAllSidebarFoldersAndMore = () => {
-      // 1. 展开所有折叠的项目文件夹行 (Playground, Studio-LawHome, 最近 等)
-      const folderRows = Array.from(document.querySelectorAll(".group\\/folder-row, [role=button], button"));
-      folderRows.forEach(el => {
-        if (el.getAttribute("aria-expanded") === "false") {
-          const t = (el.textContent || "").trim();
-          // 排除个人信息、模型切换菜单等
-          if (t && !t.includes("weijia") && !t.includes("语音") && !t.includes("完全访问") && !t.includes("选择强度") && !t.includes("用时")) {
-            try { el.click(); } catch {}
-          }
-        }
-      });
-
-      // 2. 点击所有已展开项目下方的“展开显示”按钮
-      const moreBtns = Array.from(document.querySelectorAll("button, a")).filter(el => (el.textContent || "").trim() === "展开显示");
-      moreBtns.forEach(b => {
-        try { b.click(); } catch {}
-      });
-    };
-
-    // 增强版：获取包含所属项目名称的所有会话列表
+    // 增强版：获取包含所属项目名称的所有会话列表 (基于当前侧边栏展开状态，不暴力展开用户目录)
     function listSidebarThreadsDetailed() {
       const folderEls = Array.from(document.querySelectorAll(".group\\/folder-row, button.group\\/section-toggle"));
       const detectedProjects = folderEls.map(el => (el.textContent || "").trim().split("\n")[0].trim()).filter(Boolean);
@@ -4419,16 +4402,11 @@
         threadSelectSearch.value = "";
       }
 
-      // 打开时自动做一次后台项目展开扫描，并在 160ms 内渲染全量列表
-      expandAllSidebarFoldersAndMore();
       threadSelectModal.hidden = false;
       renderThreadSelectList();
-
-      setTimeout(() => {
-        expandAllSidebarFoldersAndMore();
-        renderThreadSelectList();
-        if (threadSelectSearch) threadSelectSearch.focus();
-      }, 160);
+      if (threadSelectSearch) {
+        setTimeout(() => threadSelectSearch.focus(), 50);
+      }
     };
 
     const renderThreadSelectList = () => {
@@ -4437,12 +4415,6 @@
       const q = (threadSelectSearch?.value || "").trim().toLowerCase();
       const allThreads = listSidebarThreadsDetailed();
       const isShare = currentThreadSelectConfig?.mode === "share";
-
-      // 统计项目数量与更新提示栏
-      const projectSet = new Set(allThreads.map(t => t.project));
-      if (threadSelectScanText) {
-        threadSelectScanText.textContent = `已发现 ${projectSet.size} 个项目，共 ${allThreads.length} 条对话`;
-      }
 
       // 导入模式下：顶部置顶【+ 新建空白会话并导入】快捷操作
       if (!isShare) {
@@ -4476,8 +4448,10 @@
 
       if (!filtered.length) {
         const empty = document.createElement("div");
-        empty.style.cssText = "padding:24px;text-align:center;color:var(--text-muted);font-size:12.5px;";
-        empty.textContent = q ? `未找到包含 "${q}" 的对话` : "未找到本地对话";
+        empty.style.cssText = "padding:28px 16px;text-align:center;color:var(--text-muted);font-size:12.5px;line-height:1.6;";
+        empty.innerHTML = q 
+          ? `未找到包含 "${escapeHtml(q)}" 的对话` 
+          : `左侧栏暂无已展开的对话<br><span style="font-size:11px;opacity:0.75;margin-top:4px;display:inline-block;">请先在左侧栏展开目标项目，然后再次打开此弹窗</span>`;
         threadSelectList.appendChild(empty);
         return;
       }
@@ -4567,17 +4541,9 @@
     };
 
     threadSelectSearch?.addEventListener("input", renderThreadSelectList);
-    threadSelectRescanBtn?.addEventListener("click", () => {
-      expandAllSidebarFoldersAndMore();
-      if (threadSelectScanText) threadSelectScanText.textContent = "正在展开全部项目与历史对话...";
-      setTimeout(() => {
-        renderThreadSelectList();
-        showToast("✓ 已扫描并加载侧栏全部项目对话");
-      }, 200);
-    });
 
-    // 导入消息主体选中的对话到当前 Codex 对话或新对话
-    const importSelectedMessagesToComposer = ({ newThread = false } = {}) => {
+    // 导入消息主体选中的对话到当前 Codex 对话、指定对话或新对话
+    const importSelectedMessagesToComposer = ({ mode = "current", newThread = false } = {}) => {
       if (!selectedMessageIds.size) {
         showToast("请先勾选需要导入的消息");
         return;
@@ -4618,10 +4584,16 @@
 
       exitMultiSelectMode();
 
-      if (newThread) {
+      if (mode === "new" || newThread) {
         importIntoNewThread(prompt);
+      } else if (mode === "select") {
+        openThreadSelectModal({ mode: "import", content: prompt });
       } else {
+        const cur = currentThread();
         importIntoCurrentThread(prompt);
+        if (cur?.title) {
+          showToast(`✓ 已将选中的团队内容注入到当前本地对话《${cur.title.slice(0, 10)}...》`);
+        }
       }
     };
 
@@ -5935,11 +5907,14 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
    btnSelectCancel?.addEventListener("click", () => {
      exitMultiSelectMode();
    });
+    btnSelectImportSelect?.addEventListener("click", () => {
+      importSelectedMessagesToComposer({ mode: "select" });
+    });
     btnSelectImport?.addEventListener("click", () => {
-      importSelectedMessagesToComposer({ newThread: false });
+      importSelectedMessagesToComposer({ mode: "current" });
     });
     btnSelectImportNew?.addEventListener("click", () => {
-      importSelectedMessagesToComposer({ newThread: true });
+      importSelectedMessagesToComposer({ mode: "new" });
     });
 
     // 快照与原生分享详情弹层操作绑定 (对齐官方图 2 原生分享交互)
@@ -6771,6 +6746,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
   }
 
   window.__teamContextApplyTheme = applyCodexTheme;
+  window.__teamContextOpenPage = openPage;
   setupThemeWatcher();
 
   ensureWatchers();

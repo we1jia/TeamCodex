@@ -455,11 +455,11 @@ test("17. windows/run-teamcodex.ps1 具备优雅退出与平滑接管防丢机�
   assert.match(psCode, /"--remote-debugging-address=127\.0\.0\.1"/);
 });
 
-test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v71/v72/v73)", () => {
+test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v71~v75)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v73";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v75";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -482,7 +482,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   assert.doesNotMatch(uiCode, /⚡ 检测到协同口令/);
 });
 
-test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂毛玻璃样式 (inline-v72/v73)", () => {
+test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂毛玻璃样式 (inline-v72~v75)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 19.1 输入框底部工具栏拔除鸡肋按钮：不再存在 + New、@ Link、Secure
@@ -505,36 +505,37 @@ test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂�
   assert.match(uiCode, /id="snapshot-detail-native-import"/, "必须具备 [导入到当前对话] 按钮");
   assert.match(uiCode, /id="snapshot-detail-import-select"/, "必须具备 [选对话...] 按钮");
 
-  // 19.4 多选 Dock 条支持独立新建导入与导入当前
-  assert.match(uiCode, /id="btn-select-import-new"/, "多选 Dock 条必须包含 [新建并导入]");
-  assert.match(uiCode, /id="btn-select-import"/, "多选 Dock 条必须包含 [导入当前]");
+  // 19.4 多选 Dock 条支持 [选对话...]、[导入当前对话] 与 [+ 新建并导入]，彻底消除“导入当前”歧义
+  assert.match(uiCode, /id="btn-select-import-select"/, "多选 Dock 条必须包含 [选对话...]");
+  assert.match(uiCode, /id="btn-select-import-new"/, "多选 Dock 条必须包含 [+ 新建并导入]");
+  assert.match(uiCode, /<span>导入当前对话<\/span>/, "多选 Dock 条必须清晰完整显示 [导入当前对话]");
+  assert.doesNotMatch(uiCode, /<span>导入当前<\/span>/, "严禁出现语意不明的 [导入当前]");
 
   // 19.5 包含通用对话选择弹窗模态框 (thread-select-modal)
   assert.match(uiCode, /id="thread-select-modal"/, "必须包含通用选择对话模态框");
   assert.match(uiCode, /id="thread-select-search"/, "必须支持搜索过滤本地对话");
   assert.match(uiCode, /id="thread-select-list"/, "必须具备对话动态列表容器");
 
-  // 19.6 自愈检测指纹已同步升级至 v72/v73
+  // 19.6 自愈检测指纹已同步升级至 v72~v75
   assert.match(uiCode, /existing\.dataset\.ui !== UI_VERSION/);
   assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("snapshot-detail-import-new"\)/);
   assert.match(uiCode, /!existing\.shadowRoot\?\.getElementById\?\.\("thread-select-modal"\)/);
 });
 
-test("20. 跨项目自动展开扫描、项目归属提取与扁平分组排版 (inline-v73)", () => {
+test("20. 尊重侧栏默认展开状态、项目归属提取、扁平分组与说明文案 (inline-v74/v75)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
-  // 20.1 必须定义并执行自动展开函数 expandAllSidebarFoldersAndMore
-  assert.match(uiCode, /const expandAllSidebarFoldersAndMore = \(\) => \{/);
-  assert.match(uiCode, /el\.getAttribute\("aria-expanded"\) === "false"/);
-  assert.match(uiCode, /el\.textContent \|\| ""\)\.trim\(\) === "展开显示"/);
+  // 20.1 严禁暴力自动展开侧栏目录，保持原生折叠完整性
+  assert.doesNotMatch(uiCode, /expandAllSidebarFoldersAndMore/, "严禁对侧栏进行暴力自动展开");
 
   // 20.2 必须具备精准提取项目所属的 listSidebarThreadsDetailed
   assert.match(uiCode, /function listSidebarThreadsDetailed\(\)/);
   assert.match(uiCode, /const detectedProjects = folderEls\.map/);
 
-  // 20.3 弹窗包含扫描统计栏与重新扫描按钮
-  assert.match(uiCode, /id="thread-select-scan-hint"/);
-  assert.match(uiCode, /id="thread-select-rescan-btn"/);
+  // 20.3 弹窗包含清晰沉浸的说明文案，提示仅显示当前展开的对话
+  assert.match(uiCode, /id="thread-select-notice"/);
+  assert.match(uiCode, /仅显示左侧栏当前已展开的对话/);
+  assert.doesNotMatch(uiCode, /id="thread-select-rescan-btn"/, "不保留展开并刷新按钮");
 
   // 20.4 支持项目弱化分割头与项目微标样式
   assert.match(uiCode, /\.thread-select-group-header\s*\{/);
