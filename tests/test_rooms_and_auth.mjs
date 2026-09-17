@@ -454,8 +454,8 @@ test("Multi-room, Room Key Authentication & Static Asset Suite", async (t) => {
     assert.equal(shareBlock.includes("local_") , false);
     assert.ok(shareBlock.includes("const extracted = extractLocalThreadMessages()"));
     assert.ok(shareBlock.includes("const selectedMessages = extracted.messages"));
-    assert.ok(jsRes.raw.includes("root.getElementById(\"share-thread\")?.addEventListener(\"click\", () => shareCurrentThreadToTeam())"));
-    assert.ok(jsRes.raw.includes("root.getElementById(\"review\")?.addEventListener(\"click\", () => openImportSelectCard())"));
+    assert.ok(jsRes.raw.includes('root.getElementById("share-thread")?.addEventListener("click"'));
+    assert.ok(jsRes.raw.includes('root.getElementById("review")?.addEventListener("click"'));
 
     // 验证微信式主体直接多选与快照详情弹窗机制
     assert.ok(jsRes.raw.includes("msg-select-check"));

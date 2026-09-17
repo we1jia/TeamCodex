@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v80";
+  const UI_VERSION = "inline-v81";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -2219,27 +2219,45 @@
           display: flex;
           align-items: center;
           justify-content: flex-end;
-          margin-top: 4px;
-          padding-top: 6px;
+          gap: 6px;
+          margin-top: 6px;
+          padding-top: 8px;
           border-top: 1px solid var(--border-subtle);
         }
         .snapshot-open-link {
           display: inline-flex;
           align-items: center;
+          justify-content: center;
+          height: 24px;
+          box-sizing: border-box;
           gap: 4px;
-          font-size: 12px;
+          font-size: 11.5px;
           font-weight: 550;
+          line-height: 1;
           color: var(--accent-color);
-          background: transparent;
-          border: 0;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           cursor: pointer;
-          padding: 4px 6px;
+          padding: 0 8px;
           border-radius: 6px;
-          transition: background-color 0.12s ease;
+          text-decoration: none;
+          transition: all 0.15s ease;
+          user-select: none;
+          flex-shrink: 0;
+        }
+        .snapshot-open-link svg {
+          width: 12px;
+          height: 12px;
+          flex-shrink: 0;
         }
         .snapshot-open-link:hover {
-          background: color-mix(in srgb, var(--accent-color) 10%, transparent);
-          text-decoration: underline;
+          background: color-mix(in srgb, var(--accent-color) 12%, transparent);
+          border-color: color-mix(in srgb, var(--accent-color) 35%, transparent);
+          color: var(--accent-color);
+          text-decoration: none;
+        }
+        .snapshot-open-link:active {
+          transform: translateY(1px);
         }
 
         /* 快照与原生分享详情弹窗 (对齐官方图 2 原生分享) */
@@ -5635,15 +5653,15 @@
           ((contentText || "").match(/https:\/\/chatgpt\.com\/s\/cx_[a-zA-Z0-9_\-]+/)?.[0]) || null;
 
         const copyLinkBtn = shareLink
-          ? `<button class="snapshot-open-link card-copy-link" type="button" title="复制官方分享链接" style="margin-right:6px;display:inline-flex;align-items:center;gap:4px;">
+          ? `<button class="snapshot-open-link card-copy-link" type="button" title="复制官方分享链接">
                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M3.69541 6.25121C3.89761 6.04427 4.22909 6.03985 4.43662 6.24145C4.64426 6.44372 4.64953 6.77691 4.44736 6.98461L3.61338 7.84008L3.6085 7.84496C2.42952 9.02432 2.40771 10.9534 3.72666 12.2727C5.04612 13.5922 6.97593 13.5702 8.15537 12.3909L8.16025 12.386L9.01572 11.553C9.22335 11.3509 9.55562 11.3553 9.75791 11.5627C9.96017 11.7704 9.9566 12.1036 9.74912 12.3059L8.89365 13.1389C7.28179 14.7455 4.68893 14.7213 2.9835 13.0159C1.27845 11.3104 1.25498 8.71842 2.86143 7.10668L3.69541 6.25121Z"></path><path d="M9.629 5.62914C9.83403 5.42415 10.1662 5.42413 10.3712 5.62914C10.5761 5.83417 10.5761 6.16634 10.3712 6.37133L6.37119 10.3713C6.16621 10.5763 5.83404 10.5762 5.629 10.3713C5.42398 10.1663 5.42398 9.83417 5.629 9.62914L9.629 5.62914Z"></path><path d="M7.10654 2.86157C8.71829 1.25511 11.3103 1.27855 13.0157 2.98364C14.7212 4.68907 14.7453 7.28193 13.1388 8.89379L12.3058 9.74926C12.1034 9.95672 11.7702 9.96029 11.5626 9.75805C11.3552 9.55576 11.3507 9.22349 11.5528 9.01586L12.3858 8.16039L12.3907 8.15551C13.5701 6.97606 13.592 5.04626 12.2726 3.7268C10.9532 2.40781 9.02419 2.42965 7.84482 3.60864L7.83994 3.61352L6.98447 4.4475C6.77678 4.64965 6.44358 4.64438 6.24131 4.43676C6.03972 4.22923 6.04415 3.89775 6.25107 3.69555L7.10654 2.86157Z"></path></svg>
                <span>复制链接</span>
              </button>`
           : "";
 
         const shareLinkBtn = shareLink
-          ? `<button class="snapshot-open-link web-link" type="button" data-url="${escapeHtml(shareLink)}" href="${escapeHtml(shareLink)}" title="在系统浏览器中打开此官方分享" style="text-decoration:none;margin-right:6px;display:inline-flex;align-items:center;gap:4px;color:var(--accent-color);font-weight:600;background:none;border:none;cursor:pointer;padding:0;font-size:inherit;">
-               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          ? `<button class="snapshot-open-link web-link" type="button" data-url="${escapeHtml(shareLink)}" href="${escapeHtml(shareLink)}" title="在系统浏览器中打开此官方分享">
+               <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                <span>网页打开</span>
              </button>`
           : "";
@@ -5667,6 +5685,7 @@
               ${copyLinkBtn}
               ${shareLinkBtn}
               <button class="snapshot-open-link card-detail-link" type="button" title="打开官方原生弹窗查看详情">
+                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                 <span>查看详情</span>
               </button>
             </div>

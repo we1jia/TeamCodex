@@ -459,7 +459,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v80";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v81";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -602,6 +602,30 @@ test("22. 外链专属隔离、DOM就绪等待防漏读、短提问语境结构�
   // 22.4 renderMessage 中针对长度<=3的极短提问进行上下文结构化，彻底消灭孤立单字如 "n"
   assert.match(uiCode, /if \(previewText\.length <= 3\)/);
   assert.match(uiCode, /用户:\s*\$\{previewText\}\s*｜\s*回复:\s*\$\{replySnippet\}/);
+});
+
+test("23. 快照卡片底部操作按钮尺寸统一与微胶囊规范 (inline-v81)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 23.1 CSS：.snapshot-card-footer 采用 gap: 6px 规范
+  assert.match(uiCode, /\.snapshot-card-footer\s*\{[\s\S]*?gap:\s*6px;/);
+
+  // 23.2 CSS：.snapshot-open-link 统一锁定 24px 高度、内边距 0 8px、微胶囊边框与文字对齐
+  assert.match(uiCode, /\.snapshot-open-link\s*\{[\s\S]*?height:\s*24px;/);
+  assert.match(uiCode, /\.snapshot-open-link\s*\{[\s\S]*?padding:\s*0\s+8px;/);
+  assert.match(uiCode, /\.snapshot-open-link\s*\{[\s\S]*?font-size:\s*11\.5px;/);
+  assert.match(uiCode, /\.snapshot-open-link\s*\{[\s\S]*?box-sizing:\s*border-box;/);
+
+  // 23.3 CSS：所有内部 SVG 图标强制 12x12
+  assert.match(uiCode, /\.snapshot-open-link\s+svg\s*\{[\s\S]*?width:\s*12px;[\s\S]*?height:\s*12px;/);
+
+  // 23.4 HTML 模板：严禁子按钮带脏内联 padding:0 或 font-size:inherit 污染
+  assert.doesNotMatch(uiCode, /class="snapshot-open-link web-link"[^>]*style="[^"]*padding:\s*0/);
+  assert.doesNotMatch(uiCode, /class="snapshot-open-link web-link"[^>]*style="[^"]*font-size:\s*inherit/);
+  assert.doesNotMatch(uiCode, /class="snapshot-open-link card-copy-link"[^>]*style="[^"]*margin-right/);
+
+  // 23.5 card-detail-link 补齐 12x12 矢量图标，杜绝无图标文字参差不齐
+  assert.match(uiCode, /class="snapshot-open-link card-detail-link"[^>]*>[\s\S]*?<svg[\s\S]*?<span>查看详情<\/span>/);
 });
 
 
