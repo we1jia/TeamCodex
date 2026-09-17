@@ -31,16 +31,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Run automated tests
-        run: |
-          node --test tests/test_boost_fixes.mjs
-          node --test tests/test_rooms_and_auth.mjs
-
       - name: Package macOS distribution bundle
         run: python3 macos/build_mac_zip.py
 
       - name: Package Windows distribution bundle
         run: python3 windows/build_zip.py
+
+      - name: Run automated tests
+        run: |
+          node --test tests/test_boost_fixes.mjs
+          node --test tests/test_rooms_and_auth.mjs
 
       - name: Generate SHA256 checksums
         run: |

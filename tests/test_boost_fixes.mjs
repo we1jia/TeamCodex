@@ -158,7 +158,9 @@ test("6. Windows 脚本与快捷方式补齐及双路径自适应", () => {
 });
 
 test("7. TeamCodex-Windows-arm64-amd64.zip 完整性与结构校验", async () => {
-  const zipPath = path.join(WORKSPACE, "TeamCodex-Windows-arm64-amd64.zip");
+  const rootZip = path.join(ROOT, "TeamCodex-Windows-arm64-amd64.zip");
+  const workspaceZip = path.join(WORKSPACE, "TeamCodex-Windows-arm64-amd64.zip");
+  const zipPath = fs.existsSync(rootZip) ? rootZip : workspaceZip;
   assert.ok(fs.existsSync(zipPath), "ZIP 压缩包物理存在");
 
   const { execFileSync } = await import("node:child_process");
