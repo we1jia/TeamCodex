@@ -5374,7 +5374,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
 
       let block = `【导入团队分享的对话《${title}》】(来自 ${who})\n\n`;
       if (shareUrl) {
-        block += `🔗 官方公开链接（最完整对话）：${shareUrl}\n\n`;
+        block += `官方公开链接：${shareUrl}\n\n`;
       }
       block += `#### 完整对话上下文记录：\n${fullContent}\n\n`;
       block += `请结合以上团队分享的对话上下文，继续回答我的问题并推进当前工作。`;
@@ -5909,11 +5909,14 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         return;
       }
       const title = linkedThread?.title || `[${config.roomId || "Media"}] 当前会话方案`;
-      const shareMsg = `【📤 分享对话快照】${title}\n\n我已将当前会话的方案与讨论生成共享快照，团队成员可点击查阅或导入：\n${url}`;
+      const shareMsg = `【对话快照】${title}\n\n当前会话方案与讨论已生成共享快照，团队成员可查阅或导入：\n${url}`;
 
       const origText = btnSendShareToRoom.innerHTML;
       btnSendShareToRoom.disabled = true;
-      btnSendShareToRoom.innerHTML = "<span>🚀 正在发送...</span>";
+      btnSendShareToRoom.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        <span>正在发送...</span>
+      `;
       try {
         await sendMessage(shareMsg);
         showToast("✓ 已成功将对话快照发送到当前协作房间！");

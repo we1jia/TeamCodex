@@ -22,9 +22,9 @@
 
 TeamCodex 解决 AI 编程桌面端（OpenAI Codex / ChatGPT）长期存在的**单机隔离痛点**。通过 CDP (Chrome DevTools Protocol) 协议在原生客户端侧边栏内嵌全功能协作面板，配合纯原生 Node.js SSE 事件中枢（零第三方 npm 依赖），实现毫秒级成员在线感知、会话快照脱敏归档与跨端上下文秒级导入。
 
-```
-[Mac / Windows 客户端] <--- CDP 9222 ---> [侧栏全屏协作面板] <--- HTTP / SSE ---> [TeamCodex Hub 18765]
-```
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="TeamCodex System Architecture" width="100%" />
+</p>
 
 ---
 
@@ -134,9 +134,9 @@ node --test tests/test_rooms_and_auth.mjs
 
 TeamCodex eliminates the **isolation constraint** inherent in desktop AI clients (OpenAI Codex / ChatGPT). By utilizing the Chrome DevTools Protocol (CDP), it embeds an integrated collaboration workspace directly into the native sidebar. Powered by a zero-external-dependency Node.js SSE event bus, it provides peer presence heartbeats, sanitized dialogue snapshots, and instant cross-session context relay.
 
-```
-[Mac / Win Client] <--- CDP 9222 ---> [Sidebar Fullscreen UI] <--- HTTP / SSE ---> [TeamCodex Hub 18765]
-```
+<p align="center">
+  <img src="docs/assets/architecture.png" alt="TeamCodex System Architecture" width="100%" />
+</p>
 
 ---
 

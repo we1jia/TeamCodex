@@ -14,18 +14,9 @@ TeamCodex Hub（`server/dev_host.mjs`）是整个协同体系的实时状态与�
 
 它采用原生 Node.js HTTP 与 Server-Sent Events (SSE) 事件总线架构，负责多房间隔离、访问密码鉴权（Room Key）、在线成员心跳感知、只读快照存储与上下文下发。该服务是**纯原生轻量级实现，零外部第三方 npm 依赖**，冷启动耗时低于 20ms。
 
-```
-+-----------------------------------------------------------------------+
-|                           TeamCodex Hub                               |
-|                     (Default Port: 18765)                             |
-+-----------------------------------+-----------------------------------+
-                                    |
-      +-----------------------------+-----------------------------+
-      | (Localhost / Parallels)     | (LAN Wi-Fi / Ethernet)      | (Internet / HTTPS)
-      v                             v                             v
-[方案 1: 单机跨端协同]       [方案 2: 局域网私有协作]     [方案 3: 云端公网部署]
-Mac 宿主 + Win 虚拟机        办公室/实验室同内网团队       跨地域分布式远程团队
-```
+<p align="center">
+  <img src="assets/architecture.png" alt="TeamCodex System Architecture & Topologies" width="100%" />
+</p>
 
 ### 2. 部署方案选型
 
@@ -193,18 +184,9 @@ TeamCodex Hub (`server/dev_host.mjs`) serves as the central message bus and real
 
 Architected with native Node.js HTTP and Server-Sent Events (SSE), the hub coordinates multi-room isolation, room key encryption gates, peer presence heartbeats, snapshot archiving, and context broadcasts. The server is implemented with **zero third-party npm dependencies**, achieving cold-start latencies under 20ms.
 
-```
-+-----------------------------------------------------------------------+
-|                           TeamCodex Hub                               |
-|                     (Default Port: 18765)                             |
-+-----------------------------------+-----------------------------------+
-                                    |
-      +-----------------------------+-----------------------------+
-      | (Localhost / Parallels)     | (LAN Wi-Fi / Ethernet)      | (Internet / HTTPS)
-      v                             v                             v
-[Model 1: Single-Host Cross-OS]  [Model 2: Private LAN Collab] [Model 3: Cloud VPS Hub]
-Mac Host + Win Virtual Machine   Office / Lab Local Network    Distributed Remote Teams
-```
+<p align="center">
+  <img src="assets/architecture.png" alt="TeamCodex System Architecture & Topologies" width="100%" />
+</p>
 
 ### 2. Topology Models
 

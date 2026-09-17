@@ -455,3 +455,30 @@ test("17. windows/run-teamcodex.ps1 具备优雅退出与平滑接管防丢机�
   assert.match(psCode, /"--remote-debugging-address=127\.0\.0\.1"/);
 });
 
+test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v70)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 18.1 版本升级至 inline-v70
+  assert.match(uiCode, /const UI_VERSION = "inline-v70";/);
+
+  // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
+  // 移除注释后检查有效代码
+  const codeWithoutComments = uiCode.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.doesNotMatch(codeWithoutComments, /[✨🚀📥📤🍎🪟👁🔒✕]/u, "严禁在界面中出现廉价感彩色 emoji 或全角 ✕");
+
+  // 18.3 弹窗主按钮升级为原生矢量 SVG 导入托盘图标与沉稳文案
+  assert.match(uiCode, /id="snapshot-detail-native-import"/);
+  assert.match(uiCode, /<span>导入到当前对话<\/span>/);
+
+  // 18.4 弹窗关闭与外链升级为原生矢量 SVG
+  assert.match(uiCode, /id="snapshot-detail-close"/);
+  assert.match(uiCode, /id="snapshot-detail-native-open"/);
+
+  // 18.5 空间口令快捷横幅与配置弹窗全面去除 ⚡ 与 🚀
+  assert.match(uiCode, /id="collab-token-bar"/);
+  assert.match(uiCode, /加入此空间/);
+  assert.match(uiCode, /仅作为消息发送/);
+  assert.doesNotMatch(uiCode, /🚀 一键加入此空间/);
+  assert.doesNotMatch(uiCode, /⚡ 检测到协同口令/);
+});
+
