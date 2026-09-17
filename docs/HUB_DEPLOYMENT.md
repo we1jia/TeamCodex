@@ -15,7 +15,7 @@ TeamCodex Hub（`server/dev_host.mjs`）是整个协同体系的实时状态与�
 它采用原生 Node.js HTTP 与 Server-Sent Events (SSE) 事件总线架构，负责多房间隔离、访问密码鉴权（Room Key）、在线成员心跳感知、只读快照存储与上下文下发。该服务是**纯原生轻量级实现，零外部第三方 npm 依赖**，冷启动耗时低于 20ms。
 
 <p align="center">
-  <img src="assets/architecture.png" alt="TeamCodex System Architecture & Topologies" width="100%" />
+  <img src="assets/architecture_zh.png" alt="TeamCodex 系统架构全景与网络拓扑" width="100%" />
 </p>
 
 ### 2. 部署方案选型
@@ -185,7 +185,7 @@ TeamCodex Hub (`server/dev_host.mjs`) serves as the central message bus and real
 Architected with native Node.js HTTP and Server-Sent Events (SSE), the hub coordinates multi-room isolation, room key encryption gates, peer presence heartbeats, snapshot archiving, and context broadcasts. The server is implemented with **zero third-party npm dependencies**, achieving cold-start latencies under 20ms.
 
 <p align="center">
-  <img src="assets/architecture.png" alt="TeamCodex System Architecture & Topologies" width="100%" />
+  <img src="assets/architecture_en.png" alt="TeamCodex System Architecture & Topologies" width="100%" />
 </p>
 
 ### 2. Topology Models

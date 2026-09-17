@@ -1,14 +1,14 @@
 # TeamCodex
 
-> Seamless Real-time Collaboration Workspace & Context Hub for Codex & ChatGPT Desktop.  
-> 面向 Codex 与 ChatGPT 桌面端的轻量级无侵入实时协同工作区与上下文同步中枢。
+面向 Codex 与 ChatGPT 桌面端的轻量级无侵入实时协同工作区与上下文同步中枢。  
+Seamless Real-time Collaboration Workspace & Context Hub for Codex & ChatGPT Desktop.
 
-[![Release](https://img.shields.io/github/v/release/we1jia/TeamCodex?color=2563eb&style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
+[![Release](https://img.shields.io/github/v/release/we1jia/TeamCodex?color=ea580c&style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
 [![Build](https://img.shields.io/badge/build-passing-16a34a?style=flat-square)](https://github.com/we1jia/TeamCodex/actions)
 [![Tests](https://img.shields.io/badge/tests-37%2F37%20passed-16a34a?style=flat-square)](tests/)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-64748b?style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
-[![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-0284c7?style=flat-square)](server/dev_host.mjs)
-[![License](https://img.shields.io/badge/license-MIT-64748b?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-52525b?style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
+[![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-f97316?style=flat-square)](server/dev_host.mjs)
+[![License](https://img.shields.io/badge/license-MIT-52525b?style=flat-square)](LICENSE)
 
 [English](#english) | [中文](#中文)
 
@@ -23,7 +23,7 @@
 TeamCodex 解决 AI 编程桌面端（OpenAI Codex / ChatGPT）长期存在的**单机隔离痛点**。通过 CDP (Chrome DevTools Protocol) 协议在原生客户端侧边栏内嵌全功能协作面板，配合纯原生 Node.js SSE 事件中枢（零第三方 npm 依赖），实现毫秒级成员在线感知、会话快照脱敏归档与跨端上下文秒级导入。
 
 <p align="center">
-  <img src="docs/assets/architecture.png" alt="TeamCodex System Architecture" width="100%" />
+  <img src="docs/assets/architecture_zh.png" alt="TeamCodex 系统架构全景" width="100%" />
 </p>
 
 ---
@@ -58,7 +58,7 @@ TeamCodex 解决 AI 编程桌面端（OpenAI Codex / ChatGPT）长期存在的**
 ```bash
 curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deploy-hub.sh | bash
 ```
-> 脚本将自动检测环境：优先通过 Docker Compose 启动容器；无 Docker 时自动注册 Systemd 或 PM2 守护进程，并自动执行健康自检。
+脚本自动探测系统环境：优先通过 Docker Compose 启动容器；无 Docker 时自动注册 Systemd 或 PM2 守护进程，并自动执行健康自检。
 
 #### 选项 B：一键发给终端 AI Agent 的部署提示词
 使用 Claude Code、Codex、Cursor、OpenClaw 等终端 AI 运维服务器时，直接复制以下提示词发送：
@@ -74,7 +74,7 @@ curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deplo
 7. 输出本机的访问地址与测试 Smart Token。
 ```
 
-> 详细参数表、Docker 挂载说明与 Nginx SSL 配置参见：**[中枢部署与网络接入全景指南 (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**。
+完整参数表、Docker 编排配置与 Nginx SSL 模板参见：**[中枢部署与网络接入全景指南 (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**。
 
 ---
 
@@ -135,7 +135,7 @@ node --test tests/test_rooms_and_auth.mjs
 TeamCodex eliminates the **isolation constraint** inherent in desktop AI clients (OpenAI Codex / ChatGPT). By utilizing the Chrome DevTools Protocol (CDP), it embeds an integrated collaboration workspace directly into the native sidebar. Powered by a zero-external-dependency Node.js SSE event bus, it provides peer presence heartbeats, sanitized dialogue snapshots, and instant cross-session context relay.
 
 <p align="center">
-  <img src="docs/assets/architecture.png" alt="TeamCodex System Architecture" width="100%" />
+  <img src="docs/assets/architecture_en.png" alt="TeamCodex System Architecture" width="100%" />
 </p>
 
 ---
@@ -170,7 +170,7 @@ The Hub service supports three standard operational models:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deploy-hub.sh | bash
 ```
-> Detects environment automatically: prefers Docker Compose; falls back to Node.js with Systemd / PM2 process supervision and automated health verification.
+Detects environment automatically: prefers Docker Compose; falls back to Node.js with Systemd / PM2 process supervision and automated health verification.
 
 #### Option B: AI Agent System Prompt
 Copy and paste this structured prompt directly to terminal AI assistants (Claude Code, Codex, Cursor, OpenClaw):
@@ -186,7 +186,7 @@ Deploy TeamCodex Hub on this server following production standards:
 7. Output endpoint URL and a ready-to-use Smart Token.
 ```
 
-> Full documentation and Nginx TLS templates available at: **[Hub Deployment & Networking Guide (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**.
+Full documentation and Nginx TLS templates available at: **[Hub Deployment & Networking Guide (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**.
 
 ---
 
