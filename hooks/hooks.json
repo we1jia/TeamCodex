@@ -7,7 +7,7 @@
             "type": "command",
             "command": "node ${PLUGIN_ROOT}/hooks/user_prompt_submit.mjs",
             "timeout": 5,
-            "statusMessage": "读取团队协作摘要"
+            "statusMessage": "读取 Team Codex 团队摘要"
           }
         ]
       }

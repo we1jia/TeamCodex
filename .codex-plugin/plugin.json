@@ -1,0 +1,42 @@
+{
+  "name": "team-codex",
+  "version": "1.1.0",
+  "description": "Visible team rooms, collaborative context, and AI context relay inside Codex.",
+  "author": {
+    "name": "liuweijia"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "team",
+    "collaboration",
+    "group-chat",
+    "context-relay"
+  ],
+  "skills": "./skills/team-codex/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "Team Codex",
+    "shortDescription": "在 Codex 中建立团队可见的团队协作群聊与实时上下文接力。",
+    "longDescription": "Team Codex 提供团队空间、成员讨论、上下文分享和摘要注入，并将协作入口放到 Codex 左侧栏。",
+    "developerName": "liuweijia",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "打开 Team Codex 团队协作空间。",
+      "读取当前团队空间的讨论摘要。",
+      "把当前 Codex 对话分享到团队空间。"
+    ],
+    "brandColor": "#2F63F5",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/logo.png",
+    "logoDark": "./assets/logo.png",
+    "screenshots": [
+      "./assets/screenshot.png"
+    ]
+  }
+}

@@ -8,7 +8,7 @@ Stop cascading errors from tossing static AI docs. Align reasoning chains and co
 
 [![Release](https://img.shields.io/github/v/release/we1jia/TeamCodex?color=ea580c&style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
 [![Build](https://img.shields.io/badge/build-passing-16a34a?style=flat-square)](https://github.com/we1jia/TeamCodex/actions)
-[![Tests](https://img.shields.io/badge/tests-58%2F58%20passed-16a34a?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/tests-59%2F59%20passed-16a34a?style=flat-square)](tests/)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-52525b?style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-f97316?style=flat-square)](server/dev_host.mjs)
 [![License](https://img.shields.io/badge/license-MIT-52525b?style=flat-square)](LICENSE)
@@ -55,6 +55,7 @@ TeamCodex 将 **AI 的动态多轮推理链路（Context Chain）** 转化为像
 | **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | 拖入 `Applications` 即可。状态栏全面升级为**纯白微矢量双云协同图标（Template Icon）**，带 1.7pt 负空间立体切缝与 `>_` 终端镂空，自适应深浅模式；点击弹出原生磨砂 Mini Dashboard 悬浮卡片 |
 | **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | 运行向导自动适配 ARM64/AMD64，常驻系统托盘，静默接管无黑框。**左键点击弹出原生深色悬浮卡片**（失焦/Esc 自动收起）；**右键点击弹出纯净原版上下文菜单**（点击【退出】秒速退出无卡死）；具备全局单实例 Mutex 互斥防双图标 |
 | **免安装便携版** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | 解压即用，适合移动介质或严格权限环境，Windows 附带 `退出TeamCodex.cmd` 应急一键清理工具 |
+| **Codex 官方插件** | [`TeamCodex-Codex-Plugin.zip`](https://github.com/we1jia/TeamCodex/releases/latest) | 官方标准 Codex 插件包。赋予 AI 主动读写空间能力，集成 `UserPromptSubmit` 自动 Hook 摘要注入与预置指令 |
 
 > **提示**：启动后应用常驻系统托盘/状态栏，点击即可展开 **Mini Dashboard 控制面板**，具备：
 > - **状态自检**：实时显示 Codex 挂载状态（🟢 已挂载 / 🟡 等待挂载 / 🔴 未连接）、中枢地址与在线房间；
@@ -113,10 +114,50 @@ curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deplo
 
 ---
 
-### 6. 仓库结构
+### 6. Codex 官方原生插件与 AI 协同赋能 (Plugin / Skills / Hooks)
+
+除了供人类开发者交互的左侧栏工作台与系统托盘伴侣外，TeamCodex 深度集成了 **Codex 官方标准插件体系**（包含 `.codex-plugin/plugin.json` 清单、`skills/` 语义技能与 `hooks/` 生命周期拦截器）。
+
+<p align="center">
+  <img src="docs/assets/codex_plugin_detail.png" alt="Team Codex 官方插件详情与自然语言交互" width="95%" />
+</p>
+
+#### 双核协同分工体系
+- **左侧栏 `Team` Tab（人类看板）**：给**工程师**使用。提供沉浸式全屏群聊、在线成员头像、多房间切换、快照时间线浏览与手动一键导入；
+- **`Team Codex` 插件（AI 手脚与耳朵）**：给**当前会话中的 AI 助手**使用。赋予 Codex 读写团队空间、提炼讨论摘要、自动同步上下文的 Tool 能力，开发者无需切屏，用自然语言即可指挥 AI 协同。
+
+#### 1) 三大自然语言预置指令 (Preset Prompts)
+在 Codex 对话框中直接输入或点击气泡：
+- **`打开 Team Codex 团队协作空间。`**  
+  👉 调起协同中枢与本地控制台，引导聚焦左侧栏 Team 面板；
+- **`读取当前团队空间的讨论摘要。`**  
+  👉 自动调用 API 获取团队当前空间的成员共识、架构方案版本与关键意见，无缝注入当前任务；
+- **`把当前 Codex 对话分享到团队空间。`**  
+  👉 自动打包当前多轮推理链条，剔除本地敏感路径后广播至团队中枢。
+
+#### 2) `UserPromptSubmit` Hook 自动化上下文注入机制
+- **提问前静默探测**：在用户每次向 Codex 提交代码问题前，Hook 在 1200ms 内静默请求 `http://127.0.0.1:18765/api/compact.txt`；
+- **毫秒级上下文注入**：自动提取团队最新决策与成员变更，作为 `additionalContext` 隐式附带在提示词中，让 AI 的回答始终建立在全团队最新的共识之上；
+- **高可用与零阻塞**：若本地或局域网中枢暂时未启动或发生超时，Hook 0 毫秒静默跳过，绝不阻塞开发者的日常编码。
+
+#### 3) 插件安装与启用方式
+- **源码安装（推荐开发者）**：在终端执行：
+  ```bash
+  codex plugin add /path/to/TeamCodex
+  ```
+- **离线导入**：从 [GitHub Releases](https://github.com/we1jia/TeamCodex/releases/latest) 下载 `TeamCodex-Codex-Plugin.zip` 并在 Codex 插件管理界面点击导入；
+- **界面开启**：在 Codex 客户端左侧导航进入【插件】-> 找到【Team Codex】-> 开启右上角紫色 Toggle 开关即可。
+
+---
+
+### 7. 仓库结构
 
 ```text
 TeamCodex/
+├── .codex-plugin/              # 官方 Codex 插件清单与元数据 (plugin.json)
+├── hooks/                      # 提问前自动上下文注入钩子 (UserPromptSubmit)
+├── skills/                     # 语义化技能指令定义 (skills/team-codex/SKILL.md)
+├── assets/                     # 插件与客户端图标、Logo 及界面插图
 ├── inject/                     # CDP 客户端侧注入层、Web Component 与全屏协作 UI
 │   ├── sidebar_fullscreen.js   # 侧栏嵌入、快照脱敏与协同状态机
 │   └── attach_codex.mjs        # 动态拉取中枢最新脚本、CDP 挂载与心跳同步
@@ -138,7 +179,7 @@ TeamCodex/
 │   └── installer.nsi           # NSIS 安装向导配置
 ├── scripts/                    # 运维与自动化部署脚本 (deploy-hub.sh)
 ├── docs/                       # 架构设计与网络接入全景指南 (HUB_DEPLOYMENT.md)
-├── tests/                      # 58 项全自动化测试套件 (单测与端到端状态机)
+├── tests/                      # 59 项全自动化测试套件 (单测与端到端状态机)
 ├── version.json                # 客户端版本定义 (v1.1.0)
 ├── Dockerfile                  # 极简 Alpine Node 生产镜像定义
 ├── docker-compose.yml          # 一键容器化服务编排
@@ -147,17 +188,17 @@ TeamCodex/
 
 ---
 
-### 7. 自动化测试
+### 8. 自动化测试
 
 ```bash
 node --test tests/test_boost_fixes.mjs
 node --test tests/test_rooms_and_auth.mjs
-# 输出：58 tests passed (35 状态机与注入测试 + 23 房间鉴权与隔离测试)
+# 输出：59 tests passed (36 插件与状态机注入测试 + 23 房间鉴权与隔离测试)
 ```
 
 ---
 
-### 8. 常见问题 (FAQ)
+### 9. 常见问题 (FAQ)
 
 - **Q: 以后功能更新需要全员重新下载安装包吗？**  
   **日常更新完全不需要**。TeamCodex 采用双轨更新机制：侧栏协作界面与注入逻辑会在连接团队集中中枢时自动热加载最新脚本；仅在涉及操作系统底层驱动或托盘框架升级时，控制面板才会提示下载新版安装包。
@@ -208,6 +249,7 @@ Grab pre-built installers directly from **[GitHub Releases](https://github.com/w
 | **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | Drag `TeamCodex.app` into `/Applications`. Status bar upgraded to **Pure White Geometric Vector Cloud Template Icon** with negative space relief and `>_` terminal glyph, adapting automatically to Dark/Light modes; click to open frosted Mini Dashboard |
 | **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | Runs setup wizard for ARM64/AMD64. **Left-click opens native dark floating dashboard** (auto-dismiss on blur/Esc); **Right-click opens pristine context menu with instant clean exit**; guarded by global single-instance Mutex |
 | **Portable Archives** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | Standalone portable green packages; includes emergency cleanup tool `退出TeamCodex.cmd` |
+| **Codex Plugin** | [`TeamCodex-Codex-Plugin.zip`](https://github.com/we1jia/TeamCodex/releases/latest) | Official standard Codex plugin archive; empowers AI with spatial read/write tools, automated `UserPromptSubmit` hook, and preset prompts |
 
 > **Note**: TeamCodex runs as a lightweight tray companion. Click the menu bar or tray icon to open the **Mini Dashboard**:
 > - **Live Diagnostics**: Instantly inspect Codex attachment status (🟢 Injected / 🟡 Waiting / 🔴 Disconnected), active Hub, and room occupancy;
@@ -265,10 +307,49 @@ Full documentation and Nginx TLS templates available at: **[Hub Deployment & Net
 
 ---
 
-### 6. Repository Layout
+### 6. Official Codex Plugin Integration & AI Capabilities (Plugin / Skills / Hooks)
+
+In addition to the visual sidebar tab and tray companion designed for human engineers, TeamCodex seamlessly integrates with the **official Codex Plugin Architecture** (comprising `.codex-plugin/plugin.json`, semantic `skills/`, and lifecycle `hooks/`).
+
+<p align="center">
+  <img src="docs/assets/codex_plugin_detail.png" alt="Official Team Codex Plugin Details and Natural Language Capabilities" width="95%" />
+</p>
+
+#### Dual-Core Collaborative Division of Labor
+- **Sidebar `Team` Tab (Human Dashboard)**: Designed for **engineers**. Provides immersive fullscreen room chat, real-time presence avatars, multi-room switching, snapshot timeline, and one-click thread imports;
+- **`Team Codex` Plugin (AI Hands & Ears)**: Designed for **the active AI Assistant inside your session**. Equips Codex with tool permissions to read/write the team hub, extract discussion summaries, and relay context autonomously via natural language.
+
+#### 1) Three Preset Natural Language Prompts
+Execute directly or click prompt pills in the Codex composer:
+- **`打开 Team Codex 团队协作空间。 (Open Team Codex Workspace)`**  
+  👉 Wakes local daemon and guides user to focus the fullscreen team sidebar;
+- **`读取当前团队空间的讨论摘要。 (Fetch Team Discussion Summary)`**  
+  👉 Queries the active room compact summary and injects peer consensus and architecture decisions into the current task;
+- **`把当前 Codex 对话分享到团队空间。 (Share Conversation to Team Room)`**  
+  👉 Packages the current multi-turn reasoning chain, scrubs private local paths, and broadcasts a sanitized snapshot.
+
+#### 2) `UserPromptSubmit` Automated Context Hook
+- **Pre-flight Silent Probe**: Before every prompt is dispatched to Codex, the hook issues a lightweight 1200ms request to `http://127.0.0.1:18765/api/compact.txt`;
+- **Sub-Second Context Injection**: Dynamically appends the team latest decisions as `additionalContext`, ensuring the AI solutions are grounded in single-source team truth;
+- **Zero-Blocking Resilience**: If the Hub is offline or timed out, the hook exits cleanly in 0ms without delaying standard chat.
+
+#### 3) Plugin Installation
+- **Source CLI Installation**:
+  ```bash
+  codex plugin add /path/to/TeamCodex
+  ```
+- **Offline Import**: Download `TeamCodex-Codex-Plugin.zip` from [GitHub Releases](https://github.com/we1jia/TeamCodex/releases/latest) and import via the Codex Plugins page.
+
+---
+
+### 7. Repository Layout
 
 ```text
 TeamCodex/
+├── .codex-plugin/              # Official Codex plugin manifest (plugin.json)
+├── hooks/                      # Lifecycle hook for prompt-time context injection (UserPromptSubmit)
+├── skills/                     # Semantic skill instructions (skills/team-codex/SKILL.md)
+├── assets/                     # Plugin and application icons, logos & illustrations
 ├── inject/                     # Client CDP injection, Web Components & UI logic
 │   ├── sidebar_fullscreen.js   # Sidebar mount, snapshot scrub, and UI state machine
 │   └── attach_codex.mjs        # Dynamic script sync, CDP attachment, and heartbeat loop
@@ -290,7 +371,7 @@ TeamCodex/
 │   └── installer.nsi           # NSIS setup wizard configuration
 ├── scripts/                    # Ops & automation deployment scripts (deploy-hub.sh)
 ├── docs/                       # Architectural & deployment manuals (HUB_DEPLOYMENT.md)
-├── tests/                      # 58 automated unit and end-to-end test cases
+├── tests/                      # 59 automated unit and end-to-end test cases
 ├── version.json                # Client version manifest (v1.1.0)
 ├── Dockerfile                  # Lightweight Alpine production container definition
 ├── docker-compose.yml          # Container orchestration configuration
@@ -299,17 +380,17 @@ TeamCodex/
 
 ---
 
-### 7. Automated Testing
+### 8. Automated Testing
 
 ```bash
 node --test tests/test_boost_fixes.mjs
 node --test tests/test_rooms_and_auth.mjs
-# Output: 58 tests passed (35 state machine & injection tests + 23 room auth & isolation tests)
+# Output: 59 tests passed (36 plugin & state machine injection tests + 23 room auth & isolation tests)
 ```
 
 ---
 
-### 8. FAQ
+### 9. FAQ
 
 - **Q: Do team members need to re-download binaries for regular updates?**  
   **No**. TeamCodex uses dual-track updates: sidebar collaboration scripts update dynamically in-place when connected to a team Hub. Native installers are only required when underlying platform drivers change.

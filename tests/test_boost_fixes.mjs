@@ -938,3 +938,36 @@ test("35. macOS 菜单栏状态图标升级为微矢量纯白双云协同图标 
   assert.match(swiftCode, /TeamCodex-Status/);
 });
 
+test("36. 官方 Codex 插件体系整合、元数据规范、Hook 自动注入与 Plugin Zip 校验", () => {
+  // 36.1 验证 .codex-plugin/plugin.json
+  const pluginJsonPath = path.join(ROOT, ".codex-plugin/plugin.json");
+  assert.ok(fs.existsSync(pluginJsonPath), ".codex-plugin/plugin.json 应存在");
+  const manifest = JSON.parse(fs.readFileSync(pluginJsonPath, "utf8"));
+  assert.strictEqual(manifest.name, "team-codex");
+  assert.strictEqual(manifest.version, "1.1.0");
+  assert.ok(manifest.skills && manifest.skills.includes("skills/team-codex/"));
+  assert.ok(manifest.hooks && manifest.hooks.includes("hooks/hooks.json"));
+  assert.ok(manifest.interface && manifest.interface.defaultPrompt.length >= 3);
+
+  // 36.2 验证 Hook 脚本及权限
+  const hookJsonPath = path.join(ROOT, "hooks/hooks.json");
+  const hookScriptPath = path.join(ROOT, "hooks/user_prompt_submit.mjs");
+  assert.ok(fs.existsSync(hookJsonPath), "hooks/hooks.json 应存在");
+  assert.ok(fs.existsSync(hookScriptPath), "hooks/user_prompt_submit.mjs 应存在");
+  const hookScript = fs.readFileSync(hookScriptPath, "utf8");
+  assert.match(hookScript, /compact\.txt/);
+  assert.match(hookScript, /timeout:\s*1200/);
+
+  // 36.3 验证 Skill 与文档插图
+  const skillPath = path.join(ROOT, "skills/team-codex/SKILL.md");
+  const screenshotDoc = path.join(ROOT, "docs/assets/codex_plugin_detail.png");
+  assert.ok(fs.existsSync(skillPath), "skills/team-codex/SKILL.md 应存在");
+  assert.ok(fs.existsSync(screenshotDoc), "docs/assets/codex_plugin_detail.png 应存在");
+  assert.ok(fs.statSync(screenshotDoc).size > 50000, "插件详情截图应大于 50KB");
+
+  // 36.4 验证 TeamCodex-Codex-Plugin.zip 压缩包完整性
+  const pluginZipPath = path.join(ROOT, "TeamCodex-Codex-Plugin.zip");
+  assert.ok(fs.existsSync(pluginZipPath), "TeamCodex-Codex-Plugin.zip 应存在");
+  assert.ok(fs.statSync(pluginZipPath).size > 100000, "插件压缩包应大于 100KB");
+});
+

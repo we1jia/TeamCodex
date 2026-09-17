@@ -5,7 +5,10 @@ for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "http
   delete process.env[key];
 }
 
-const url = process.env.TEAM_CONTEXT_COMPACT_URL || "http://127.0.0.1:18765/api/compact.txt";
+const url =
+  process.env.TEAM_CODEX_COMPACT_URL ||
+  process.env.TEAM_CONTEXT_COMPACT_URL ||
+  "http://127.0.0.1:18765/api/compact.txt";
 
 function getText(target) {
   return new Promise((resolve, reject) => {
