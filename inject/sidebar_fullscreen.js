@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v92";
+  const UI_VERSION = "inline-v93";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -3112,6 +3112,16 @@
                 </label>
                 <input class="form-input" id="cfg-nickname" placeholder="例如 liuweijia" required />
               </div>
+
+              <div class="form-group" style="margin-top:8px;padding:10px 12px;background:var(--bg-chip);border:1px solid var(--border-subtle);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <div>
+                  <div style="font-size:12px;font-weight:600;color:var(--text-primary);">TeamCodex 协同组件</div>
+                  <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;" id="cfg-version-text">插件版本: inline-v93 · 免重装热更新生效中</div>
+                </div>
+                <div id="cfg-update-box">
+                  <button class="form-btn-secondary" id="btn-check-update" type="button" style="font-size:11.5px;padding:4px 10px;cursor:pointer;">检查更新</button>
+                </div>
+              </div>
             </form>
             <div class="modal-footer">
               <button class="ghost" id="btn-cancel-connect" type="button">暂不连接</button>
@@ -4102,8 +4112,68 @@
       return val || "Media";
     };
 
+    // 检查并提示新版本
+    const btnCheckUpdate = root.getElementById("btn-check-update");
+    const cfgVersionText = root.getElementById("cfg-version-text");
+    const cfgUpdateBox = root.getElementById("cfg-update-box");
+
+    const doCheckUpdate = async (silent = false) => {
+      try {
+        let data = null;
+        try {
+          const r = await fetch("http://127.0.0.1:18767/api/update");
+          if (r.ok) data = await r.json();
+        } catch {}
+        if (!data) {
+          const res = await callRpc({
+            path: "/api/update",
+            hubUrl: "http://127.0.0.1:18767",
+            method: "GET",
+          }).catch(() => null);
+          if (res?.ok) data = res.data;
+        }
+        if (data?.has_update) {
+          if (cfgVersionText) cfgVersionText.textContent = `发现新版本: ${data.latest} (当前: ${UI_VERSION})`;
+          if (cfgUpdateBox) {
+            cfgUpdateBox.innerHTML = '<button class="form-btn-primary" id="btn-do-update-now" type="button" style="font-size:11.5px;padding:4px 12px;background:var(--accent-color);color:#fff;border-radius:6px;cursor:pointer;border:none;font-weight:600;">立即更新</button>';
+            const btnDoUpdate = root.getElementById("btn-do-update-now");
+            if (btnDoUpdate) {
+              btnDoUpdate.onclick = async () => {
+                btnDoUpdate.disabled = true;
+                btnDoUpdate.textContent = "下载中...";
+                showToast("正在拉取最新安装包...");
+                try {
+                  await fetch("http://127.0.0.1:18767/api/update/download", { method: "POST" });
+                  showToast("已打开安装包");
+                } catch {
+                  if (data.url) window.open(data.url, "_blank");
+                }
+                btnDoUpdate.disabled = false;
+              };
+            }
+          }
+          if (btnHeaderConfig && !btnHeaderConfig.querySelector(".update-dot")) {
+            const dot = document.createElement("span");
+            dot.className = "update-dot";
+            dot.style.cssText = "display:inline-block;width:6px;height:6px;background:#38bdf8;border-radius:50%;position:relative;top:-3px;margin-left:2px;";
+            btnHeaderConfig.appendChild(dot);
+          }
+        } else if (!silent) {
+          if (cfgVersionText) cfgVersionText.textContent = `插件版本: ${UI_VERSION} · 当前已是最新版本`;
+          showToast("当前已是最新版本");
+        }
+      } catch {
+        if (!silent) showToast("无法连接控制面，请确认本地服务正常");
+      }
+    };
+
+    if (btnCheckUpdate) {
+      btnCheckUpdate.onclick = () => doCheckUpdate(false);
+    }
+
     // 模态弹窗控制
     const showConnectModal = (errMsg = "") => {
+      doCheckUpdate(true);
       cfgHubUrl.value = config.hubUrl || "http://127.0.0.1:18765";
       cfgRoomId.value = config.roomId || "Media";
       cfgRoomKey.value = config.roomKey || (config.roomKeys?.[config.roomId] || "");

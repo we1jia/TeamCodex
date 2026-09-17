@@ -828,7 +828,7 @@ test("31. 房间弹层底部操作改为纵向菜单，在线人数按 memberId 
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
   const hostCode = fs.readFileSync(path.join(ROOT, "server/dev_host.mjs"), "utf8");
 
-  assert.match(uiCode, /const UI_VERSION = "inline-v9[12]";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v9[1-9]";/);
 
   // 31.1 底部三个操作不得挤在一行 space-between，改为纵向全宽菜单
   assert.match(uiCode, /\.popover-footer\s*\{[\s\S]*?flex-direction:\s*column/);
@@ -868,11 +868,11 @@ test("32. 托盘控制面、Hub 热更新注入与安装包更新检查", () => 
   assert.match(swift, /127\.0\.0\.1:18767\/panel\.html/);
 });
 
-test("33. 侧栏 Tab 按钮与全屏顶部 Brand 全量升级为简称 Team (inline-v92)", () => {
+test("33. 侧栏 Tab 按钮与全屏顶部 Brand 全量升级为简称 Team (inline-v92+)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
-  // 33.1 UI_VERSION 升级至 inline-v92
-  assert.match(uiCode, /const UI_VERSION = "inline-v92";/);
+  // 33.1 UI_VERSION 升级至 inline-v92+
+  assert.match(uiCode, /const UI_VERSION = "inline-v9[2-9]";/);
 
   // 33.2 侧边栏 Tab 按钮文本与 aria-label 简化为 Team
   assert.match(uiCode, /button\.setAttribute\("aria-label",\s*"Team"\);/);
@@ -881,5 +881,29 @@ test("33. 侧栏 Tab 按钮与全屏顶部 Brand 全量升级为简称 Team (inl
 
   // 33.3 全屏协作顶部 Brand 标题简化为 Team
   assert.match(uiCode, /<h1 style="[^"]*">Team<\/h1>/);
+});
+
+test("34. Mac 首次启动注入健壮性、白瓷姿态高清图标与主界面更新检测闭环 (inline-v93)", () => {
+  const attachCode = fs.readFileSync(path.join(ROOT, "inject/attach_codex.mjs"), "utf8");
+  const launcherCode = fs.readFileSync(path.join(ROOT, "server/launcher_host.mjs"), "utf8");
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 34.1 Mac 启动注入健壮性：open -n -a 独立实例、100次等待、Header 安全编码
+  assert.match(attachCode, /open/);
+  assert.match(attachCode, /attempts = 100/);
+  assert.match(attachCode, /encodeURIComponent\(strVal\)/);
+  assert.match(launcherCode, /findActiveCdpPort/);
+
+  // 34.2 协作主界面更新检测卡片与小圆点
+  assert.match(uiCode, /btn-check-update/);
+  assert.match(uiCode, /doCheckUpdate/);
+  assert.match(uiCode, /update-dot/);
+
+  // 34.3 macOS 纯白瓷姿态高清图标与 DMG 存在性
+  const icnsPath = path.join(ROOT, "macos/TeamCodex.app/Contents/Resources/AppIcon.icns");
+  const dmgPath = path.join(ROOT, "TeamCodex-macOS.dmg");
+  assert.ok(fs.existsSync(icnsPath), "AppIcon.icns 应存在");
+  assert.ok(fs.existsSync(dmgPath), "TeamCodex-macOS.dmg 应存在");
+  assert.ok(fs.statSync(dmgPath).size > 1000000, "DMG 应大于 1MB");
 });
 

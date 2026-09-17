@@ -180,7 +180,7 @@ function listChatGptCommands() {
     return output
       .split("\n")
       .map((line) => line.trim())
-      .filter((line) => line.includes("ChatGPT.app/Contents/MacOS/ChatGPT"));
+      .filter((line) => /ChatGPT\.app\/Contents\/MacOS\/ChatGPT|Codex/i.test(line));
   } catch {
     return [];
   }
@@ -320,9 +320,13 @@ function executeNativeRpc(reqPayload) {
     const hub = (hubUrl || HOST_URL).replace(/\/$/, "");
     const fullUrl = new URL(path.startsWith("http") ? path : `${hub}${path}`);
     const data = body ? (typeof body === "string" ? body : JSON.stringify(body)) : null;
-    const reqHeaders = {
-      ...headers,
-    };
+    const reqHeaders = {};
+    for (const [k, v] of Object.entries(headers || {})) {
+      if (v == null) continue;
+      const strVal = String(v);
+      const isAscii = /^[\x20-\x7E]*$/.test(strVal);
+      reqHeaders[k] = isAscii ? strVal : encodeURIComponent(strVal);
+    }
     if (data) {
       reqHeaders["Content-Type"] = "application/json";
       reqHeaders["Content-Length"] = Buffer.byteLength(data);
@@ -547,7 +551,7 @@ async function attachLoop(port) {
   }
 }
 
-function waitForPort(port, attempts = 40) {
+function waitForPort(port, attempts = 100) {
   return new Promise((resolve, reject) => {
     const tryOnce = async (left) => {
       try {
@@ -566,14 +570,61 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function launchCodexWithCdp(port) {
+  console.log(`starting ChatGPT with --remote-debugging-port=${port}`);
+  if (process.platform === "darwin") {
+    const appPath = "/Applications/ChatGPT.app";
+    if (fs.existsSync(appPath)) {
+      try {
+        execFileSync("/usr/bin/open", [
+          "-n",
+          "-a",
+          appPath,
+          "--args",
+          "--remote-debugging-address=127.0.0.1",
+          `--remote-debugging-port=${port}`,
+        ]);
+        return;
+      } catch (e) {
+        console.warn(`open -n failed, fallback to binary: ${e.message}`);
+      }
+    }
+  }
+  let clientBin = CHATGPT_BIN;
+  if (process.platform === "win32") {
+    clientBin = process.env.TEAM_CODEX_EXE || path.join(process.env.LOCALAPPDATA || "", "Programs", "ChatGPT", "ChatGPT.exe");
+  }
+  if (!fs.existsSync(clientBin)) {
+    console.error(`找不到客户端可执行文件: ${clientBin}`);
+    process.exit(4);
+  }
+  const child = spawn(
+    clientBin,
+    ["--remote-debugging-address=127.0.0.1", `--remote-debugging-port=${port}`],
+    { detached: true, stdio: "ignore" },
+  );
+  child.unref();
+}
+
 async function waitForCodexRestart() {
-  console.error("Codex 当前没有调试端口。不会打断现有实例；请退出当前 Codex，启动器会在退出后自动重新打开可注入实例。");
-  for (;;) {
+  console.log("检测到现有 Codex 正在运行但无调试端口，尝试拉起带调试端口的协作实例...");
+  if (process.platform === "darwin") {
+    try {
+      await launchCodexWithCdp(FALLBACK_CDP_PORT);
+      try {
+        await waitForPort(FALLBACK_CDP_PORT, 60);
+        return FALLBACK_CDP_PORT;
+      } catch {}
+    } catch {}
+  }
+  console.error("等待 Codex 带有调试端口实例就绪...");
+  for (let i = 0; i < 30; i += 1) {
     const discovered = discoverCdpPort();
     if (discovered) return discovered;
     if (!listChatGptCommands().length) return null;
     await sleep(1000);
   }
+  return null;
 }
 
 async function main() {
@@ -583,23 +634,9 @@ async function main() {
     port = await waitForCodexRestart();
   }
   if (!port) {
-    let clientBin = CHATGPT_BIN;
-    if (process.platform === "win32") {
-      clientBin = process.env.TEAM_CODEX_EXE || path.join(process.env.LOCALAPPDATA || "", "Programs", "ChatGPT", "ChatGPT.exe");
-    }
-    if (!fs.existsSync(clientBin)) {
-      console.error(`找不到客户端可执行文件: ${clientBin}`);
-      process.exit(4);
-    }
-    console.log(`starting ChatGPT with --remote-debugging-port=${FALLBACK_CDP_PORT}`);
-    const child = spawn(
-      clientBin,
-      ["--remote-debugging-address=127.0.0.1", `--remote-debugging-port=${FALLBACK_CDP_PORT}`],
-      { detached: true, stdio: "ignore" },
-    );
-    child.unref();
     port = FALLBACK_CDP_PORT;
-    await waitForPort(port);
+    await launchCodexWithCdp(port);
+    await waitForPort(port, 100);
   }
   await attachLoop(port);
 }

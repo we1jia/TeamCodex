@@ -223,14 +223,41 @@ async function hubHealth(hubUrl) {
   return null;
 }
 
-async function cdpReady() {
-  const port = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
+function findActiveCdpPort() {
+  const defaultPort = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
   try {
-    const { status } = await requestJson(`http://127.0.0.1:${port}/json/version`, 800);
-    return status === 200;
-  } catch {
-    return false;
+    if (process.platform === "win32") {
+      const out = execFileSync(
+        "powershell.exe",
+        ["-NoProfile", "-Command", "Get-CimInstance Win32_Process -Filter \"Name like '%ChatGPT%' or Name like '%Codex%'\" | Select-Object -ExpandProperty CommandLine"],
+        { encoding: "utf8", timeout: 2500 },
+      );
+      const m = out.match(/--remote-debugging-port=(\d+)/);
+      if (m) return Number(m[1]);
+    } else {
+      const out = execFileSync("/bin/ps", ["-ax", "-o", "command="], { encoding: "utf8", timeout: 2500 });
+      for (const line of out.split("\n")) {
+        if (/ChatGPT|Codex/i.test(line)) {
+          const m = line.match(/--remote-debugging-port=(\d+)/);
+          if (m) return Number(m[1]);
+        }
+      }
+    }
+  } catch {}
+  return defaultPort;
+}
+
+async function cdpReady() {
+  const detectedPort = findActiveCdpPort();
+  const defaultPort = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
+  const portsToTry = Array.from(new Set([detectedPort, defaultPort]));
+  for (const p of portsToTry) {
+    try {
+      const { status } = await requestJson(`http://127.0.0.1:${p}/json/version`, 800);
+      if (status === 200) return true;
+    } catch {}
   }
+  return false;
 }
 
 function cors() {
