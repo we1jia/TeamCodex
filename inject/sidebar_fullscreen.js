@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v69";
+  const UI_VERSION = "inline-v70";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -1848,8 +1848,9 @@
         }
         .btn-connect-primary:disabled { opacity: 0.6; cursor: not-allowed; }
         .pwd-toggle {
-          position: absolute; right: 10px; background: transparent; border: 0; color: var(--text-muted); cursor: pointer; font-size: 14px;
+          position: absolute; right: 10px; background: transparent; border: 0; color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 4px; border-radius: 4px; transition: color 0.15s ease;
         }
+        .pwd-toggle:hover { color: var(--text-primary); }
 
         /* 共享 Hook 弹出层 */
         .share-modal {
@@ -2567,15 +2568,15 @@
                 </button>
               </div>
             </div>
-            <!-- 智能口令快捷加入提示横幅 -->
+            <!-- 空间邀请口令快捷加入提示横幅 -->
             <div class="collab-token-bar" id="collab-token-bar" hidden>
               <div class="collab-token-left">
-                <span class="collab-token-icon">⚡</span>
-                <span id="collab-token-text">检测到协同口令</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.85;color:var(--accent-color);"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <span id="collab-token-text">检测到空间邀请口令</span>
               </div>
               <div class="collab-token-actions">
-                <button class="collab-token-btn primary" id="btn-collab-token-join" type="button">🚀 一键加入此空间</button>
-                <button class="collab-token-btn ghost" id="btn-collab-token-dismiss" type="button">✕ 仅作为消息发送</button>
+                <button class="collab-token-btn primary" id="btn-collab-token-join" type="button">加入此空间</button>
+                <button class="collab-token-btn ghost" id="btn-collab-token-dismiss" type="button">仅作为消息发送</button>
               </div>
             </div>
             <form id="composer" class="composer">
@@ -2615,14 +2616,18 @@
         <div class="modal-backdrop" id="connect-modal" hidden>
           <div class="modal-card">
             <div class="modal-header">
-              <div style="display:flex;align-items:center;gap:8px;">
-                <span style="font-size:18px;">⚡</span>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-color);"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                 <div>
-                  <h2 style="margin:0;font-size:15px;font-weight:600;">服务连接与房间配置</h2>
+                  <h2 style="margin:0;font-size:15px;font-weight:600;">服务连接与空间配置</h2>
                   <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">连接至 Context Team Hub 协同中枢</div>
                 </div>
               </div>
-              <button class="ghost" id="connect-close" type="button">✕</button>
+              <button class="ghost" id="connect-close" type="button" aria-label="关闭">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+                </svg>
+              </button>
             </div>
             <form class="modal-body" id="connect-form">
               <div class="error-banner" id="connect-error-banner" hidden></div>
@@ -2655,7 +2660,7 @@
                 </label>
                 <div style="position:relative;display:flex;align-items:center;">
                   <input class="form-input" id="cfg-room-key" type="password" placeholder="若未设密码可留空" />
-                  <button class="pwd-toggle" id="btn-toggle-pwd" type="button" title="显示/隐藏密码">👁</button>
+                  <button class="pwd-toggle" id="btn-toggle-pwd" type="button" title="显示/隐藏密码" aria-label="显示/隐藏密码"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
                 </div>
               </div>
 
@@ -2681,12 +2686,16 @@
           <div class="share-modal">
             <div class="share-header">
               <h2>分享当前对话给团队</h2>
-              <button class="ghost" id="share-close" type="button">✕</button>
+              <button class="ghost" id="share-close" type="button" aria-label="关闭">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+                </svg>
+              </button>
             </div>
             <div class="share-body">
               <div class="share-error-banner" id="share-error-banner" hidden style="background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);color:#ef4444;border-radius:6px;padding:8px 12px;font-size:12px;margin-bottom:12px;line-height:1.4;"></div>
               <div class="share-tip">
-                <strong>对话快照分享：</strong> 将当前 Codex 私有对话生成只读快照。可一键直接发送到当前协作房间，或复制链接在浏览器中打开查阅。
+                支持生成对话快照并一键发布至当前团队空间，协作成员可随时点击查看并导入对话。
               </div>
               <div style="display:flex;justify-content:space-between;align-items:center;">
                 <span style="font-weight:600;font-size:13px;">生成新快照</span>
@@ -2699,11 +2708,13 @@
                   <button class="ghost" id="btn-copy-share" type="button" style="padding:4px 10px;font-size:12px;background:var(--bg-card);">复制</button>
                 </div>
                 <div style="display:flex;gap:8px;align-items:center;">
-                  <button class="share-btn-primary" id="btn-send-share-to-room" type="button" style="background:#10a37f;flex:1;font-size:12.5px;padding:6px 12px;">
-                    🚀 发送到当前协作房间
+                  <button class="share-btn-primary" id="btn-send-share-to-room" type="button" style="background:#10a37f;flex:1;font-size:12.5px;padding:6px 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    <span>发送到当前协作房间</span>
                   </button>
-                  <button class="ghost" id="btn-preview-share-browser" type="button" style="font-size:12px;padding:6px 10px;background:var(--bg-card);border:1px solid var(--border-subtle);">
-                    🌐 浏览器打开预览 ↗
+                  <button class="ghost" id="btn-preview-share-browser" type="button" style="font-size:12px;padding:6px 10px;background:var(--bg-card);border:1px solid var(--border-subtle);display:inline-flex;align-items:center;gap:4px;">
+                    <span>浏览器打开预览</span>
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" style="opacity:0.75;"><path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/><path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/></svg>
                   </button>
                 </div>
               </div>
@@ -2724,7 +2735,11 @@
                   分享后，你的姓名以及你添加的新消息不会显示在共享聊天中。<a href="https://help.openai.com/en/articles/7925741-chatgpt-shared-links-faq" class="official-help-link" target="_blank" rel="noopener noreferrer">了解更多</a>
                 </div>
               </div>
-              <button class="snapshot-detail-close-btn" id="snapshot-detail-close" type="button" aria-label="关闭">✕</button>
+              <button class="snapshot-detail-close-btn" id="snapshot-detail-close" type="button" aria-label="关闭">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+                </svg>
+              </button>
             </div>
             <div class="snapshot-detail-body">
               <!-- 中部原生预览卡片 (100% 对齐图 2 深色气泡卡片) -->
@@ -2751,7 +2766,11 @@
               <div class="snapshot-detail-footer-actions">
                 <div class="snapshot-detail-actions-left">
                   <button class="snapshot-detail-native-open-btn" id="snapshot-detail-native-open" type="button">
-                    <span>网页打开 ↗</span>
+                    <span>网页打开</span>
+                    <svg aria-hidden="true" focusable="false" height="11" viewBox="0 0 16 16" width="11" fill="currentColor" style="opacity:0.75;margin-left:2px;">
+                      <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
+                      <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
+                    </svg>
                   </button>
                 </div>
                 <div class="snapshot-detail-actions-right">
@@ -2764,7 +2783,10 @@
                     <span id="snapshot-detail-native-copy-text">复制链接</span>
                   </button>
                   <button class="primary snapshot-detail-native-import-btn" id="snapshot-detail-native-import" type="button">
-                    <span>📥 一键导入到当前对话</span>
+                    <svg aria-hidden="true" focusable="false" height="15" viewBox="0 0 16 16" width="15" fill="currentColor">
+                      <path d="M2.5 13.5A.5.5 0 0 1 3 13h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5ZM8 1a.5.5 0 0 1 .5.5v7.793l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 9.293V1.5A.5.5 0 0 1 8 1Z"/>
+                    </svg>
+                    <span>导入到当前对话</span>
                   </button>
                 </div>
               </div>
@@ -2778,7 +2800,11 @@
                 <h2 class="context-select-title" id="context-select-title">选择要导入的团队对话</h2>
                 <div class="context-select-subtitle">按住鼠标在消息上滑动即可连续勾选；再次从已选消息开始滑动可取消选择。选中的内容会按 Markdown 原文插入当前 Codex 对话。关闭或取消只结束本次导入，不会修改本地对话。</div>
               </div>
-              <button class="ghost" id="context-select-close" type="button" aria-label="关闭上下文选择">✕</button>
+              <button class="ghost" id="context-select-close" type="button" aria-label="关闭上下文选择">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+                </svg>
+              </button>
             </div>
             <div class="context-select-body">
               <div class="context-select-toolbar">
@@ -3142,7 +3168,7 @@
           const delBtn = document.createElement("button");
           delBtn.type = "button";
           delBtn.className = "room-tag-chip-del";
-          delBtn.textContent = "✕";
+          delBtn.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
           delBtn.title = `从历史记录中移除空间 ${r}`;
           delBtn.addEventListener("click", (event) => {
             event.preventDefault();
@@ -3506,7 +3532,7 @@
             const delBtn = document.createElement("button");
             delBtn.type = "button";
             delBtn.className = "room-tag-chip-del";
-            delBtn.textContent = "✕";
+            delBtn.innerHTML = '<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
             delBtn.title = `从历史中移除空间 ${r}`;
             delBtn.addEventListener("click", (event) => {
               event.preventDefault();
@@ -3561,9 +3587,13 @@
       cfgRoomId.value = sanitizeRoomName(cfgRoomId.value);
     });
 
+    const eyeIconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    const eyeOffIconSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+
     btnTogglePwd.addEventListener("click", () => {
-      cfgRoomKey.type = cfgRoomKey.type === "password" ? "text" : "password";
-      btnTogglePwd.textContent = cfgRoomKey.type === "password" ? "👁" : "🔒";
+      const isPwd = cfgRoomKey.type === "password";
+      cfgRoomKey.type = isPwd ? "text" : "password";
+      btnTogglePwd.innerHTML = isPwd ? eyeOffIconSvg : eyeIconSvg;
     });
 
     // 弹窗各输入框粘贴智能识别分拆口令
@@ -3887,7 +3917,7 @@
       const msgs = messages || [];
       const fullConversation = msgs.map((m) => `- **${m.role}**:\n${m.text}`).join("\n\n");
       if (shareUrl) {
-        return `🔗 **官方公开链接（最完整对话）**：${shareUrl}\n\n${fullConversation}`.trim();
+        return `**官方公开链接**：${shareUrl}\n\n${fullConversation}`.trim();
       }
       return `# ${title}\n\n${fullConversation}`.trim();
     };
@@ -4007,7 +4037,7 @@
         if (isSnapshot) {
           let block = `### 【导入团队对话《${title}》】(${who} 分享 · 第 ${idx + 1} 条)\n`;
           if (shareUrl) {
-            block += `🔗 官方公开链接（最完整对话）：${shareUrl}\n\n`;
+            block += `官方公开链接：${shareUrl}\n\n`;
           }
           const fullContent = msg.metadata?.full_markdown || msg.content || "";
           block += `#### 完整对话上下文记录：\n${fullContent}`;
@@ -4805,11 +4835,6 @@
      let who = message.actor_name || found?.name || message.actor_id || "团队成员";
      const isMacSender = senderId.endsWith("_mac") || who.includes("(Mac)");
      const isWinSender = senderId.endsWith("_win") || who.includes("(Win)");
-     if (isMacSender && !who.startsWith("🍎")) {
-       who = `🍎 ${who}`;
-     } else if (isWinSender && !who.startsWith("🪟")) {
-       who = `🪟 ${who}`;
-     }
 
      let contentText = (message.content || "").trim();
      if (contentText === "@" && message.linked_thread?.title) {
@@ -4836,11 +4861,11 @@
           if (userMatch && userMatch[1].trim()) {
             previewText = userMatch[1].trim();
           } else {
-            const lines = contentText.split("\n").filter(l => {
+            const cleanLines = snapMarkdown.split("\n").filter(l => {
               const t = l.trim();
-              return t && !t.startsWith("#") && !t.startsWith("http") && !t.startsWith("🔗") && !t.startsWith("本次分享来自") && !t.startsWith("快照编号") && !t.startsWith("官方公开链接") && !t.startsWith("- **Codex**");
+              return t && !t.startsWith("#") && !t.startsWith("http") && !t.startsWith("🔗") && !t.startsWith("本次分享来自") && !t.startsWith("快照编号") && !t.startsWith("团队快照") && !t.startsWith("官方公开链接") && !t.startsWith("- **Codex**");
             });
-            previewText = lines.slice(0, 3).join("\n") || contentText;
+            previewText = cleanLines.slice(0, 3).join("\n") || snapMarkdown.slice(0, 160);
           }
         }
 
@@ -4848,7 +4873,7 @@
           ((contentText || "").match(/https:\/\/chatgpt\.com\/s\/cx_[a-zA-Z0-9_\-]+/)?.[0]) || null;
 
         const copyLinkBtn = shareLink
-          ? `<button class="snapshot-open-link card-copy-link" type="button" title="一键复制官方分享链接" style="margin-right:6px;display:inline-flex;align-items:center;gap:4px;">
+          ? `<button class="snapshot-open-link card-copy-link" type="button" title="复制官方分享链接" style="margin-right:6px;display:inline-flex;align-items:center;gap:4px;">
                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M3.69541 6.25121C3.89761 6.04427 4.22909 6.03985 4.43662 6.24145C4.64426 6.44372 4.64953 6.77691 4.44736 6.98461L3.61338 7.84008L3.6085 7.84496C2.42952 9.02432 2.40771 10.9534 3.72666 12.2727C5.04612 13.5922 6.97593 13.5702 8.15537 12.3909L8.16025 12.386L9.01572 11.553C9.22335 11.3509 9.55562 11.3553 9.75791 11.5627C9.96017 11.7704 9.9566 12.1036 9.74912 12.3059L8.89365 13.1389C7.28179 14.7455 4.68893 14.7213 2.9835 13.0159C1.27845 11.3104 1.25498 8.71842 2.86143 7.10668L3.69541 6.25121Z"></path><path d="M9.629 5.62914C9.83403 5.42415 10.1662 5.42413 10.3712 5.62914C10.5761 5.83417 10.5761 6.16634 10.3712 6.37133L6.37119 10.3713C6.16621 10.5763 5.83404 10.5762 5.629 10.3713C5.42398 10.1663 5.42398 9.83417 5.629 9.62914L9.629 5.62914Z"></path><path d="M7.10654 2.86157C8.71829 1.25511 11.3103 1.27855 13.0157 2.98364C14.7212 4.68907 14.7453 7.28193 13.1388 8.89379L12.3058 9.74926C12.1034 9.95672 11.7702 9.96029 11.5626 9.75805C11.3552 9.55576 11.3507 9.22349 11.5528 9.01586L12.3858 8.16039L12.3907 8.15551C13.5701 6.97606 13.592 5.04626 12.2726 3.7268C10.9532 2.40781 9.02419 2.42965 7.84482 3.60864L7.83994 3.61352L6.98447 4.4475C6.77678 4.64965 6.44358 4.64438 6.24131 4.43676C6.03972 4.22923 6.04415 3.89775 6.25107 3.69555L7.10654 2.86157Z"></path></svg>
                <span>复制链接</span>
              </button>`
@@ -4856,12 +4881,13 @@
 
         const shareLinkBtn = shareLink
           ? `<button class="snapshot-open-link web-link" type="button" data-url="${escapeHtml(shareLink)}" href="${escapeHtml(shareLink)}" title="在系统浏览器中打开此官方分享" style="text-decoration:none;margin-right:6px;display:inline-flex;align-items:center;gap:4px;color:var(--accent-color);font-weight:600;background:none;border:none;cursor:pointer;padding:0;font-size:inherit;">
-               <span>网页打开 ↗</span>
+               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+               <span>网页打开</span>
              </button>`
           : "";
 
         const badgeHtml = shareLink
-          ? `<span style="color:#10a37f;font-weight:600;">🔗 官方原生分享</span> · ${msgCount} 条对话${hasCodex ? " (含 Codex 回复)" : ""}${modelLabel}`
+          ? `<span style="color:#10a37f;font-weight:600;">官方原生分享</span> · ${msgCount} 条对话${hasCodex ? " (含 Codex 回复)" : ""}${modelLabel}`
           : `<span>对话分享 · ${msgCount} 条${hasCodex ? " (含 Codex 回复)" : ""}${modelLabel}</span>`;
 
         stack.innerHTML = `
@@ -5024,8 +5050,11 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </div>
               <div class="empty-title">空间【${escapeHtml(targetRoomId)}】当前为空</div>
-              <div class="empty-desc">这里是团队公共对话池。点击下方按钮，即可把当前对话的要点一键分享进来供大家协同！</div>
-              <button type="button" class="btn-share-empty" id="btn-share-empty">📤 一键分享当前对话到本空间</button>
+              <div class="empty-desc">这里是团队公共对话池。点击下方按钮，即可将当前对话要点分享到空间协同。</div>
+              <button type="button" class="btn-share-empty" id="btn-share-empty">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                <span>分享当前对话到本空间</span>
+              </button>
             </div>
           `;
           messagesEl.querySelector("#btn-share-empty")?.addEventListener("click", () => {
@@ -5065,7 +5094,7 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           </span>
           <div class="picker-item-content">
-            <div class="picker-item-title" style="color:var(--accent-color);font-weight:600;">✨ 新建 Codex 对话并关联</div>
+            <div class="picker-item-title" style="color:var(--accent-color);font-weight:600;">新建 Codex 对话并关联</div>
             <div class="picker-item-sub">以当前查询新建独立会话并接入团队空间</div>
           </div>
           <span class="picker-item-badge" style="background:rgba(58,131,247,0.15);color:var(--accent-color);">新建</span>
@@ -5095,7 +5124,7 @@
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </span>
         <div class="picker-item-content">
-          <div class="picker-item-title" style="color:var(--accent-color);font-weight:600;">✨ 新建 Codex 对话并关联</div>
+          <div class="picker-item-title" style="color:var(--accent-color);font-weight:600;">新建 Codex 对话并关联</div>
           <div class="picker-item-sub">创建空白会话并自动绑定到当前团队空间</div>
         </div>
         <span class="picker-item-badge" style="background:rgba(58,131,247,0.15);color:var(--accent-color);">新建</span>

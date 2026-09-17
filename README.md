@@ -1,5 +1,15 @@
 # TeamCodex
 
+> Seamless Real-time Collaboration Workspace & Context Hub for Codex & ChatGPT Desktop.  
+> 面向 Codex 与 ChatGPT 桌面端的轻量级无侵入实时协同工作区与上下文同步中枢。
+
+[![Release](https://img.shields.io/github/v/release/we1jia/TeamCodex?color=2563eb&style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
+[![Build](https://img.shields.io/badge/build-passing-16a34a?style=flat-square)](https://github.com/we1jia/TeamCodex/actions)
+[![Tests](https://img.shields.io/badge/tests-37%2F37%20passed-16a34a?style=flat-square)](tests/)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-64748b?style=flat-square)](https://github.com/we1jia/TeamCodex/releases)
+[![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-0284c7?style=flat-square)](server/dev_host.mjs)
+[![License](https://img.shields.io/badge/license-MIT-64748b?style=flat-square)](LICENSE)
+
 [English](#english) | [中文](#中文)
 
 ---
@@ -8,164 +18,111 @@
 
 ## 中文
 
-### 1. 项目概述
+### 1. 概述
 
-TeamCodex 是面向 OpenAI Codex / ChatGPT 桌面客户端的轻量级跨端团队协作工作区与上下文实时同步中枢。
-
-针对原生 AI 桌面端在多开发者协同、跨机调试以及多平台虚拟机协作场景下缺乏局域网互联的痛点，TeamCodex 采用无侵入式 CDP (Chrome DevTools Protocol) 挂载技术，直接在 Codex 原生侧边栏内嵌全功能协作入口。无需依赖外部云端服务，即可在本地局域网内实现跨设备（macOS 宿主机与 Windows 原生/虚拟机）的成员状态同步、对话快照归档与跨会话秒级上下文接力。
-
-### 2. 系统架构与通信模型
-
-TeamCodex 由侧栏注入层、局域网协同中枢与多端适配脚本三层构成：
+TeamCodex 解决 AI 编程桌面端（OpenAI Codex / ChatGPT）长期存在的**单机隔离痛点**。通过 CDP (Chrome DevTools Protocol) 协议在原生客户端侧边栏内嵌全功能协作面板，配合纯原生 Node.js SSE 事件中枢（零第三方 npm 依赖），实现毫秒级成员在线感知、会话快照脱敏归档与跨端上下文秒级导入。
 
 ```
-+-------------------------------------------------------------------------+
-|                              Codex Desktop                              |
-|                                                                         |
-|   +-------------------+  +------------------------------------------+   |
-|   |  Native Sidebar   |  |        Main Workspace View               |   |
-|   |                   |  |                                          |   |
-|   |  [Conversations]  |  |  [Active Native Conversation Thread]     |   |
-|   |  [Plugins]        |  |                      OR                  |   |
-|   |  * TeamCodex Tab  |  |  [TeamCodex Fullscreen Collab View]      |   |
-|   +---------+---------+  +--------------------+---------------------+   |
-+-------------|---------------------------------|-------------------------+
-              |                                 |
-              | (CDP Port 9222 Attach)          | (PostMessage / Event Dispatch)
-              v                                 v
-+-------------------------------------------------------------------------+
-|                  Injection Layer (inject/sidebar_fullscreen.js)         |
-|  - Web Component & Shadow DOM Isolation                                 |
-|  - Active/Inactive Highlighting State Machine Mutex                     |
-|  - Smart Token Parser & Snapshot Desensitization Ingestion              |
-+------------------------------------+------------------------------------+
-                                     |
-                                     | HTTP / SSE (EventSource Stream)
-                                     v
-+-------------------------------------------------------------------------+
-|                   Local Collaboration Hub (server/dev_host.mjs)         |
-|  - Port 18765 Event Bus                                                 |
-|  - Multi-Room Isolation & Room Key Authentication (401 Handling)        |
-|  - Dynamic Member Heartbeat & Cross-Platform Identity Recognition       |
-|  - Snapshot Persistence & Idempotent Message Storage                    |
-+-------------------------------------------------------------------------+
+[Mac / Windows 客户端] <--- CDP 9222 ---> [侧栏全屏协作面板] <--- HTTP / SSE ---> [TeamCodex Hub 18765]
 ```
 
-### 3. 核心特性
+---
 
-- **无侵入式原生侧栏注入**：无需反编译或修改系统文件，通过 CDP 协议自动化附着，在侧栏平滑内嵌「TeamCodex」选项卡，支持独立全屏工作区与原生会话窗口无缝切换。
-- **高亮生命周期互斥状态机**：全屏协作期间侧栏保持单选高亮；切换回原生历史会话时，毫秒级百分之百恢复原生选中状态，杜绝界面状态冲突与视觉闪烁。
-- **跨平台与跨虚拟机身份识别**：自动探测网络拓扑与操作系统类型，智能区分 Mac 宿主机与 Windows 虚拟机用户标识（如 `weijia (Mac)` 与 `weijia (Win)`），支持在线人数同名去重与心跳保活。
-- **安全脱敏快照与一键上下文导入**：支持将原生对话一键打包为脱敏只读快照同步至协同中枢（剔除本地敏感系统路径与 Shell I/O），其他协作成员可查阅完整交互链路并一键导入至自身当前活动对话。
-- **复合协同口令 (Smart Token)**：支持形如 `Hub: <URL> | Room: <Name> | Key: <Password>` 的智能口令，支持输入框与设置栏剪贴板自动解析并分拆填充。
-- **纯局域网数据闭环**：基于轻量 Node.js SSE (Server-Sent Events) 事件总线架构，所有消息与快照仅在本地网络流转，零云端遥测与外部依赖。
+### 2. 客户端下载
 
-### 4. 快速开始与下载
+前往 **[GitHub Releases 最新发布页](https://github.com/we1jia/TeamCodex/releases)** 下载官方原生安装包：
 
-#### 方式 A：原生应用安装包（推荐普通用户，开箱即用）
+| 平台 | 安装包 | 安装方式 |
+|---|---|---|
+| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | 打开磁盘镜像，将 `TeamCodex.app` 拖入 `Applications` 目录即可 |
+| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | 双击安装向导，自动适配 ARM64/AMD64 并生成桌面无黑框快捷方式 |
+| **免安装便携版** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | 解压即用，适合移动介质或严格权限环境 |
 
-前往 [GitHub Releases](https://github.com/we1jia/TeamCodex/releases) 获取各平台最新原生应用安装包：
+---
 
-- **macOS 用户**：
-  1. 下载原生安装镜像 **`TeamCodex-macOS.dmg`**；
-  2. 双击打开镜像，将 `TeamCodex.app` 拖入 `Applications` 目录即可在启动台或聚焦搜索中直接使用；
-  3. （亦提供免安装绿色包 `TeamCodex-macOS.zip`）。
-- **Windows 用户**（原生系统 / Parallels 虚拟机 / ARM64 / AMD64）：
-  1. 下载原生安装程序 **`TeamCodex-Setup.exe`**；
-  2. 双击运行安装向导，一键完成安装并在桌面与开始菜单生成带图标的启动入口；
-  3. （亦提供免安装绿色包 `TeamCodex-Windows-arm64-amd64.zip`，解压后双击 `一键安装到桌面.cmd`）。
+### 3. 部署方案与网络拓扑
 
-#### 方式 B：源码运行（面向开发者）
+中枢服务（Hub）支持从本地单机到私有云的三种运行模式：
 
-##### 环境要求
-- macOS 13+ 或 Windows 10/11 (x64 / ARM64)
-- Node.js >= 18.0.0
-
-##### macOS 启动
-```bash
-# 克隆代码仓库
-git clone https://github.com/we1jia/TeamCodex.git
-cd TeamCodex
-
-# 执行启动脚本
-bash macos/launch.sh
-```
-
-##### Windows 独立测试模式
-直接运行 `windows/启动测试模式.cmd`，将在独立的数据目录和隔离端口中启动沙箱会话。
-
-### 5. 中枢服务部署方案（本地 / 局域网 / 云端）
-
-TeamCodex 协同中枢（`server/dev_host.mjs`）是纯原生 Node.js 实现（零第三方依赖），支持三种部署拓扑：
-
-| 场景模式 | 运行方式 | 客户端接入方式 | 网络环境 |
+| 模式 | 运行位置 | 客户端接入方式 | 适用场景 |
 |---|---|---|---|
-| **模式 1：单机跨端（默认）** | Mac 客户端启动时自动在后台静默运行中枢服务 | Windows 虚拟机自动探测宿主机 IP 并直连 | 本地虚拟网桥（Parallels 等） |
-| **模式 2：局域网私有协作** | 局域网内一台常开 PC、Mac 或 NAS 运行 `node server/dev_host.mjs` | 设置中填入该机内网 IP（如 `http://192.168.1.100:18765`）或粘贴 Smart Token | 同一办公区 / 实验室 Wi-Fi |
-| **模式 3：云端公网服务器** | 任意 Linux 云服务器使用 `docker compose up -d` 或 PM2 部署 | 配合 Nginx 配置域名与 HTTPS，客户端直接接入公网域名 | 跨地域远程分布式团队 |
+| **单机跨端（默认）** | Mac 宿主机后台静默自启 | Windows 虚拟机自动探测宿主机 IP 直连 | Mac + Win 虚拟机本地开发（零配置） |
+| **局域网协同** | 办公室内常开 PC / Mac / NAS | 填入该主机局域网 IP 或粘贴 Smart Token | 5 ~ 30 人同内网/同 Wi-Fi 研发小组 |
+| **云端公网部署** | Linux 云服务器 (VPS) | 绑定域名并通过 Nginx HTTPS 反代接入 | 跨地域、远程办公的分布式团队 |
 
-> 详细配置指南、Docker / Docker Compose 配置、Linux Systemd 常驻与 Nginx SSE 反向代理模板详见专有文档：  
-> **[TeamCodex 中枢服务部署与网络接入全景指南 (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**
+---
 
-### 6. 协同口令规范 (Smart Token)
+### 4. 中枢极速部署（局域网 / 云端）
 
-TeamCodex 支持通过单行复合口令实现房间快速加入。协议格式如下：
+#### 选项 A：一行命令自动化部署（推荐服务器使用）
+```bash
+curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deploy-hub.sh | bash
+```
+> 脚本将自动检测环境：优先通过 Docker Compose 启动容器；无 Docker 时自动注册 Systemd 或 PM2 守护进程，并自动执行健康自检。
+
+#### 选项 B：一键发给终端 AI Agent 的部署提示词
+使用 Claude Code、Codex、Cursor、OpenClaw 等终端 AI 运维服务器时，直接复制以下提示词发送：
 
 ```text
-Hub: http://<IP>:<PORT> | Room: <ROOM_NAME> | Key: <PASSWORD>
+请帮我在当前服务器部署 TeamCodex Hub 中枢服务：
+1. 检查服务器环境（需 Docker/Docker Compose 或 Node.js >= 18）；
+2. 克隆 https://github.com/we1jia/TeamCodex.git 至 /opt/TeamCodex（若存在则 git pull）；
+3. 优先执行 docker compose up -d，无 Docker 则创建 systemd 守护服务并设置开机自启；
+4. 开放 18765 端口并监听 0.0.0.0；
+5. 执行 curl http://127.0.0.1:18765/api/health 验证健康度；
+6. 若有 Nginx，请配置反代，注意必须包含 proxy_buffering off 以保证 SSE 流式推送正常；
+7. 输出本机的访问地址与测试 Smart Token。
 ```
 
-示例：
+> 详细参数表、Docker 挂载说明与 Nginx SSL 配置参见：**[中枢部署与网络接入全景指南 (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**。
 
-```text
-Hub: http://10.211.55.2:18765 | Room: 1024 | Key: 123456
-```
+---
 
-解析器将自动提取 Hub 地址、房间标识及鉴权密钥，并在验证后自动建立 SSE 实时通道。
+### 5. 核心特性
 
-### 7. 仓库目录结构
+- **无侵入侧栏内嵌**：基于 CDP 动态挂载，无需反编译或修改客户端本地文件。
+- **高亮生命周期互斥**：全屏协作与原生会话保持单选高亮，切回历史对话 100% 恢复原生高亮。
+- **跨平台多端识别**：自动探测网络与操作系统，智能区分 `Mac` 与 `Win` 设备身份，在线人数自动去重。
+- **脱敏快照与上下文接力**：一键打包会话并剔除本地路径与 Shell 命令，协作者可一键导入当前活动对话。
+- **智能协同口令 (Smart Token)**：支持形如 `Hub: <URL> | Room: <Name> | Key: <Password>` 的单行口令秒级加入。
+
+---
+
+### 6. 仓库结构
 
 ```text
 TeamCodex/
-├── inject/                     # 客户端侧注入层与核心渲染逻辑
-│   ├── sidebar_fullscreen.js   # 协作 UI 渲染、Shadow DOM 与生命周期状态机
-│   ├── attach_codex.mjs        # CDP 端口探测、自动化注入与保活进程
-│   └── safety.mjs              # 端口占用检测与进程安全防护
-├── server/                     # 本地协作中枢
-│   └── dev_host.mjs            # SSE 实时事件总线、房间密钥鉴权与快照管理
-├── macos/                      # macOS 启动脚本与引导工具
-│   └── launch.sh               # macOS 自动附着 Shell 脚本
-├── windows/                    # Windows 批处理套件与离线构建工程
-│   ├── 启动TeamCodex.cmd       # Windows 生产启动入口
-│   ├── 启动测试模式.cmd        # 独立数据目录测试入口
-│   ├── build_zip.py            # 离线分发包打包脚本
-│   └── assets/                 # Windows 应用程序图标资源 (.ico)
-├── tests/                      # 自动化测试用例
-│   ├── test_boost_fixes.mjs    # 状态机互斥、身份识别与高亮生命周期测试
-│   └── test_rooms_and_auth.mjs # 房间密钥鉴权、SSE 消息隔离与幂等性测试
-├── TeamCodex-Windows-arm64-amd64.zip # 开箱即用绿色免安装分发包
+├── inject/                     # CDP 客户端侧注入层、Web Component 与全屏协作 UI
+├── server/                     # 零依赖原生 Node.js SSE 实时协作中枢 (dev_host.mjs)
+├── macos/                      # macOS 启动器 (launch.sh)、自包含 DMG 打包工程
+├── windows/                    # Windows 启动套件、NSIS 安装包脚本 (installer.nsi)
+├── scripts/                    # 运维与自动化部署脚本 (deploy-hub.sh)
+├── docs/                       # 架构设计与网络接入全景指南 (HUB_DEPLOYMENT.md)
+├── tests/                      # 37 项自动化单元测试与端到端状态机测试套件
+├── Dockerfile                  # 极简 Alpine Node 生产镜像定义
+├── docker-compose.yml          # 一键容器化服务编排
 └── README.md
 ```
 
-### 8. 质量保证与自动化测试
+---
 
-运行状态机与生命周期测试套件：
+### 7. 自动化测试
 
 ```bash
 node --test tests/test_boost_fixes.mjs
-```
-
-运行房间隔离、鉴权认证与消息幂等性测试套件：
-
-```bash
 node --test tests/test_rooms_and_auth.mjs
 ```
 
-### 9. 安全与合规边界
+---
 
-- **系统零污染**：不篡改 `~/.codex/config.toml` 或系统注册表，不读取系统 Keychain 凭据。
-- **物理内网隔离**：通信严格限定在局域网 Hub 地址与指定房间内部，不存在外部遥测数据上报。
-- **快照权限控制**：快照仅导出用户当前确认的分支上下文，自动过滤底层 Shell 调用命令与私有绝对路径。
+### 8. 常见问题 (FAQ)
+
+- **Q: 个人在本地单机使用，需要额外搭建服务器吗？**  
+  **不需要**。macOS 启动时会自动常驻轻量中枢，Windows 虚拟机客户端通过虚拟网络自动发现并连入，完全免配置。
+- **Q: 数据安全与隐私边界如何保证？**  
+  **纯局域网与私有部署**。数据存储于自建环境的 `data/messages.json`，无任何外部云端遥测。
+- **Q: 通过 Nginx 反代后消息无法实时推送？**  
+  SSE 依赖流式长连接，Nginx 对应 `location` 必须配置 `proxy_buffering off;`。
 
 ---
 
@@ -175,159 +132,106 @@ node --test tests/test_rooms_and_auth.mjs
 
 ### 1. Overview
 
-TeamCodex is a lightweight, non-intrusive cross-platform collaboration workspace and context synchronization hub designed for OpenAI Codex and ChatGPT desktop clients.
-
-Traditional AI desktop clients operate as isolated single-user environments, creating communication silos during team pair programming and host-to-virtual-machine workflows. TeamCodex bridges this gap by leveraging the Chrome DevTools Protocol (CDP) to inject an integrated collaboration workspace directly into the client's native sidebar. Operating entirely over local networks without third-party cloud dependencies, it enables real-time peer presence, dialogue snapshot sharing, and instant cross-session context handoffs across macOS hosts and Windows virtual machines.
-
-### 2. Architecture & Communication Model
-
-TeamCodex comprises three functional layers: the client injection layer, the local collaboration hub, and cross-platform launcher toolchains:
+TeamCodex eliminates the **isolation constraint** inherent in desktop AI clients (OpenAI Codex / ChatGPT). By utilizing the Chrome DevTools Protocol (CDP), it embeds an integrated collaboration workspace directly into the native sidebar. Powered by a zero-external-dependency Node.js SSE event bus, it provides peer presence heartbeats, sanitized dialogue snapshots, and instant cross-session context relay.
 
 ```
-+-------------------------------------------------------------------------+
-|                              Codex Desktop                              |
-|                                                                         |
-|   +-------------------+  +------------------------------------------+   |
-|   |  Native Sidebar   |  |        Main Workspace View               |   |
-|   |                   |  |                                          |   |
-|   |  [Conversations]  |  |  [Active Native Conversation Thread]     |   |
-|   |  [Plugins]        |  |                      OR                  |   |
-|   |  * TeamCodex Tab  |  |  [TeamCodex Fullscreen Collab View]      |   |
-|   +---------+---------+  +--------------------+---------------------+   |
-+-------------|---------------------------------|-------------------------+
-              |                                 |
-              | (CDP Port 9222 Attach)          | (PostMessage / Event Dispatch)
-              v                                 v
-+-------------------------------------------------------------------------+
-|                  Injection Layer (inject/sidebar_fullscreen.js)         |
-|  - Web Component & Shadow DOM Isolation                                 |
-|  - Active/Inactive Highlighting State Machine Mutex                     |
-|  - Smart Token Parser & Snapshot Desensitization Ingestion              |
-+------------------------------------+------------------------------------+
-                                     |
-                                     | HTTP / SSE (EventSource Stream)
-                                     v
-+-------------------------------------------------------------------------+
-|                   Local Collaboration Hub (server/dev_host.mjs)         |
-|  - Port 18765 Event Bus                                                 |
-|  - Multi-Room Isolation & Room Key Authentication (401 Handling)        |
-|  - Dynamic Member Heartbeat & Cross-Platform Identity Recognition       |
-|  - Snapshot Persistence & Idempotent Message Storage                    |
-+-------------------------------------------------------------------------+
+[Mac / Win Client] <--- CDP 9222 ---> [Sidebar Fullscreen UI] <--- HTTP / SSE ---> [TeamCodex Hub 18765]
 ```
 
-### 3. Core Features
+---
 
-- **Non-Intrusive Native Sidebar Injection**: Dynamically attaches via Chrome DevTools Protocol without modifying system executables or configuration files, mounting a native "TeamCodex" tab in the sidebar.
-- **Mutual Exclusion State Machine**: Enforces strict single-selection highlighting during fullscreen collaboration. Seamlessly restores native conversation highlights with zero latency or layout flicker upon exit.
-- **Cross-Platform & Virtual Machine Awareness**: Automatically detects network topology and operating systems, cleanly distinguishing host and guest identities (e.g., `weijia (Mac)` vs `weijia (Win)`) with duplicate-filtered active presence counters.
-- **Desensitized Snapshot & Instant Context Ingestion**: Packages conversation threads into read-only snapshots (filtering internal Shell commands and absolute filesystem paths) for teammates to inspect and inject into their active sessions with one click.
-- **Composite Smart Token Protocol**: Parses connection strings structured as `Hub: <URL> | Room: <Name> | Key: <Password>`, automatically populating host endpoints, room credentials, and access keys.
-- **LAN-Bounded Data Privacy**: Built upon a lightweight Node.js Server-Sent Events (SSE) event bus. All message transactions and snapshot transfers remain confined to the local network.
+### 2. Client Downloads
 
-### 4. Quick Start & Downloads
+Grab pre-built installers directly from **[GitHub Releases](https://github.com/we1jia/TeamCodex/releases)**:
 
-#### Option A: Native Application Installers (Recommended, Ready to Use)
+| Platform | Installer | Setup Method |
+|---|---|---|
+| **macOS** | [`TeamCodex-macOS.dmg`](https://github.com/we1jia/TeamCodex/releases/latest) | Mount the disk image and drag `TeamCodex.app` into `/Applications` |
+| **Windows** | [`TeamCodex-Setup.exe`](https://github.com/we1jia/TeamCodex/releases/latest) | Run setup wizard for automated ARM64/AMD64 setup and desktop shortcuts |
+| **Portable Archives** | `TeamCodex-macOS.zip` / `TeamCodex-Windows-arm64-amd64.zip` | Standalone portable green packages |
 
-Download pre-built installers directly from [GitHub Releases](https://github.com/we1jia/TeamCodex/releases):
+---
 
-- **macOS Users**:
-  1. Download the native disk image **`TeamCodex-macOS.dmg`**;
-  2. Open the image and drag `TeamCodex.app` into `/Applications` to access it via Launchpad or Spotlight;
-  3. (Portable `TeamCodex-macOS.zip` is also available).
-- **Windows Users** (Native / Parallels VM / ARM64 / AMD64):
-  1. Download the standalone executable installer **`TeamCodex-Setup.exe`**;
-  2. Run the installer wizard to set up the app and create desktop shortcuts automatically;
-  3. (Portable `TeamCodex-Windows-arm64-amd64.zip` is also available).
+### 3. Deployment Topology Models
 
-#### Option B: Run from Source (Developers)
+The Hub service supports three standard operational models:
 
-##### Prerequisites
-- macOS 13+ or Windows 10/11 (x64 / ARM64)
-- Node.js >= 18.0.0
-
-##### macOS Launch
-```bash
-# Clone repository
-git clone https://github.com/we1jia/TeamCodex.git
-cd TeamCodex
-
-# Run launcher
-bash macos/launch.sh
-```
-
-##### Windows Test Mode
-Execute `windows/启动测试模式.cmd` to launch an isolated sandbox session with a dedicated profile directory.
-
-### 5. Hub Deployment Models (Local / LAN / Cloud)
-
-TeamCodex Hub (`server/dev_host.mjs`) is built on native Node.js with zero external dependencies, supporting three standard deployment topologies:
-
-| Topology Model | Execution Method | Client Access Method | Target Network |
+| Model | Host Location | Client Connection | Target Scenario |
 |---|---|---|---|
-| **Model 1: Single-Host (Default)** | Spawned silently by the macOS launcher in the background | Windows VM auto-probes the host bridge IP | Local VM bridge (Parallels, etc.) |
-| **Model 2: Private LAN** | Run `node server/dev_host.mjs` on an always-on PC, Mac, or NAS | Clients enter the local IP (e.g. `http://192.168.1.100:18765`) or paste a Token | Office / Lab shared Wi-Fi |
-| **Model 3: Cloud VPS Hub** | Run via `docker compose up -d` or PM2 on any Linux VPS | Reverse proxy via Nginx with HTTPS domain name | Globally distributed remote teams |
+| **Single-Host (Default)** | macOS background auto-spawn | Windows VM auto-detects host bridge IP | Solo developers with Mac + VM setups (Zero config) |
+| **Private LAN** | Always-on PC / Mac / NAS in LAN | Enter host LAN IP or paste Smart Token | 5 ~ 30 developer teams on shared office Wi-Fi |
+| **Cloud VPS** | Linux Cloud Server | Domain name via Nginx HTTPS proxy | Globally distributed remote teams |
 
-> For comprehensive deployment configurations, Docker / Docker Compose templates, Linux Systemd units, and Nginx SSE stream buffering rules, see:  
-> **[TeamCodex Hub Deployment & Networking Guide (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**
+---
 
-### 6. Smart Token Specification
+### 4. Hub Deployment & Automation (LAN / Cloud)
 
-TeamCodex supports single-line composite tokens for streamlined room access. The protocol adheres to the following specification:
+#### Option A: One-Line Automation Script
+```bash
+curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deploy-hub.sh | bash
+```
+> Detects environment automatically: prefers Docker Compose; falls back to Node.js with Systemd / PM2 process supervision and automated health verification.
+
+#### Option B: AI Agent System Prompt
+Copy and paste this structured prompt directly to terminal AI assistants (Claude Code, Codex, Cursor, OpenClaw):
 
 ```text
-Hub: http://<IP>:<PORT> | Room: <ROOM_NAME> | Key: <PASSWORD>
+Deploy TeamCodex Hub on this server following production standards:
+1. Verify system dependencies (Docker/Docker Compose or Node.js >= 18);
+2. Clone https://github.com/we1jia/TeamCodex.git to /opt/TeamCodex (or git pull latest main);
+3. Prefer docker compose up -d; if Docker is absent, configure systemd service with auto-start;
+4. Open port 18765 listening on 0.0.0.0;
+5. Validate via: curl http://127.0.0.1:18765/api/health;
+6. If Nginx is detected, configure reverse proxy with proxy_buffering off explicitly set for SSE streaming;
+7. Output endpoint URL and a ready-to-use Smart Token.
 ```
 
-Example:
+> Full documentation and Nginx TLS templates available at: **[Hub Deployment & Networking Guide (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**.
 
-```text
-Hub: http://10.211.55.2:18765 | Room: 1024 | Key: 123456
-```
+---
 
-The internal parser automatically extracts the hub endpoint, room identifier, and authentication key before initiating the SSE stream.
+### 5. Core Capabilities
 
-### 7. Directory Layout
+- **Non-Intrusive Mounting**: Injects via CDP without modifying binary executables or user configurations.
+- **State Machine Mutual Exclusion**: Enforces single-selection highlighting during active collaboration, restoring native thread selections upon exit.
+- **Cross-Platform Presence**: Cleanly isolates `Mac` vs `Win` node identities with deduplicated active presence counters.
+- **Sanitized Snapshot Relay**: Serializes conversation threads into privacy-safe snapshots, enabling peers to import context with a single click.
+- **Smart Token Protocol**: Resolves connection strings formatted as `Hub: <URL> | Room: <Name> | Key: <Password>` instantly.
+
+---
+
+### 6. Repository Layout
 
 ```text
 TeamCodex/
-├── inject/                     # Client injection layer and core UI logic
-│   ├── sidebar_fullscreen.js   # Collaboration UI rendering, Shadow DOM, and state machines
-│   ├── attach_codex.mjs        # CDP port probing, automated injection, and watchdog loop
-│   └── safety.mjs              # Port inspection and process guards
-├── server/                     # Local collaboration server
-│   └── dev_host.mjs            # SSE event bus, room key authentication, and snapshot store
-├── macos/                      # macOS automation scripts
-│   └── launch.sh               # macOS launch shell script
-├── windows/                    # Windows batch suites and packaging tooling
-│   ├── 启动TeamCodex.cmd       # Windows production entry point
-│   ├── 启动测试模式.cmd        # Isolated testing entry point
-│   ├── build_zip.py            # Standalone distribution packaging script
-│   └── assets/                 # Application icon assets (.ico)
-├── tests/                      # Automated test suite
-│   ├── test_boost_fixes.mjs    # State machine, identity detection, and highlight tests
-│   └── test_rooms_and_auth.mjs # Room key auth, SSE isolation, and idempotency tests
-├── TeamCodex-Windows-arm64-amd64.zip # Standalone pre-packaged distribution archive
+├── inject/                     # Client CDP injection, Web Components & UI logic
+├── server/                     # Zero-dependency Node.js SSE Hub (dev_host.mjs)
+├── macos/                      # macOS launcher (launch.sh) & self-contained DMG builder
+├── windows/                    # Windows launcher suite & NSIS script (installer.nsi)
+├── scripts/                    # Deployment & maintenance tools (deploy-hub.sh)
+├── docs/                       # Architectural & deployment manuals (HUB_DEPLOYMENT.md)
+├── tests/                      # 37 automated unit and end-to-end test cases
+├── Dockerfile                  # Lightweight Alpine production container definition
+├── docker-compose.yml          # Container orchestration configuration
 └── README.md
 ```
 
-### 8. Quality Assurance & Testing
+---
 
-Run state machine and lifecycle tests:
+### 7. Automated Testing
 
 ```bash
 node --test tests/test_boost_fixes.mjs
-```
-
-Run multi-room isolation, authentication, and message idempotency tests:
-
-```bash
 node --test tests/test_rooms_and_auth.mjs
 ```
 
-### 9. Security & Privacy Model
+---
 
-- **Zero Host Tampering**: Never alters `~/.codex/config.toml`, system registries, or Keychain credentials.
-- **Physical LAN Confinement**: All communications are strictly restricted to the specified local network hub and authenticated room. No telemetry data is transmitted externally.
-- **Sanitized Snapshot Sharing**: Snapshots only include approved conversational context and deliberately exclude internal Shell executions and private path references.
+### 8. FAQ
+
+- **Q: Does a solo developer on one machine need to host a cloud server?**  
+  **No**. macOS auto-starts the hub in the background, and Windows VM guests auto-detect the bridge IP out of the box.
+- **Q: Is conversation data transmitted to external third parties?**  
+  **No**. TeamCodex operates purely on self-hosted instances. Data is confined to your own `data/messages.json`.
+- **Q: Real-time updates do not reach clients when behind Nginx?**  
+  SSE streaming requires unbuffered connections. Ensure **`proxy_buffering off;`** is present in the Nginx `location` block.
