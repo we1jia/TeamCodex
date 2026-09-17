@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>团队协作 · Codex Team Context</title>
+  <style>
+    :root {
+      --bg-main: #181818;
+      --bg-sidebar: #141414;
+      --bg-card: #242424;
+      --bg-card-hover: #2e2e2e;
+      --bg-input: #2f2f2f;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.15);
+      --text-primary: #ececec;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --accent-green: #10a37f;
+      --accent-green-hover: #1a7f64;
+      --accent-blue: #3b82f6;
+      --ai-bubble-bg: #222222;
+      --ai-bubble-border: rgba(16, 163, 127, 0.25);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      overflow: hidden;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.28); }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* 左侧边栏 */
+    .sidebar {
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      padding: 14px 10px;
+      user-select: none;
+    }
+
+    .workspace-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      margin-bottom: 14px;
+    }
+
+    .workspace-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .workspace-logo {
+      width: 22px;
+      height: 22px;
+      background: #10a37f;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .workspace-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .sidebar-section {
+      margin-bottom: 20px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 8px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .icon-btn-ghost {
+      background: transparent;
+      border: 0;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 1;
+    }
+    .icon-btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-primary);
+    }
+
+    /* 房间列表项 */
+    .room-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      margin-bottom: 2px;
+    }
+
+    .room-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-primary);
+    }
+
+    .room-item.active {
+      background: rgba(255, 255, 255, 0.10);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .room-item svg {
+      width: 15px;
+      height: 15px;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .room-item.active svg {
+      opacity: 1;
+      color: var(--accent-green);
+    }
+
+    .room-badge {
+      margin-left: auto;
+      font-size: 10.5px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 1px 6px;
+      border-radius: 99px;
+      color: var(--text-muted);
+    }
+
+    .member-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      cursor: default;
+    }
+
+    .member-avatar-wrap {
+      position: relative;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+
+    .online-indicator {
+      position: absolute;
+      bottom: -1px;
+      right: -1px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10a37f;
+      box-shadow: 0 0 4px #10a37f;
+    }
+
+    .member-role-tag {
+      margin-left: auto;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      padding: 10px 8px 4px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .user-avatar {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #343541;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+    }
+
+    .user-name {
+      font-size: 12.5px;
+      font-weight: 550;
+      color: var(--text-primary);
+    }
+
+    /* 主工作区 */
+    .main-workspace {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      position: relative;
+      background: var(--bg-main);
+      overflow: hidden;
+    }
+
+    /* 顶栏 */
+    .workspace-topbar {
+      height: 48px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .topbar-room-name {
+      font-size: 14.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 状态胶囊 */
+    .room-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-size: 12px;
+      font-weight: 550;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .room-status-pill:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: var(--border-strong);
+    }
+    .pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .pill-dot.connected {
+      background: #10a37f;
+      box-shadow: 0 0 6px rgba(16, 163, 127, 0.7);
+    }
+    .pill-dot.connecting {
+      background: #f59e0b;
+      box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
+      animation: pulse-dot 1.2s infinite ease-in-out;
+    }
+    .pill-dot.error {
+      background: #ef4444;
+      box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+    }
+    .pill-dot.disconnected {
+      background: var(--text-muted);
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.85); }
+    }
+
+    .topbar-room-topic {
+      font-size: 12px;
+      color: var(--text-muted);
+      border-left: 1px solid var(--border-subtle);
+      padding-left: 12px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-topbar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 99px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border-subtle);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .btn-topbar:hover {
+      background: rgba(255, 255, 255, 0.10);
+      color: var(--text-primary);
+      border-color: var(--border-strong);
+    }
+
+    .btn-topbar.primary {
+      background: #10a37f;
+      color: #fff;
+      border-color: transparent;
+      font-weight: 600;
+    }
+    .btn-topbar.primary:hover {
+      background: var(--accent-green-hover);
+    }
+
+    /* 对话内容主容器 */
+    .chat-scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 0 110px;
+      position: relative;
+    }
+
+    .chat-center-column {
+      max-width: 768px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .message-row {
+      display: flex;
+      gap: 14px;
+      width: 100%;
+      scroll-margin-top: 20px;
+    }
+
+    .message-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #2e2e2e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+
+    .message-row.ai .message-avatar {
+      background: #10a37f;
+      color: #fff;
+    }
+
+    .message-body-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+
+    .message-author {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .message-role-tag {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+
+    .message-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .message-bubble {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: var(--text-primary);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+      position: relative;
+      word-break: break-word;
+    }
+
+    .message-row.ai .message-bubble {
+      background: var(--ai-bubble-bg);
+      border-color: var(--ai-bubble-border);
+    }
+
+    .message-linked-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--accent-green);
+      background: rgba(16, 163, 127, 0.12);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-top: 8px;
+    }
+
+    /* Composer */
+    .composer-container {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(180deg, transparent 0%, var(--bg-main) 35%);
+      padding: 16px 20px 24px;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .composer-box {
+      width: 100%;
+      max-width: 768px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-strong);
+      border-radius: 18px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      pointer-events: auto;
+      transition: border-color 0.15s ease;
+    }
+
+    .composer-box:focus-within {
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .composer-input-field {
+      width: 100%;
+      background: transparent;
+      border: 0;
+      color: var(--text-primary);
+      font-size: 13.5px;
+      font-family: inherit;
+      resize: none;
+      height: 48px;
+      outline: none;
+      line-height: 1.5;
+    }
+
+    .composer-bottom-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .composer-hints {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn-send-round {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #ececec;
+      border: 0;
+      color: #171717;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-send-round:hover {
+      background: #fff;
+      transform: scale(1.05);
+    }
+
+    /* 定位轨 */
+    .turn-navigator-rail {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      padding: 10px 6px;
+      border-radius: 20px;
+      background: rgba(23, 23, 23, 0.4);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .nav-marker {
+      width: 14px;
+      height: 3px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.25);
+      cursor: pointer;
+      position: relative;
+      transition: all 0.16s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    .nav-marker:hover {
+      width: 26px;
+      background: #10a37f;
+      height: 4px;
+    }
+
+    .nav-marker .marker-tooltip {
+      position: absolute;
+      right: 32px;
+      top: 50%;
+      transform: translateY(-50%) translateX(6px);
+      background: rgba(30, 30, 30, 0.95);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 11px;
+      color: var(--text-primary);
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: all 0.15s ease;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .nav-marker:hover .marker-tooltip {
+      opacity: 1;
+      transform: translateY(-50%) translateX(0);
+    }
+
+    /* 抽屉弹窗 */
+    .drawer-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(4px);
+      display: none;
+      z-index: 100;
+    }
+    .drawer-overlay.open { display: block; }
+
+    .drawer-sheet {
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      width: 420px;
+      background: #1a1a1a;
+      border-left: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      padding: 20px 24px;
+      box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+      animation: slide-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    @keyframes slide-in {
+      from { transform: translateX(100%); }
+      to { transform: translateX(0); }
+    }
+
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .drawer-header h3 { font-size: 15px; font-weight: 600; }
+
+    .drawer-content-box {
+      flex: 1;
+      background: #111;
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 12px;
+      font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+      font-size: 11.5px;
+      color: #e4e4e7;
+      line-height: 1.5;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+
+    /* 连接与房间配置模态弹层 */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      z-index: 200; display: flex; align-items: center; justify-content: center;
+    }
+    .modal-backdrop[hidden] { display: none; }
+    .modal-card {
+      background: var(--bg-card); color: var(--text-primary);
+      width: min(500px, calc(100% - 32px)); border-radius: 16px;
+      border: 1px solid var(--border-strong); box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+      display: flex; flex-direction: column; overflow: hidden;
+      animation: modal-pop 0.16s ease-out;
+    }
+    @keyframes modal-pop {
+      from { opacity: 0; transform: scale(0.96) translateY(6px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .modal-header {
+      padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 12.5px; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; }
+    .form-sublabel { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+    .form-input {
+      background: var(--bg-main); color: var(--text-primary); border: 1px solid var(--border-strong);
+      border-radius: 8px; padding: 8px 12px; font-size: 13px; outline: none; transition: border-color 0.15s ease;
+      width: 100%; box-sizing: border-box;
+    }
+    .form-input:focus { border-color: var(--accent-green); }
+    .error-banner {
+      background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #ef4444; border-radius: 8px; padding: 8px 12px; font-size: 12px;
+    }
+    .error-banner[hidden] { display: none; }
+    .modal-footer {
+      padding: 14px 20px; background: rgba(0,0,0,0.15); display: flex; justify-content: flex-end; gap: 10px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .room-tag {
+      background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border-subtle);
+      color: var(--text-primary); border-radius: 6px; padding: 3px 8px; font-size: 11.5px;
+      cursor: pointer; transition: all 0.15s ease;
+    }
+    .room-tag:hover { background: rgba(255, 255, 255, 0.12); }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- 左侧边栏 -->
+    <aside class="sidebar">
+      <div class="workspace-header">
+        <div class="workspace-brand">
+          <div class="workspace-logo">⚡</div>
+          <span class="workspace-title">Codex 协同中枢</span>
+        </div>
+        <button class="icon-btn-ghost" id="btn-sidebar-settings" title="服务连接与房间配置">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+
+      <!-- 房间 / 空间 -->
+      <div class="sidebar-section">
+        <div class="section-header">
+          <span>协作房间</span>
+          <button class="icon-btn-ghost" id="btn-add-room" title="新建/切换房间">+</button>
+        </div>
+        <div id="rooms-list" style="display:flex; flex-direction:column; gap:2px;">
+          <!-- 动态房间项 -->
+        </div>
+      </div>
+
+      <!-- 团队成员 -->
+      <div class="sidebar-section">
+        <div class="section-header">
+          <span>团队成员</span>
+          <span id="members-count-badge" style="font-size:10px; color:var(--text-muted);">0 在线</span>
+        </div>
+        <div id="members-container" style="display:flex; flex-direction:column; gap:2px;">
+          <!-- 动态成员项 -->
+        </div>
+      </div>
+
+      <!-- 底部用户信息 -->
+      <div class="sidebar-footer">
+        <div class="user-profile" id="user-profile-btn" title="点击修改昵称与连接">
+          <div class="user-avatar" id="footer-user-avatar">👨‍💻</div>
+          <span class="user-name" id="footer-user-name">weijia</span>
+        </div>
+        <span id="footer-conn-dot" style="font-size:11px; color:#10a37f;">● 在线</span>
+      </div>
+    </aside>
+
+    <!-- 中间主工作区 -->
+    <main class="main-workspace">
+      <!-- 顶栏 -->
+      <header class="workspace-topbar">
+        <div class="topbar-left">
+          <div class="topbar-room-name">
+            <span style="opacity:0.6;">#</span>
+            <span id="header-room-title">Media</span>
+          </div>
+
+          <!-- 连接与房间胶囊 -->
+          <button class="room-status-pill" id="room-status-pill" type="button" title="点击切换房间或管理连接">
+            <span class="pill-dot connected" id="pill-dot"></span>
+            <span id="pill-text">Media · 1人在线</span>
+            <span style="font-size:10px; opacity:0.6;">▾</span>
+          </button>
+
+          <div class="topbar-room-topic" style="display:flex; align-items:center; gap:12px;">
+            <span>绑定会话: <strong id="topic-title-text" style="color:var(--text-primary); font-weight:550;">未关联</strong></span>
+            <span style="display:inline-flex; align-items:center; gap:4px; background:rgba(16,163,127,0.15); color:#10a37f; border:1px solid rgba(16,163,127,0.3); padding:2px 8px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:550;" id="btn-lan-share" title="点击复制当前房间接入信息">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span>复制房间接入信息</span>
+            </span>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="btn-topbar" id="btn-open-distill">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            查看规则摘要
+          </button>
+          <button class="btn-topbar primary" id="btn-topbar-settings" style="display:inline-flex; align-items:center; gap:5px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>连接与房间设置</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- 对话主体 (居中 768px) -->
+      <div class="chat-scroll-area" id="chat-scroller">
+        <div class="chat-center-column" id="messages-container">
+          <!-- 消息卡片动态注入 -->
+        </div>
+      </div>
+
+      <!-- 居中悬浮 Composer -->
+      <div class="composer-container">
+        <div class="composer-box">
+          <textarea
+            class="composer-input-field"
+            id="chat-textarea"
+            placeholder="输入技术意见、方案建议或驳回意见... (Enter 发送，Shift+Enter 换行)"
+          ></textarea>
+          <div class="composer-bottom-bar">
+            <div class="composer-hints">
+              <span>Enter 发送</span>
+              <span>输入内容将即时沉淀至当前房间</span>
+            </div>
+            <button class="btn-send-round" id="btn-submit-message" title="发送 (Enter)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧定位轨 -->
+      <div class="turn-navigator-rail" id="turn-navigator"></div>
+    </main>
+  </div>
+
+  <!-- 规则抽屉 -->
+  <div class="drawer-overlay" id="drawer-overlay">
+    <div class="drawer-sheet">
+      <div class="drawer-header">
+        <h3>下发给 Codex 的结构化规则 (Compact Context)</h3>
+        <button class="icon-btn-ghost" id="btn-close-drawer" style="font-size:16px;">✕</button>
+      </div>
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">
+        在 Codex 中每次交互时，Hook 自动将以下高密度约束注入给模型，强力守住技术红线：
+      </div>
+      <div class="drawer-content-box" id="drawer-text-box">正在加载...</div>
+      <div style="margin-top:14px; display:flex; gap:10px;">
+        <button class="btn-topbar primary" style="flex:1;" id="btn-copy-drawer">复制到剪贴板</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 服务连接与房间配置模态框 -->
+  <div class="modal-backdrop" id="connect-modal" hidden>
+    <div class="modal-card">
+      <div class="modal-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:18px;">⚡</span>
+          <div>
+            <h2 style="margin:0;font-size:15px;font-weight:600;">服务连接与房间配置</h2>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">管理 Hub 服务地址、空间名称与鉴权密钥</div>
+          </div>
+        </div>
+        <button class="icon-btn-ghost" id="btn-close-connect-modal" style="font-size:16px;">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="error-banner" id="connect-error-banner" hidden></div>
+
+        <div class="form-group">
+          <label class="form-label" for="cfg-hub-url">
+            <span>Hub 服务地址</span>
+            <span class="form-sublabel">支持局域网 IP 或内网域名</span>
+          </label>
+          <div style="display:flex;gap:6px;">
+            <input class="form-input" id="cfg-hub-url" placeholder="http://127.0.0.1:18765" />
+            <button class="btn-topbar" id="btn-fill-localhost" type="button">填本机</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cfg-room-id">
+            <span>房间号 / 空间名称</span>
+            <span class="form-sublabel">按模块隔离协作消息与状态</span>
+          </label>
+          <input class="form-input" id="cfg-room-id" placeholder="例如 Media" />
+          <div id="cfg-history-tags" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cfg-room-key">
+            <span>访问密码 / 密钥 (Room Key)</span>
+            <span class="form-sublabel">选填，受密码保护的房间必填</span>
+          </label>
+          <div style="position:relative;display:flex;align-items:center;">
+            <input class="form-input" id="cfg-room-key" type="password" placeholder="若未设密码可留空" style="padding-right:32px;" />
+            <button id="btn-toggle-pwd" type="button" title="显示/隐藏密码" style="position:absolute;right:8px;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;">👁</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="cfg-nickname">
+            <span>成员昵称</span>
+            <span class="form-sublabel">在协同消息和记录中显示的身份</span>
+          </label>
+          <input class="form-input" id="cfg-nickname" placeholder="例如 weijia" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-topbar" id="btn-cancel-config">取消</button>
+        <button class="btn-topbar primary" id="btn-save-config">保存并连接</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "team_context_web_config";
+
+    function detectDeviceOS() {
+      if (typeof navigator !== "undefined") {
+        const p = (navigator.platform || "").toLowerCase();
+        const ua = (navigator.userAgent || "").toLowerCase();
+        if (p.includes("mac") || ua.includes("macintosh")) return "mac";
+        if (p.includes("win") || ua.includes("windows")) return "win";
+      }
+      return "mac";
+    }
+
+    function formatDeviceUser(rawName) {
+      const os = detectDeviceOS();
+      const isWin = os === "win";
+      const osLabel = isWin ? "Win" : "Mac";
+      const osTag = isWin ? "win" : "mac";
+
+      let baseName = String(rawName || "weijia").trim();
+      baseName = baseName.replace(/[\s_(-]*\b(mac|win)\b[\s_)-]*/gi, "").trim();
+      if (baseName.toLowerCase() === "liuweijia" || baseName.toLowerCase() === "liu weijia") baseName = "weijia";
+      if (!baseName) baseName = "weijia";
+
+      const nickname = `${baseName} (${osLabel})`;
+      const cleanId = baseName.toLowerCase().replace(/[^a-z0-9_]/g, "") || "user";
+      const memberId = `${cleanId}_${osTag}`;
+      return { baseName, nickname, memberId, osTag, osLabel };
+    }
+
+    function getDefaultConfig() {
+      const dev = formatDeviceUser("weijia");
+      return {
+        hubUrl: window.location.origin || "http://127.0.0.1:18765",
+        roomId: "1024",
+        roomKey: "123456",
+        roomKeys: { "1024": "123456" },
+        nickname: dev.nickname,
+        memberId: dev.memberId,
+        historyRooms: ["1024", "Media"],
+      };
+    }
+
+    function loadConfig() {
+      const def = getDefaultConfig();
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {
+            let roomId = typeof parsed.roomId === "string" && parsed.roomId.trim() ? parsed.roomId.trim() : def.roomId;
+            const roomKeys = { ...(def.roomKeys || {}), ...(parsed.roomKeys && typeof parsed.roomKeys === "object" ? parsed.roomKeys : {}) };
+            if (!roomKeys["1024"]) roomKeys["1024"] = "123456";
+            if (roomId === "Media") roomId = "1024";
+            const roomKey = (roomId === "1024" ? (roomKeys["1024"] || "123456") : "") || roomKeys[roomId] || (typeof parsed.roomKey === "string" ? parsed.roomKey : "");
+            const historyRooms = Array.isArray(parsed.historyRooms) && parsed.historyRooms.length
+              ? Array.from(new Set([roomId, "1024", ...parsed.historyRooms.filter(r => typeof r === "string" && r.trim())]))
+              : def.historyRooms;
+            const rawNick = typeof parsed.nickname === "string" && parsed.nickname.trim() ? parsed.nickname.trim() : def.nickname;
+            const dev = formatDeviceUser(rawNick);
+            return {
+              hubUrl: typeof parsed.hubUrl === "string" && parsed.hubUrl.trim() ? parsed.hubUrl.trim() : def.hubUrl,
+              roomId,
+              roomKey,
+              roomKeys: { ...roomKeys, [roomId]: roomKey },
+              nickname: dev.nickname,
+              memberId: dev.memberId,
+              historyRooms,
+            };
+          }
+        }
+      } catch {}
+      return def;
+    }
+
+    function saveConfig(cfg) {
+      try {
+        if (cfg && cfg.roomId) {
+          cfg.roomKeys = { ...(cfg.roomKeys || {}), [cfg.roomId]: cfg.roomKey || "" };
+        }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+      } catch {}
+    }
+
+    let config = loadConfig();
+    let state = {
+      snapshot: null,
+      compactText: "",
+      rooms: [],
+      onlineCount: 1,
+      connected: false,
+    };
+    let sseSource = null;
+
+    function getApiUrl(path) {
+      const base = (config.hubUrl || window.location.origin).replace(/\/$/, "");
+      const sep = path.includes("?") ? "&" : "?";
+      const roomParam = `room=${encodeURIComponent(config.roomId || "Media")}${config.roomKey ? `&room_key=${encodeURIComponent(config.roomKey)}` : ""}`;
+      return `${base}${path}${sep}${roomParam}`;
+    }
+
+    function getHeaders() {
+      return {
+        "Content-Type": "application/json",
+        "X-Room-Id": config.roomId || "Media",
+        ...(config.roomKey ? { "X-Room-Key": config.roomKey } : {}),
+      };
+    }
+
+    async function loadRooms() {
+      try {
+        const base = (config.hubUrl || window.location.origin).replace(/\/$/, "");
+        const res = await fetch(`${base}/api/rooms`);
+        if (res.ok) {
+          state.rooms = await res.json();
+          renderRoomsSidebar();
+        }
+      } catch {}
+    }
+
+    async function loadData() {
+      try {
+        const snapRes = await fetch(getApiUrl("/api/snapshot"), { headers: getHeaders() });
+        if (snapRes.status === 401) {
+          state.connected = false;
+          updateStatusUI("密钥错误", "error");
+          showConnectModal("该房间受密码保护，请输入正确的 Room Key");
+          return;
+        }
+        if (!snapRes.ok) throw new Error("加载失败");
+
+        state.snapshot = await snapRes.json();
+        state.connected = true;
+        if (state.snapshot.online_count) state.onlineCount = state.snapshot.online_count;
+
+        const textRes = await fetch(getApiUrl("/api/context/compact"), { headers: getHeaders() });
+        if (textRes.ok) state.compactText = await textRes.text();
+
+        updateStatusUI(`${config.roomId} · ${state.onlineCount}人在线`, "connected");
+        render();
+        loadRooms();
+      } catch (err) {
+        state.connected = false;
+        updateStatusUI("未连接", "error");
+      }
+    }
+
+    function initSSE() {
+      if (sseSource) {
+        sseSource.close();
+        sseSource = null;
+      }
+      const base = (config.hubUrl || window.location.origin).replace(/\/$/, "");
+      const dev = typeof formatDeviceUser === "function" ? formatDeviceUser(config.nickname) : { nickname: config.nickname, memberId: config.nickname };
+      const params = new URLSearchParams({
+        room: config.roomId || "1024",
+        room_key: config.roomKey || "",
+        member_id: config.memberId || dev.memberId,
+        member_name: config.nickname || dev.nickname,
+      });
+      try {
+        sseSource = new EventSource(`${base}/api/events?${params.toString()}`);
+        sseSource.addEventListener("snapshot", (e) => {
+          try {
+            state.snapshot = JSON.parse(e.data);
+            if (state.snapshot.online_count) state.onlineCount = state.snapshot.online_count;
+            render();
+          } catch {}
+        });
+        sseSource.addEventListener("message", () => loadData());
+        sseSource.addEventListener("room_status", (e) => {
+          try {
+            const st = JSON.parse(e.data);
+            if (st.online_count) {
+              state.onlineCount = st.online_count;
+              updateStatusUI(`${config.roomId} · ${state.onlineCount}人在线`, "connected");
+            }
+          } catch {}
+        });
+        sseSource.addEventListener("auth_revoked", (e) => {
+          try {
+            const st = JSON.parse(e.data);
+            state.connected = false;
+            updateStatusUI("密钥已更新", "error");
+            showConnectModal(st.message || "房间访问密钥已更新，请输入新密钥");
+          } catch {}
+        });
+        sseSource.onopen = () => {
+          state.connected = true;
+          updateStatusUI(`${config.roomId} · ${state.onlineCount}人在线`, "connected");
+        };
+        sseSource.onerror = () => {
+          if (sseSource?.readyState === EventSource.CLOSED) {
+            updateStatusUI("离线", "disconnected");
+          }
+        };
+      } catch {}
+    }
+
+    function updateStatusUI(text, statusType) {
+      const dot = document.getElementById("pill-dot");
+      const pillText = document.getElementById("pill-text");
+      const footerDot = document.getElementById("footer-conn-dot");
+
+      dot.className = "pill-dot " + statusType;
+      pillText.textContent = text;
+      if (statusType === "connected") {
+        footerDot.style.color = "#10a37f";
+        footerDot.textContent = "● 在线";
+      } else {
+        footerDot.style.color = "#ef4444";
+        footerDot.textContent = "● 离线";
+      }
+    }
+
+    function renderRoomsSidebar() {
+      const list = document.getElementById("rooms-list");
+      if (!list) return;
+      const allRooms = Array.from(new Set([
+        config.roomId,
+        ...(state.rooms || []).map(r => r.id),
+        ...(config.historyRooms || [])
+      ]));
+
+      list.innerHTML = allRooms.map(rId => {
+        const isActive = rId === config.roomId;
+        const roomMeta = (state.rooms || []).find(r => r.id === rId);
+        const lockIcon = roomMeta?.has_key ? "🔒 " : "";
+        const badge = isActive ? "当前" : (roomMeta?.message_count ? `${roomMeta.message_count} 条` : "");
+        return `
+          <div class="room-item ${isActive ? "active" : ""}" data-room-id="${escapeHtml(rId)}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+            <span>${lockIcon}${escapeHtml(rId)}</span>
+            ${badge ? `<span class="room-badge">${badge}</span>` : ""}
+          </div>
+        `;
+      }).join("");
+    }
+
+    document.getElementById("rooms-list").addEventListener("click", (e) => {
+      const item = e.target.closest(".room-item");
+      if (item && item.dataset.roomId) {
+        switchRoom(item.dataset.roomId);
+      }
+    });
+
+    async function switchRoom(newRoomId) {
+      const cleanRoom = String(newRoomId || "Media").trim();
+      if (cleanRoom === config.roomId && state.connected) return;
+      const targetKey = config.roomKeys?.[cleanRoom] || (cleanRoom === config.roomId ? config.roomKey : "") || "";
+
+      // 尝试校验
+      try {
+        const base = (config.hubUrl || window.location.origin).replace(/\/$/, "");
+        const res = await fetch(`${base}/api/rooms/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ room: cleanRoom, room_key: targetKey, auto_create: false }),
+        });
+        if (res.ok) {
+          config.roomId = cleanRoom;
+          config.roomKey = targetKey;
+          config.historyRooms = Array.from(new Set([cleanRoom, ...(config.historyRooms || [])]));
+          saveConfig(config);
+          loadData();
+          initSSE();
+          return;
+        }
+      } catch {}
+
+      // 如果需要密码或房间不存在，弹窗引导
+      cfgRoomId.value = cleanRoom;
+      cfgRoomKey.value = targetKey;
+      showConnectModal(`房间 ${cleanRoom} 受密码保护或未建立，请输入 Room Key`);
+    }
+
+    function render() {
+      if (!state.snapshot) return;
+      const snap = state.snapshot;
+
+      document.getElementById("header-room-title").textContent = snap.room?.name || config.roomId;
+      document.getElementById("topic-title-text").textContent = snap.linked_thread?.title || "未关联";
+      document.getElementById("footer-user-name").textContent = config.nickname || "liuweijia";
+
+      // 渲染成员
+      const membersContainer = document.getElementById("members-container");
+      membersContainer.innerHTML = (snap.members || []).map(m => `
+        <div class="member-item">
+          <div class="member-avatar-wrap">${m.avatar || "👤"}<span class="online-indicator"></span></div>
+          <span>${escapeHtml(m.name)}</span>
+          <span class="member-role-tag">${escapeHtml(m.title || (m.role === "ai" ? "AI" : "成员"))}</span>
+        </div>
+      `).join("");
+      document.getElementById("members-count-badge").textContent = `${state.onlineCount} 在线`;
+
+      // 渲染消息
+      const container = document.getElementById("messages-container");
+      container.innerHTML = (snap.messages || []).map((msg, index) => {
+        const isAi = msg.actor_type === "ai";
+        const avatar = isAi ? "🤖" : "👨‍💻";
+        const role = isAi ? "AI Copilot" : (msg.actor_id === config.nickname ? "我自己" : "成员");
+        return `
+          <div class="message-row ${isAi ? "ai" : ""}" id="msg-anchor-${index}">
+            <div class="message-avatar">${avatar}</div>
+            <div class="message-body-wrap">
+              <div class="message-meta">
+                <span class="message-author">${escapeHtml(msg.actor_id)}</span>
+                <span class="message-role-tag">${role}</span>
+                <span class="message-time">${new Date(msg.created_at || Date.now()).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"})}</span>
+              </div>
+              <div class="message-bubble">
+                ${escapeHtml(msg.content)}
+                ${msg.linked_thread ? `<div class="message-linked-tag">📌 ${escapeHtml(msg.linked_thread.title)}</div>` : ""}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      // 渲染定位轨
+      const rail = document.getElementById("turn-navigator");
+      rail.innerHTML = (snap.messages || []).map((msg, index) => {
+        const preview = (msg.content || "").slice(0, 30);
+        return `
+          <div class="nav-marker" onclick="scrollToMsg(${index})">
+            <div class="marker-tooltip">#${index + 1} ${escapeHtml(msg.actor_id)}: ${escapeHtml(preview)}</div>
+          </div>
+        `;
+      }).join("");
+
+      document.getElementById("drawer-text-box").textContent = state.compactText;
+    }
+
+    function scrollToMsg(index) {
+      const el = document.getElementById("msg-anchor-" + index);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    async function sendMessage() {
+      const textarea = document.getElementById("chat-textarea");
+      const content = textarea.value.trim();
+      if (!content) return;
+
+        const dev = typeof formatDeviceUser === "function" ? formatDeviceUser(config.nickname) : { nickname: config.nickname, memberId: config.nickname };
+        const res = await fetch(getApiUrl("/api/messages"), {
+          method: "POST",
+          headers: getHeaders(),
+          body: JSON.stringify({
+            room: config.roomId || "1024",
+            room_key: config.roomKey,
+            actor_id: config.memberId || dev.memberId,
+            actor_name: config.nickname || dev.nickname,
+            actor_type: "human",
+            content,
+          }),
+        });
+        if (res.status === 401) {
+          showConnectModal("该房间设置了访问密钥保护，请输入正确的 Room Key");
+          return;
+        }
+        if (!res.ok) {
+          alert("消息发送失败: HTTP " + res.status);
+          return;
+        }
+        textarea.value = "";
+        loadData();
+      } catch (err) {
+        alert("消息发送失败，请检查网络或服务状态: " + err.message);
+      }
+    }
+
+    document.getElementById("btn-submit-message").addEventListener("click", sendMessage);
+    document.getElementById("chat-textarea").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // 模态配置弹层控制
+    const connectModal = document.getElementById("connect-modal");
+    const cfgHubUrl = document.getElementById("cfg-hub-url");
+    const cfgRoomId = document.getElementById("cfg-room-id");
+    const cfgRoomKey = document.getElementById("cfg-room-key");
+    const cfgNickname = document.getElementById("cfg-nickname");
+    const cfgHistoryTags = document.getElementById("cfg-history-tags");
+    const connectErrorBanner = document.getElementById("connect-error-banner");
+    const btnSaveConfig = document.getElementById("btn-save-config");
+
+    function showConnectModal(errMsg = "") {
+      cfgHubUrl.value = config.hubUrl || window.location.origin;
+      cfgRoomId.value = config.roomId || "Media";
+      cfgRoomKey.value = config.roomKey || (config.roomKeys?.[config.roomId] || "");
+      cfgNickname.value = config.nickname || "liuweijia";
+
+      cfgHistoryTags.innerHTML = (config.historyRooms || ["Media"]).map(r => `
+        <button class="room-tag" type="button" data-room-id="${escapeHtml(r)}">${escapeHtml(r)}</button>
+      `).join("");
+
+      if (errMsg) {
+        connectErrorBanner.textContent = errMsg;
+        connectErrorBanner.hidden = false;
+      } else {
+        connectErrorBanner.hidden = true;
+      }
+      connectModal.hidden = false;
+    }
+
+    cfgHistoryTags.addEventListener("click", (e) => {
+      const tag = e.target.closest(".room-tag");
+      if (tag && tag.dataset.roomId) {
+        const targetRoom = tag.dataset.roomId;
+        cfgRoomId.value = targetRoom;
+        if (config.roomKeys?.[targetRoom]) {
+          cfgRoomKey.value = config.roomKeys[targetRoom];
+        }
+      }
+    });
+
+    document.getElementById("btn-fill-localhost").addEventListener("click", () => {
+      cfgHubUrl.value = "http://127.0.0.1:18765";
+    });
+
+    document.getElementById("btn-toggle-pwd")?.addEventListener("click", () => {
+      cfgRoomKey.type = cfgRoomKey.type === "password" ? "text" : "password";
+      document.getElementById("btn-toggle-pwd").textContent = cfgRoomKey.type === "password" ? "👁" : "🔒";
+    });
+
+    btnSaveConfig.addEventListener("click", async () => {
+      const hubUrl = cfgHubUrl.value.trim() || window.location.origin;
+      const roomId = cfgRoomId.value.trim() || "Media";
+      const roomKey = cfgRoomKey.value.trim();
+      const nickname = cfgNickname.value.trim() || "liuweijia";
+
+      btnSaveConfig.disabled = true;
+      btnSaveConfig.textContent = "正在验证...";
+      connectErrorBanner.hidden = true;
+
+      try {
+        const base = hubUrl.replace(/\/$/, "");
+        const res = await fetch(`${base}/api/rooms/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ room: roomId, room_key: roomKey, auto_create: true }),
+        });
+
+        if (res.status === 401) {
+          throw new Error("房间访问密码错误，请核对 Secret Token / Room Key");
+        }
+        if (!res.ok) {
+          throw new Error(`无法连接到 Hub 服务 (${res.status})`);
+        }
+
+        config = {
+          hubUrl,
+          roomId,
+          roomKey,
+          roomKeys: { ...(config.roomKeys || {}), [roomId]: roomKey },
+          nickname,
+          historyRooms: Array.from(new Set([roomId, ...(config.historyRooms || [])])),
+        };
+        saveConfig(config);
+        connectModal.hidden = true;
+        loadData();
+        initSSE();
+      } catch (err) {
+        connectErrorBanner.textContent = err.message || "连接失败";
+        connectErrorBanner.hidden = false;
+      } finally {
+        btnSaveConfig.disabled = false;
+        btnSaveConfig.textContent = "保存并连接";
+      }
+    });
+
+    document.getElementById("btn-close-connect-modal").addEventListener("click", () => { connectModal.hidden = true; });
+    document.getElementById("btn-cancel-config").addEventListener("click", () => { connectModal.hidden = true; });
+    document.getElementById("btn-topbar-settings").addEventListener("click", () => showConnectModal());
+    document.getElementById("room-status-pill").addEventListener("click", () => showConnectModal());
+    document.getElementById("btn-sidebar-settings").addEventListener("click", () => showConnectModal());
+    document.getElementById("user-profile-btn").addEventListener("click", () => showConnectModal());
+    document.getElementById("btn-add-room").addEventListener("click", () => showConnectModal());
+
+    // 抽屉
+    const overlay = document.getElementById("drawer-overlay");
+    document.getElementById("btn-open-distill").addEventListener("click", () => overlay.classList.add("open"));
+    document.getElementById("btn-close-drawer").addEventListener("click", () => overlay.classList.remove("open"));
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.classList.remove("open");
+    });
+    document.getElementById("btn-copy-drawer").addEventListener("click", () => {
+      navigator.clipboard.writeText(state.compactText).then(() => alert("已复制至剪贴板"));
+    });
+
+    document.getElementById("btn-lan-share").addEventListener("click", () => {
+      const text = `Hub: ${config.hubUrl} | Room: ${config.roomId}${config.roomKey ? ` | Key: ${config.roomKey}` : ""}`;
+      navigator.clipboard?.writeText(text);
+      alert("已复制房间接入信息，同事可凭此加入同一空间！");
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        if (!connectModal.hidden) {
+          connectModal.hidden = true;
+          return;
+        }
+        if (overlay && overlay.classList.contains("open")) {
+          overlay.classList.remove("open");
+          return;
+        }
+      }
+    });
+
+    // 启动
+    loadData();
+    initSSE();
+  </script>
+</body>
+</html>

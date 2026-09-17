@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Codex Windows 隔离测试</title>
+  <style>
+    :root { color-scheme: light; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; color: #1a1c1f; background: #fff; }
+    aside { width: 232px; flex: 0 0 232px; padding: 18px 12px; background: #f7f7f8; border-right: 1px solid rgba(0,0,0,.08); }
+    .brand { padding: 8px 10px 18px; font-weight: 650; }
+    nav { display: flex; flex-direction: column; gap: 4px; }
+    nav button { border: 0; background: transparent; border-radius: 8px; padding: 9px 10px; text-align: left; color: #5d636d; cursor: pointer; }
+    nav button:hover, nav button:focus-visible { background: rgba(0,0,0,.06); color: #1a1c1f; outline: none; }
+    main { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+    header { height: 56px; border-bottom: 1px solid rgba(0,0,0,.08); display: flex; align-items: center; padding: 0 24px; font-weight: 600; }
+    .conversation { width: min(760px, calc(100% - 48px)); margin: 0 auto; padding: 42px 0 120px; display: flex; flex-direction: column; gap: 22px; }
+    .message { max-width: 82%; padding: 12px 16px; border-radius: 18px; white-space: pre-wrap; }
+    .message.user { align-self: flex-end; background: #e8f3fe; color: #0c274a; }
+    .message.assistant { align-self: flex-start; color: #30343b; }
+    .message code { padding: 2px 5px; border-radius: 5px; background: rgba(0,0,0,.06); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .message pre { overflow: auto; padding: 10px 12px; border-radius: 8px; background: #f1f2f4; }
+    .message a { color: #2563eb; }
+    .hint { margin-top: 12px; color: #8b919a; font-size: 12px; text-align: center; }
+  </style>
+</head>
+<body>
+  <aside class="app-shell-left-panel">
+    <div class="brand">Codex · Windows 隔离测试</div>
+    <nav role="navigation" aria-label="Codex 导航">
+      <button type="button" aria-label="新对话">新对话</button>
+      <button type="button" aria-label="Pull Request">Pull Request</button>
+      <button type="button" aria-label="插件">插件</button>
+    </nav>
+  </aside>
+  <main>
+    <header>Windows 隔离测试对话</header>
+    <section class="conversation" aria-label="模拟 Codex 对话">
+      <div data-app-action-sidebar-thread-id="mock-thread" data-app-action-sidebar-thread-title="Windows 隔离测试对话" data-app-action-sidebar-thread-selected="true" hidden></div>
+      <div class="message user" data-user-message-bubble="true" data-markdown-text-tone="user-message">请帮我检查团队协作 Share 是否会重复发送，并保留这段上下文。</div>
+      <div class="message assistant" data-markdown-text-tone="assistant-message">可以。下面是一段包含 <code>client_message_id</code> 的模拟回复，并附带一个 <a href="https://example.com">示例链接</a>。</div>
+      <div class="message user" data-user-message-bubble="true" data-markdown-text-tone="user-message">请把代码块和链接一起放进 Markdown 卡片，拖动选择后再发送。</div>
+      <div class="message assistant" data-markdown-text-tone="assistant-message"><pre><code>const oneMessage = true;
+await shareContext();</code></pre></div>
+      <div class="hint">点击左侧“团队协作”入口后，点击 Share 测试卡片、拖选和 Markdown 复制。</div>
+    </section>
+  </main>
+  <script>
+    window.__TEAM_CONTEXT_HOST__ = window.location.origin;
+    window.__teamContextNativeCall = (raw) => {
+      let request;
+      try { request = JSON.parse(raw); } catch (error) { return; }
+      fetch(request.path, {
+        method: request.method || "GET",
+        headers: request.headers || {},
+        body: request.body || undefined,
+      }).then(async (response) => {
+        const type = response.headers.get("content-type") || "";
+        const data = type.includes("application/json") ? await response.json() : await response.text();
+        window.__teamContextOnNativeResponse?.(request.id, { id: request.id, ok: response.ok, status: response.status, data });
+      }).catch((error) => {
+        window.__teamContextOnNativeResponse?.(request.id, { id: request.id, ok: false, status: 500, error: error.message });
+      });
+    };
+  </script>
+  <script src="/inject/sidebar_fullscreen.js"></script>
+</body>
+</html>

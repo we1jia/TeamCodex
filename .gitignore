@@ -1,0 +1,27 @@
+# Unignore READMEs
+!README.md
+!**/README.md
+
+# Runtime & Browser Data
+codex-profile/
+data/chrome-app-profile/
+data/*.png
+data/*.log
+data/messages.json
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Packages & Archives
+*.tmp

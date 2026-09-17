@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+here="$(cd "$(dirname "$0")" && pwd)"
+if [[ -f "$here/../../../launch.sh" ]]; then
+  exec /bin/bash "$here/../../../launch.sh"
+elif [[ -f "$here/../../launch.sh" ]]; then
+  exec /bin/bash "$here/../../launch.sh"
+else
+  exec /bin/bash "/Users/liuweijia/Desktop/Media/team-context/macos/launch.sh"
+fi
