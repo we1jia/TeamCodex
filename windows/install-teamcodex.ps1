@@ -53,7 +53,19 @@ Write-Host "[4/4] 正在生成桌面快捷方式..." -ForegroundColor Cyan
 $shell = New-Object -ComObject WScript.Shell
 $desktopPath = [Environment]::GetFolderPath("Desktop")
 
-# 1. 主应用快捷方式（无黑框静默运行）
+# 清理旧的与测试模式快捷方式（避免桌面冗余）
+$oldShortcuts = @(
+  (Join-Path $desktopPath "TeamCodex 隔离测试模式.lnk"),
+  (Join-Path $desktopPath "TeamContext Windows Test.lnk"),
+  (Join-Path $desktopPath "TeamContext.lnk")
+)
+foreach ($oldLnk in $oldShortcuts) {
+  if (Test-Path -LiteralPath $oldLnk) {
+    try { Remove-Item -LiteralPath $oldLnk -Force -ErrorAction SilentlyContinue } catch {}
+  }
+}
+
+# 1. 唯一主应用快捷方式（无黑框静默运行）
 $mainShortcutPath = Join-Path $desktopPath "TeamCodex.lnk"
 $shortcut = $shell.CreateShortcut($mainShortcutPath)
 $shortcut.TargetPath = "wscript.exe"
@@ -65,19 +77,8 @@ if (Test-Path -LiteralPath $IconFile) {
 }
 $shortcut.Save()
 
-# 2. 隔离测试模式快捷方式
-$testShortcutPath = Join-Path $desktopPath "TeamCodex 隔离测试模式.lnk"
-$testShortcut = $shell.CreateShortcut($testShortcutPath)
-$testShortcut.TargetPath = (Join-Path $InstallRoot "windows\run-test.cmd")
-$testShortcut.WorkingDirectory = (Join-Path $InstallRoot "windows")
-$testShortcut.Description = "TeamCodex 虚拟机独立测试环境"
-if (Test-Path -LiteralPath $IconFile) {
-  $testShortcut.IconLocation = "$IconFile,0"
-}
-$testShortcut.Save()
-
 Write-Host "==================================================" -ForegroundColor Green
 Write-Host "  安装完成！桌面已生成专属快捷方式：" -ForegroundColor Green
-Write-Host "  1. [TeamCodex] - 双击在后台静默运行并挂载到日常 Codex (无黑框)" -ForegroundColor White
-Write-Host "  2. [TeamCodex 隔离测试模式] - 独立窗口测试（适用于虚拟机初测）" -ForegroundColor White
+Write-Host "  ★ [TeamCodex] - 双击在后台静默运行并挂载到日常 Codex (无黑框)" -ForegroundColor White
 Write-Host "==================================================" -ForegroundColor Green
+
