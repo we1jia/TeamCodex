@@ -6,6 +6,9 @@ Add-Type -AssemblyName System.Drawing
 
 function Show-TeamCodexTray {
   Add-Type -AssemblyName Microsoft.VisualBasic
+  try {
+    [System.Windows.Forms.Application]::SetUnhandledExceptionMode([System.Windows.Forms.UnhandledExceptionMode]::CatchException)
+  } catch {}
 
   # ==============================================================================
   # 1. 全局单实例互斥锁与旧进程强制清洗 (彻底消灭多重托盘图标)
@@ -75,7 +78,7 @@ function Show-TeamCodexTray {
   $notify.ContextMenuStrip = $menu
 
   # ==============================================================================
-  # 3. 专属原生悬浮控制面板弹窗 (左键点击唤起，失焦自动隐藏)
+  # 3. 专属原生悬浮控制面板弹窗 (左键点击唤起，失焦自动隐藏，原生 GDI 样式)
   # ==============================================================================
   $popup = New-Object System.Windows.Forms.Form
   $popup.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None
@@ -170,6 +173,7 @@ function Show-TeamCodexTray {
   $rowHub = New-StatusRow "中枢" "检测中..." 35
   $rowRoom = New-StatusRow "房间" "1024" 68
 
+  # 原生悬停渲染支持 (彻底移除 Add_MouseEnter/MouseLeave，杜绝闭包 null 异常)
   function New-ActionButton {
     param([string]$Text, [int]$Y)
     $btn = New-Object System.Windows.Forms.Button
@@ -180,11 +184,11 @@ function Show-TeamCodexTray {
     $btn.FlatStyle = [System.Windows.Forms.FlatStyle]::Flat
     $btn.FlatAppearance.BorderSize = 1
     $btn.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(51, 55, 66)
+    $btn.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(44, 48, 60)
+    $btn.FlatAppearance.MouseDownBackColor = [System.Drawing.Color]::FromArgb(55, 60, 75)
     $btn.BackColor = [System.Drawing.Color]::FromArgb(34, 37, 46)
     $btn.ForeColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
     $btn.Cursor = [System.Windows.Forms.Cursors]::Hand
-    $btn.Add_MouseEnter({ $btn.BackColor = [System.Drawing.Color]::FromArgb(44, 48, 60) })
-    $btn.Add_MouseLeave({ $btn.BackColor = [System.Drawing.Color]::FromArgb(34, 37, 46) })
     $cardPanel.Controls.Add($btn)
     return $btn
   }
@@ -347,7 +351,6 @@ function Show-TeamCodexTray {
         $script:trayMutex.Dispose()
       }
     } catch {}
-    # 彻底终止当前 PowerShell 进程
     try { [System.Environment]::Exit(0) } catch {}
     try { Stop-Process -Id $PID -Force } catch {}
   }
