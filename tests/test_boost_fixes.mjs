@@ -459,7 +459,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v79";/);
+  assert.match(uiCode, /const UI_VERSION = "inline-v80";/);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -582,6 +582,26 @@ test("21. 对话选择列表纯展示容器规范、解绑整行点击与双击�
 
   // 21.5 原生分享链接等待超时收敛至 1800ms
   assert.match(uiCode, /while\s*\(Date\.now\(\)\s*-\s*start\s*<\s*1800\)/);
+});
+
+test("22. 外链专属隔离、DOM就绪等待防漏读、短提问语境结构化杜绝孤立小写 n (inline-v80)", () => {
+  const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+
+  // 22.1 彻底根除 extractLocalThreadMessages 从全局 document.body 嗅探外链的漏洞
+  assert.doesNotMatch(uiCode, /docText\.match\(\/https:\\\/\\\/chatgpt\\\.com\\\/s\\\/cx_/);
+
+  // 22.2 obtainNativeShareUrl 采用 threadShareUrlCache 专属隔离缓存，严禁盲取剪贴板历史残留
+  assert.match(uiCode, /const threadShareUrlCache = new Map\(\);/);
+  assert.doesNotMatch(uiCode, /const existing = await readClipboardSafe\(\);\s*if\s*\(existing\)\s*return existing;/);
+  assert.match(uiCode, /threadShareUrlCache\.set\(threadKey,\s*generated\)/);
+
+  // 22.3 具备基于文本指纹变更与节点数检测的 waitForThreadContentReady
+  assert.match(uiCode, /const waitForThreadContentReady = async \(\) =>/);
+  assert.match(uiCode, /before\.firstText !== current\.firstText/);
+
+  // 22.4 renderMessage 中针对长度<=3的极短提问进行上下文结构化，彻底消灭孤立单字如 "n"
+  assert.match(uiCode, /if \(previewText\.length <= 3\)/);
+  assert.match(uiCode, /用户:\s*\$\{previewText\}\s*｜\s*回复:\s*\$\{replySnippet\}/);
 });
 
 

@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v79";
+  const UI_VERSION = "inline-v80";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -4282,13 +4282,6 @@
           break;
         }
       }
-      if (!shareUrl) {
-        try {
-          const docText = document.body.innerText || "";
-          const linkMatch = docText.match(/https:\/\/chatgpt\.com\/s\/cx_[a-zA-Z0-9_\-]+/);
-          if (linkMatch) shareUrl = linkMatch[0];
-        } catch {}
-      }
 
       const firstUserMsg = messages.find(m => m.role === "用户");
       const firstUserPrompt = firstUserMsg ? firstUserMsg.text : (messages[0]?.text || "");
@@ -4668,20 +4661,39 @@
                 linkedThread = thread;
                 renderLink();
 
-                const waitForSwitch = async () => {
+                const waitForThreadContentReady = async () => {
+                  const getThreadSnippet = () => {
+                    const nodes = Array.from(document.querySelectorAll(
+                      "[data-markdown-text-tone='user-message'], [data-markdown-text-style='assistant-message'], article, [data-user-message-bubble], .bg-user-message"
+                    ));
+                    const firstText = (nodes[0]?.innerText || nodes[0]?.textContent || "").trim();
+                    return { count: nodes.length, firstText: firstText.slice(0, 80) };
+                  };
+
+                  const before = getThreadSnippet();
                   const start = Date.now();
-                  while (Date.now() - start < 1200) {
+
+                  // 轮询等待新会话消息加载就绪
+                  while (Date.now() - start < 3500) {
+                    await new Promise((r) => setTimeout(r, 60));
                     const curSel = document.querySelector('[data-app-action-sidebar-thread-selected="true"]');
                     const curId = curSel?.getAttribute("data-app-action-sidebar-thread-id");
-                    if (curId && thread.id && curId === thread.id) {
-                      await new Promise((r) => setTimeout(r, 120));
-                      break;
+                    const isSidebarMatched = !thread.id || (curId && curId === thread.id);
+                    const current = getThreadSnippet();
+
+                    // 满足条件：侧栏选中已匹配且消息节点数大于0
+                    if (isSidebarMatched && current.count > 0) {
+                      // 确保内容不再是旧对话的残余（首句指纹变更或等待超过 800ms）
+                      if (!before.count || before.firstText !== current.firstText || Date.now() - start > 800) {
+                        await new Promise((r) => setTimeout(r, 150));
+                        return true;
+                      }
                     }
-                    await new Promise((r) => setTimeout(r, 50));
                   }
+                  return false;
                 };
 
-                waitForSwitch()
+                waitForThreadContentReady()
                   .then(() => shareCurrentThreadToTeam())
                   .catch((err) => {
                     console.warn("[TeamContext] share remote thread failed:", err);
@@ -4971,8 +4983,16 @@
       renderContextSelectionList();
     };
 
+    // 每个会话专属的公开分享链接独立缓存，杜绝跨会话串味与污染
+    const threadShareUrlCache = new Map();
+
     // 异步生成并获取 OpenAI / Codex 原生公开分享链接 (https://chatgpt.com/s/cx_...)
-    const obtainNativeShareUrl = async () => {
+    const obtainNativeShareUrl = async (targetThread = null) => {
+      const threadKey = targetThread?.id || targetThread?.title || linkedThread?.id || linkedThread?.title;
+      if (threadKey && threadShareUrlCache.has(threadKey)) {
+        return threadShareUrlCache.get(threadKey);
+      }
+
       const readClipboardSafe = async () => {
         try {
           if (navigator.clipboard?.readText) {
@@ -4984,11 +5004,7 @@
         return null;
       };
 
-      // 1. 检查当前剪贴板是否已有刚生成的分享链接
-      const existing = await readClipboardSafe();
-      if (existing) return existing;
-
-      // 2. 自动化触发官方原生分享与复制流程
+      // 自动化触发官方原生分享与复制流程
       try {
         const shareBtn = Array.from(document.querySelectorAll("button")).find(b =>
           b.innerText?.trim() === "分享" || b.getAttribute("aria-label") === "分享"
@@ -5024,9 +5040,12 @@
               Array.from(dialog.querySelectorAll("button")).find(b => b.innerText?.trim() === "关闭对话框");
             if (closeBtn) closeBtn.click();
 
-            // 双通道从剪贴板提取生成的链接
+            // 从剪贴板提取刚刚生成写入的链接
             const generated = await readClipboardSafe();
-            if (generated) return generated;
+            if (generated) {
+              if (threadKey) threadShareUrlCache.set(threadKey, generated);
+              return generated;
+            }
             break;
           }
         }
@@ -5059,7 +5078,7 @@
       let shareUrl = extracted.shareUrl || null;
       if (!shareUrl) {
         showToast("⏳ 正在获取/生成官方原生公开分享链接...");
-        shareUrl = await obtainNativeShareUrl();
+        shareUrl = await obtainNativeShareUrl(thread);
       }
 
       // 组装全量轮次的 Markdown 完整上下文记录
@@ -5588,7 +5607,7 @@
        const modelLabel = capture.model_label ? ` · ${escapeHtml(capture.model_label)}` : "";
 
         // 提取第一条提问内容作为气泡卡片预览
-        let previewText = message.metadata?.first_user_prompt || "";
+        let previewText = (message.metadata?.first_user_prompt || "").trim();
         if (!previewText) {
           const userMatch = contentText.match(/- \*\*用户\*\*[:：]\s*([\s\S]*?)(?=\n- \*\*Codex\*\*[:：]|$)/);
           if (userMatch && userMatch[1].trim()) {
@@ -5599,6 +5618,16 @@
               return t && !t.startsWith("#") && !t.startsWith("http") && !t.startsWith("🔗") && !t.startsWith("本次分享来自") && !t.startsWith("快照编号") && !t.startsWith("团队快照") && !t.startsWith("官方公开链接") && !t.startsWith("- **Codex**");
             });
             previewText = cleanLines.slice(0, 3).join("\n") || snapMarkdown.slice(0, 160);
+          }
+        }
+
+        // 如果提问过短（如单个字母 "n"、单字等），结合 Codex 回复呈现完整问答语境，杜绝突兀单字
+        if (previewText.length <= 3) {
+          const fullText = message.metadata?.full_markdown || contentText;
+          const codexMatch = fullText.match(/- \*\*Codex\*\*[:：]\s*([\s\S]*?)(?=\n- \*\*用户\*\*[:：]|$)/);
+          const replySnippet = codexMatch ? codexMatch[1].trim().split("\n")[0].slice(0, 60) : "";
+          if (replySnippet) {
+            previewText = previewText ? `用户: ${previewText} ｜ 回复: ${replySnippet}` : replySnippet;
           }
         }
 
