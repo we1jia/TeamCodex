@@ -201,10 +201,16 @@ function stopAttach() {
 function startAttach() {
   const cfg = loadConfig();
   stopAttach();
+  const attachLogPath = path.join(ROOT, "data", "attach.log");
+  let outFd = "ignore";
+  try {
+    fs.mkdirSync(path.dirname(attachLogPath), { recursive: true });
+    outFd = fs.openSync(attachLogPath, "a");
+  } catch {}
   const child = spawn(process.execPath, [path.join(ROOT, "inject", "attach_codex.mjs")], {
     cwd: ROOT,
     detached: true,
-    stdio: "ignore",
+    stdio: ["ignore", outFd, outFd],
     env: {
       ...process.env,
       TEAM_CONTEXT_HOST: cfg.hub_url,
@@ -215,11 +221,43 @@ function startAttach() {
   child.unref();
 }
 
+function launchCodex() {
+  const port = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
+  if (process.platform === "darwin") {
+    try {
+      execSync(`osascript -e 'tell application "ChatGPT" to quit' 2>/dev/null || true`);
+      execSync(`sleep 0.4; pkill -f "ChatGPT.app/Contents/MacOS/ChatGPT" 2>/dev/null || true`);
+    } catch {}
+    spawn("/usr/bin/open", [
+      "-a",
+      "/Applications/ChatGPT.app",
+      "--args",
+      "--remote-debugging-address=127.0.0.1",
+      `--remote-debugging-port=${port}`,
+    ], { detached: true, stdio: "ignore" }).unref();
+  } else if (process.platform === "win32") {
+    const runScript = path.join(ROOT, "windows", "run-teamcodex.ps1");
+    spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", runScript], {
+      detached: true,
+      stdio: "ignore",
+    }).unref();
+  }
+}
+
 async function hubHealth(hubUrl) {
   try {
     const { status, body } = await requestJson(`${hubUrl.replace(/\/$/, "")}/api/health`, 1500);
     if (status === 200 && body?.ok) return body;
   } catch {}
+  if (!hubUrl.includes("127.0.0.1") && !hubUrl.includes("localhost")) {
+    try {
+      const { status, body } = await requestJson("http://127.0.0.1:18765/api/health", 1000);
+      if (status === 200 && body?.ok) {
+        saveConfig({ hub_url: "http://127.0.0.1:18765" });
+        return body;
+      }
+    } catch {}
+  }
   return null;
 }
 
@@ -384,7 +422,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/api/start-codex") {
-    startAttach();
+    launchCodex();
+    setTimeout(() => {
+      startAttach();
+    }, 1200);
     sendJson(res, 200, { ok: true });
     return;
   }
@@ -413,4 +454,5 @@ server.listen(PORT, "127.0.0.1", () => {
     fs.appendFileSync(LOG_FILE, `${line}\n`);
   } catch {}
   console.log(line);
+  startAttach();
 });

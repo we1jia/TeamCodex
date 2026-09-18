@@ -4053,8 +4053,15 @@
           connectModal.hidden = false;
           setTimeout(() => cfgRoomKey?.focus(), 120);
         } else {
-          // 无论是超时还是其他网络错误，明确设置 connState.status = "error"，绝不允许静默停留在 "connecting"
           console.warn("[TeamContext] direct fetch failed/fallback:", err.message);
+          const defaultHost = (window.__TEAM_CONTEXT_HOST__ || "http://127.0.0.1:18765").replace(/\/?\?.*$/, "").replace(/\/$/, "");
+          if (hub !== defaultHost) {
+            console.log(`[TeamContext] 远端 Hub [${hub}] 连接受阻，自动回退到本地中枢 [${defaultHost}]...`);
+            config.hubUrl = defaultHost;
+            saveConfig(config);
+            return connectHub(config, isSwitch);
+          }
+          // 无论是超时还是其他网络错误，明确设置 connState.status = "error"，绝不允许静默停留在 "connecting"
           connState.status = "error";
           connState.errorMessage = err.message.includes("超时") ? "连接超时" : "连接失败";
           updatePillUI();

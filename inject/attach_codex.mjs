@@ -21,6 +21,8 @@ const INJECT_FILE = path.join(ROOT, "inject", "sidebar_fullscreen.js");
 const HOST_URL = process.env.TEAM_CONTEXT_HOST || "http://127.0.0.1:18765";
 const CHATGPT_BIN = "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT";
 const FALLBACK_CDP_PORT = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
+const DEFAULT_ROOM = process.env.TEAM_CONTEXT_DEFAULT_ROOM || "1024";
+const DEFAULT_ROOM_KEY = process.env.TEAM_CONTEXT_DEFAULT_ROOM_KEY || "123456";
 
 function getJson(url) {
   return new Promise((resolve, reject) => {
@@ -199,13 +201,11 @@ function discoverCdpPort() {
 }
 
 function injectSource(script) {
-  const defaultRoom = process.env.TEAM_CONTEXT_DEFAULT_ROOM || "1024";
-  const defaultRoomKey = process.env.TEAM_CONTEXT_DEFAULT_ROOM_KEY || "123456";
   return `document.querySelectorAll('#team-context-fullscreen-page iframe, iframe[src*="127.0.0.1:18765"]').forEach((node) => node.remove());
 window.__TEAM_CONTEXT_HOST__=${JSON.stringify(HOST_URL)};
 window.__TEAM_CONTEXT_OS__=${JSON.stringify(process.platform)};
-window.__TEAM_CONTEXT_DEFAULT_ROOM__=${JSON.stringify(defaultRoom)};
-window.__TEAM_CONTEXT_DEFAULT_ROOM_KEY__=${JSON.stringify(defaultRoomKey)};
+window.__TEAM_CONTEXT_DEFAULT_ROOM__=${JSON.stringify(DEFAULT_ROOM)};
+window.__TEAM_CONTEXT_DEFAULT_ROOM_KEY__=${JSON.stringify(DEFAULT_ROOM_KEY)};
 ${script}`;
 }
 
@@ -423,8 +423,8 @@ async function injectTarget(target, source, sessions) {
     });
     const state = pageState?.result?.value || {};
     const payload = state.pending;
-    const currentRoom = state.config?.roomId || defaultRoom || "1024";
-    const currentKey = state.config?.roomKey || defaultRoomKey || "123456";
+    const currentRoom = state.config?.roomId || DEFAULT_ROOM || "1024";
+    const currentKey = state.config?.roomKey || DEFAULT_ROOM_KEY || "123456";
 
     // 轮询队列兜底处理挂起的 RPC 调用
     if (Array.isArray(state.pendingCalls) && state.pendingCalls.length > 0) {
