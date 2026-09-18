@@ -195,7 +195,7 @@ TeamCodex/
 ├── scripts/                    # 运维与自动化部署脚本 (deploy-hub.sh)
 ├── docs/                       # 架构设计与网络接入全景指南 (HUB_DEPLOYMENT.md)
 ├── tests/                      # 59 项全自动化测试套件 (单测与端到端状态机)
-├── version.json                # 客户端版本定义 (v1.1.0)
+├── version.json                # 客户端版本定义 (v1.1.1)
 ├── Dockerfile                  # 极简 Alpine Node 生产镜像定义
 ├── docker-compose.yml          # 一键容器化服务编排
 └── README.md
@@ -402,7 +402,7 @@ TeamCodex/
 ├── scripts/                    # Ops & automation deployment scripts (deploy-hub.sh)
 ├── docs/                       # Architectural & deployment manuals (HUB_DEPLOYMENT.md)
 ├── tests/                      # 59 automated unit and end-to-end test cases
-├── version.json                # Client version manifest (v1.1.0)
+├── version.json                # Client version manifest (v1.1.1)
 ├── Dockerfile                  # Lightweight Alpine production container definition
 ├── docker-compose.yml          # Container orchestration configuration
 └── README.md

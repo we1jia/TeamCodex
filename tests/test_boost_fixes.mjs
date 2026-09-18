@@ -945,7 +945,7 @@ test("36. 官方 Codex 插件体系整合、元数据规范、Hook 自动注入�
   assert.ok(fs.existsSync(pluginJsonPath), ".codex-plugin/plugin.json 应存在");
   const manifest = JSON.parse(fs.readFileSync(pluginJsonPath, "utf8"));
   assert.strictEqual(manifest.name, "team-codex");
-  assert.strictEqual(manifest.version, "1.1.0");
+  assert.strictEqual(manifest.version, "1.1.1");
   assert.ok(manifest.skills && manifest.skills.includes("skills/team-codex/"));
   assert.ok(manifest.hooks && manifest.hooks.includes("hooks/hooks.json"));
   assert.ok(manifest.interface && manifest.interface.defaultPrompt.length >= 3);

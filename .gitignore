@@ -7,6 +7,8 @@ codex-profile/
 data/chrome-app-profile/
 data/*.png
 data/*.log
+data/*.json
+!data/hub_discovery.json
 data/messages.json
 
 # OS & Editor

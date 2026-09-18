@@ -30,7 +30,7 @@ MAC_SIZES = {
     "icon_512x512@2x.png": 1024,
 }
 
-def create_squircle_mask(size=(1024, 1024), rect=(100, 100, 924, 924), radius=185):
+def create_squircle_mask(size=(1024, 1024), rect=(72, 72, 952, 952), radius=205):
     """创建超采样的平滑 Squircle 遮罩"""
     scale = 4
     w, h = size[0] * scale, size[1] * scale
@@ -47,18 +47,18 @@ def create_mac_background(size=(1024, 1024)):
     """创建苹果官方级纯净瓷白渐变底板并带有细微描边与悬浮双层阴影"""
     canvas = Image.new("RGBA", size, (0, 0, 0, 0))
     
-    shadow_mask = create_squircle_mask(size, rect=(100, 100, 924, 924), radius=185)
+    shadow_mask = create_squircle_mask(size, rect=(72, 72, 952, 952), radius=205)
     
     # 底层远距离柔和扩散阴影 (dy=22, blur=30, opacity=11%)
-    s2 = Image.new("RGBA", size, (15, 23, 42, 28))
+    s2 = Image.new("RGBA", size, (15, 23, 42, 18))
     s2.putalpha(shadow_mask)
-    s2 = s2.filter(ImageFilter.GaussianBlur(radius=26))
+    s2 = s2.filter(ImageFilter.GaussianBlur(radius=24))
     canvas.paste(s2, (0, 20), s2)
 
     # 顶层近距离接触阴影 (dy=7, blur=12, opacity=8%)
-    s1 = Image.new("RGBA", size, (15, 23, 42, 20))
+    s1 = Image.new("RGBA", size, (15, 23, 42, 14))
     s1.putalpha(shadow_mask)
-    s1 = s1.filter(ImageFilter.GaussianBlur(radius=10))
+    s1 = s1.filter(ImageFilter.GaussianBlur(radius=9))
     canvas.paste(s1, (0, 7), s1)
 
     # 瓷白底板微渐变：顶部 #FFFFFF (255, 255, 255)，底部 #F5F7FA (245, 247, 250)
@@ -72,19 +72,19 @@ def create_mac_background(size=(1024, 1024)):
         draw_plate.line([(0, y), (size[0], y)], fill=(r, g, b, 255))
     
     # 遮罩裁切
-    stroke_mask = create_squircle_mask(size, rect=(100, 100, 924, 924), radius=185)
+    stroke_mask = create_squircle_mask(size, rect=(72, 72, 952, 952), radius=205)
     plate.putalpha(stroke_mask)
     
     # 浅灰物理微描边 (#E2E8F0, 0.7 opacity)
     stroke_overlay = Image.new("RGBA", size, (0, 0, 0, 0))
     draw_stroke = ImageDraw.Draw(stroke_overlay)
-    draw_stroke.rounded_rectangle((100, 100, 924, 924), radius=185, outline=(226, 232, 240, 180), width=2)
+    draw_stroke.rounded_rectangle((72, 72, 952, 952), radius=205, outline=(214, 222, 234, 190), width=2)
     plate.alpha_composite(stroke_overlay)
 
     canvas.alpha_composite(plate)
     return canvas
 
-def extract_and_scale_cloud(target_width=712):
+def extract_and_scale_cloud(target_width=760):
     """从原素材提取双云朵主体，并等比放大至饱满尺寸"""
     raw = Image.open(MASTER_SOURCE).convert("RGBA")
     bbox = raw.getchannel("A").getbbox()
@@ -106,19 +106,19 @@ def add_cloud_shadow(cloud_img, size=(1024, 1024), pos=(156, 184)):
     cloud_alpha = cloud_img.getchannel("A")
     
     # 1. 深度柔和投影 (dy=18, blur=22, 颜色带有一点深靛蓝冷色调)
-    sh_deep = Image.new("RGBA", (cw, ch), (30, 41, 59, 75))
+    sh_deep = Image.new("RGBA", (cw, ch), (30, 41, 59, 52))
     sh_deep.putalpha(cloud_alpha)
     temp_deep = Image.new("RGBA", size, (0, 0, 0, 0))
     temp_deep.paste(sh_deep, (pos[0], pos[1] + 18), sh_deep)
-    temp_deep = temp_deep.filter(ImageFilter.GaussianBlur(radius=20))
+    temp_deep = temp_deep.filter(ImageFilter.GaussianBlur(radius=18))
     canvas.alpha_composite(temp_deep)
     
     # 2. 近距离接触投影 (dy=6, blur=8)
-    sh_near = Image.new("RGBA", (cw, ch), (15, 23, 42, 45))
+    sh_near = Image.new("RGBA", (cw, ch), (15, 23, 42, 28))
     sh_near.putalpha(cloud_alpha)
     temp_near = Image.new("RGBA", size, (0, 0, 0, 0))
     temp_near.paste(sh_near, (pos[0], pos[1] + 6), sh_near)
-    temp_near = temp_near.filter(ImageFilter.GaussianBlur(radius=8))
+    temp_near = temp_near.filter(ImageFilter.GaussianBlur(radius=7))
     canvas.alpha_composite(temp_near)
 
     # 3. 粘贴云朵本体
@@ -127,7 +127,7 @@ def add_cloud_shadow(cloud_img, size=(1024, 1024), pos=(156, 184)):
 
 def build_full_icon():
     bg = create_mac_background()
-    cloud = extract_and_scale_cloud(target_width=712)
+    cloud = extract_and_scale_cloud(target_width=760)
     cw, ch = cloud.size
     
     x = (1024 - cw) // 2
