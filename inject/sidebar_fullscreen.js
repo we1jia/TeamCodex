@@ -7339,5 +7339,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       positionPage(existing);
     }
   }
+  window.__teamContextTabInstalled = true;
+  window.__teamContextUiVersion = UI_VERSION;
   return result;
 })();

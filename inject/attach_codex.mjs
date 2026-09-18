@@ -413,10 +413,19 @@ async function injectTarget(target, source, sessions) {
     if (probe?.result?.value !== true) {
       return { installed: false, reason: "not-codex-sidebar" };
     }
-    const result = await session.send("Runtime.evaluate", {
-      expression: source,
+    // 轻量探针检测：若已安装且侧栏 Tab 节点存在，跳过 328KB 脚本的重复 Evaluate，避免阻塞主渲染线程与触控板手势
+    const isInstalledProbe = await session.send("Runtime.evaluate", {
+      expression: `Boolean(window.__teamContextTabInstalled && document.getElementById('team-context-sidebar-tab'))`,
       returnByValue: true,
-    });
+    }).catch(() => null);
+
+    let result = null;
+    if (isInstalledProbe?.result?.value !== true) {
+      result = await session.send("Runtime.evaluate", {
+        expression: source,
+        returnByValue: true,
+      });
+    }
     const pageState = await session.send("Runtime.evaluate", {
       expression: "(() => ({ pending: window.__teamContextTakePending ? window.__teamContextTakePending() : null, config: window.__teamContextGetConfig ? window.__teamContextGetConfig() : null, pendingConfig: window.__teamContextPendingConfig || null, pendingCalls: window.__teamContextTakePendingCalls ? window.__teamContextTakePendingCalls() : null }))()",
       returnByValue: true,
@@ -522,11 +531,12 @@ async function attachLoop(port) {
   }
   const sessions = new Map();
   console.log(`attach Codex CDP http://127.0.0.1:${port} host=${HOST_URL}`);
-  let lastOk = "";
+  let currentDelay = 1500;
   for (;;) {
     try {
       const source = injectSource(await resolveInjectScript());
       const targets = await getJson(`http://127.0.0.1:${port}/json/list`);
+      currentDelay = 1500; // 成功连接后恢复基础 1.5s 周期
       const pages = targets.filter(isCodexPage);
       const activeIds = new Set(pages.map((p) => p.id));
       for (const [id, s] of sessions.entries()) {
@@ -545,9 +555,11 @@ async function attachLoop(port) {
         }
       }
     } catch (error) {
-      console.error(`inject retry: ${error.message}`);
+      console.error(`inject retry (${currentDelay}ms): ${error.message}`);
+      // 错误时指数退避，最大 8000ms，避免持续死循环打爆系统调度
+      currentDelay = Math.min(Math.round(currentDelay * 1.5), 8000);
     }
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, currentDelay));
   }
 }
 
@@ -573,6 +585,9 @@ function sleep(ms) {
 async function launchCodexWithCdp(port) {
   console.log(`starting ChatGPT with --remote-debugging-port=${port}`);
   if (process.platform === "darwin") {
+    try {
+      execFileSync("/bin/sh", ["-c", "ps -ef | grep 'bare-modifier-monitor' | grep -v grep | awk '$3 == 1 {print $2}' | xargs kill -9 2>/dev/null || true"]);
+    } catch {}
     const appPath = "/Applications/ChatGPT.app";
     if (fs.existsSync(appPath)) {
       try {
