@@ -46,6 +46,21 @@ TeamCodex 将 **AI 的动态多轮推理链路（Context Chain）** 转化为像
 
 ---
 
+### 实机演示：Mac 与 Windows 跨端实时协同 (Live Demo)
+
+以下为真实环境下 **Mac 宿主机** 与 **Windows 11 协同端** 的跨平台实时协同录屏（已提速并配有字幕说明，完整解说视频参见 [docs/assets/teamcodex_demo.mp4](docs/assets/teamcodex_demo.mp4)）：
+
+<p align="center">
+  <img src="docs/assets/teamcodex_demo.gif" alt="TeamCodex 跨端实时协同与上下文一键注入实机演示" width="100%" />
+</p>
+
+- 🚀 **1. Mac 端一键脱敏分享**：在 Codex 客户端侧边栏点击【分享对话】，选择任意排查或攻坚会话，一键生成脱敏快照并广播；
+- ⚡ **2. Windows 端毫秒级感知**：虚拟机/远程协同端零延迟自动上屏新卡片，实现全团队思维链秒级对齐；
+- 🧩 **3. 跨机多选与结构化注入**：协作者可勾选多条讨论卡片，一键【选择对话导入】，选定上下文瞬时注入新会话 Prompt，接续推进研发；
+- 🔍 **4. 决策证据穿透**：点击详情可完整回溯模型推理、报错依据与关键决策细节，根除二次传话误差。
+
+---
+
 ### 2. 客户端下载与交互体验
 
 前往 **[GitHub Releases 最新发布页](https://github.com/we1jia/TeamCodex/releases)** 下载官方原生安装包：
@@ -237,6 +252,21 @@ TeamCodex turns **AI conversation state into a first-class collaborative asset**
 <p align="center">
   <img src="docs/assets/architecture_en.png" alt="TeamCodex System Architecture" width="100%" />
 </p>
+
+---
+
+### Live Demo: Cross-Platform Real-Time Sync & Context Relay (Mac & Windows)
+
+The screencast below demonstrates real-time collaboration between a **macOS host** and a **Windows 11 peer** (accelerated with synchronized commentary; see [docs/assets/teamcodex_demo.mp4](docs/assets/teamcodex_demo.mp4) for the high-definition narrated video):
+
+<p align="center">
+  <img src="docs/assets/teamcodex_demo.gif" alt="TeamCodex Live Cross-Platform Demo" width="100%" />
+</p>
+
+- 🚀 **1. One-Click Sanitized Share (macOS)**: Click "Share Conversation" in the Codex sidebar, select any active troubleshooting session, and broadcast a privacy-scrubbed snapshot;
+- ⚡ **2. Sub-Second Presence & Sync (Windows)**: The peer client automatically renders incoming thread cards with zero latency, aligning the team's reasoning chains instantly;
+- 🧩 **3. Multi-Select & Structured Injection**: Select multiple context cards and click "Import Selected Dialogues" to inject verified historical context directly into the new conversation prompt;
+- 🔍 **4. Traceable Decision Evidence**: Expand card details to review the underlying model inferences, error evidence, and reasoning trajectory.
 
 ---
 
