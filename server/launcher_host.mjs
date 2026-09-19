@@ -280,10 +280,21 @@ function launchCodex(opts = {}) {
     if (force) {
       try {
         execSync(`osascript -e 'tell application "ChatGPT" to quit' 2>/dev/null || true`);
-        execSync(`sleep 0.4; pkill -f "ChatGPT.app/Contents/MacOS/ChatGPT" 2>/dev/null || true`);
+        const start = Date.now();
+        while (Date.now() - start < 3000) {
+          try {
+            execSync(`/usr/bin/pgrep -f "ChatGPT.app/Contents/MacOS/ChatGPT"`, { stdio: "ignore" });
+            execSync(`/bin/sleep 0.3`);
+          } catch {
+            break;
+          }
+        }
+        execSync(`/usr/bin/pkill -f "ChatGPT.app/Contents/MacOS/ChatGPT" 2>/dev/null || true`);
+        execSync(`/bin/sleep 0.5`);
       } catch {}
     }
     spawn("/usr/bin/open", [
+      "-n",
       "-a",
       "/Applications/ChatGPT.app",
       "--args",
