@@ -532,6 +532,7 @@ async function attachLoop(port) {
   const sessions = new Map();
   console.log(`attach Codex CDP http://127.0.0.1:${port} host=${HOST_URL}`);
   let currentDelay = 1500;
+  let lastOk = "";
   for (;;) {
     try {
       const source = injectSource(await resolveInjectScript());
@@ -622,17 +623,7 @@ async function launchCodexWithCdp(port) {
 }
 
 async function waitForCodexRestart() {
-  console.log("检测到现有 Codex 正在运行但无调试端口，尝试拉起带调试端口的协作实例...");
-  if (process.platform === "darwin") {
-    try {
-      await launchCodexWithCdp(FALLBACK_CDP_PORT);
-      try {
-        await waitForPort(FALLBACK_CDP_PORT, 60);
-        return FALLBACK_CDP_PORT;
-      } catch {}
-    } catch {}
-  }
-  console.error("等待 Codex 带有调试端口实例就绪...");
+  console.log("检测到现有 Codex 正在运行但无调试端口，等待带有调试端口的实例就绪...");
   for (let i = 0; i < 30; i += 1) {
     const discovered = discoverCdpPort();
     if (discovered) return discovered;
