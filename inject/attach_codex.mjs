@@ -520,9 +520,10 @@ async function injectTarget(target, source, sessions) {
   }
 }
 
-async function attachLoop(port) {
-  const safety = assertSafeCodexUiTarget({
-    cdpUrl: `http://127.0.0.1:${port}`,
+async function attachLoop(initialPort) {
+  let currentPort = initialPort;
+  let safety = assertSafeCodexUiTarget({
+    cdpUrl: `http://127.0.0.1:${currentPort}`,
     listenPorts: listListenPorts(),
   });
   if (!safety.ok) {
@@ -530,14 +531,16 @@ async function attachLoop(port) {
     process.exit(2);
   }
   const sessions = new Map();
-  console.log(`attach Codex CDP http://127.0.0.1:${port} host=${HOST_URL}`);
+  console.log(`attach Codex CDP http://127.0.0.1:${currentPort} host=${HOST_URL}`);
   let currentDelay = 1500;
   let lastOk = "";
+  let consecutiveErrors = 0;
   for (;;) {
     try {
       const source = injectSource(await resolveInjectScript());
-      const targets = await getJson(`http://127.0.0.1:${port}/json/list`);
+      const targets = await getJson(`http://127.0.0.1:${currentPort}/json/list`);
       currentDelay = 1500; // 成功连接后恢复基础 1.5s 周期
+      consecutiveErrors = 0;
       const pages = targets.filter(isCodexPage);
       const activeIds = new Set(pages.map((p) => p.id));
       for (const [id, s] of sessions.entries()) {
@@ -556,8 +559,42 @@ async function attachLoop(port) {
         }
       }
     } catch (error) {
-      console.error(`inject retry (${currentDelay}ms): ${error.message}`);
-      // 错误时指数退避，最大 8000ms，避免持续死循环打爆系统调度
+      consecutiveErrors += 1;
+      console.error(`inject retry (${currentDelay}ms): ${error.message} (port=${currentPort})`);
+      
+      // 当连接失败时（例如 Cockpit 切号导致实例重启并换了端口），主动嗅探最新端口
+      const newPort = discoverCdpPort();
+      if (newPort && newPort !== currentPort) {
+        const newSafety = assertSafeCodexUiTarget({
+          cdpUrl: `http://127.0.0.1:${newPort}`,
+          listenPorts: listListenPorts(),
+        });
+        if (newSafety.ok) {
+          console.log(`[attach_codex] 检测到 Codex 调试端口迁移: ${currentPort} -> ${newPort}，正在无缝切换热重连...`);
+          for (const [id, s] of sessions.entries()) {
+            try { s?.close(); } catch {}
+          }
+          sessions.clear();
+          currentPort = newPort;
+          safety = newSafety;
+          currentDelay = 1000;
+          consecutiveErrors = 0;
+          await new Promise((resolve) => setTimeout(resolve, currentDelay));
+          continue;
+        }
+      }
+
+      // 针对 macOS：在错误退避时顺手清理脱离父进程 (PPID=1) 的孤儿修饰键监听器，保持系统输入丝滑
+      if (process.platform === "darwin" && consecutiveErrors % 3 === 0) {
+        try {
+          execFileSync("/bin/sh", [
+            "-c",
+            "ps -ef | grep 'bare-modifier-monitor' | grep -v grep | awk '$3 == 1 {print $2}' | xargs kill -9 2>/dev/null || true",
+          ]);
+        } catch {}
+      }
+
+      // 错误时指数退避，最大 8000ms，避免死循环打爆系统调度
       currentDelay = Math.min(Math.round(currentDelay * 1.5), 8000);
     }
     await new Promise((resolve) => setTimeout(resolve, currentDelay));

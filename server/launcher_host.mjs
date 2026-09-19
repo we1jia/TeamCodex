@@ -273,6 +273,17 @@ function hasCustomProxyConfig() {
   return false;
 }
 
+function reapOrphanModifierMonitors() {
+  if (process.platform === "darwin") {
+    try {
+      execSync("ps -ef | grep 'bare-modifier-monitor' | grep -v grep | awk '$3 == 1 {print $2}' | xargs kill -9 2>/dev/null || true");
+    } catch {}
+  }
+}
+
+// 启动后台孤儿扫描，每 15 秒静默回收脱离父进程 (PPID=1) 的全局事件拦截器，彻底根除触控板卡顿
+setInterval(reapOrphanModifierMonitors, 15000).unref();
+
 function launchCodex(opts = {}) {
   const force = Boolean(opts.force);
   const port = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
@@ -290,9 +301,12 @@ function launchCodex(opts = {}) {
           }
         }
         execSync(`/usr/bin/pkill -f "ChatGPT.app/Contents/MacOS/ChatGPT" 2>/dev/null || true`);
+        execSync(`/usr/bin/pkill -f "bare-modifier-monitor" 2>/dev/null || true`);
+        execSync(`/usr/bin/pkill -f "browser_crashpad_handler" 2>/dev/null || true`);
         execSync(`/bin/sleep 0.5`);
       } catch {}
     }
+    reapOrphanModifierMonitors();
     spawn("/usr/bin/open", [
       "-n",
       "-a",
