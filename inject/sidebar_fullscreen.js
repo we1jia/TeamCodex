@@ -1869,6 +1869,151 @@
           box-shadow: var(--composer-shadow);
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
+        /* 待发图片预览条 */
+        .composer-image-preview-bar {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 0 8px;
+          border-bottom: 1px solid var(--composer-border, rgba(128, 128, 128, 0.15));
+          margin-bottom: 6px;
+        }
+        .composer-image-preview-bar[hidden] { display: none !important; }
+        .composer-image-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          background: var(--bg-hover, rgba(128, 128, 128, 0.12));
+          border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.2));
+          border-radius: 10px;
+          padding: 4px 8px 4px 4px;
+          max-width: 100%;
+        }
+        .composer-image-chip img {
+          width: 32px;
+          height: 32px;
+          object-fit: cover;
+          border-radius: 6px;
+          flex-shrink: 0;
+        }
+        .composer-image-info {
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .composer-image-name {
+          font-size: 12px;
+          font-weight: 500;
+          color: var(--text-primary);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 160px;
+        }
+        .composer-image-size {
+          font-size: 11px;
+          color: var(--text-muted);
+        }
+        .composer-image-remove {
+          background: transparent;
+          border: 0;
+          color: var(--text-muted);
+          cursor: pointer;
+          display: grid;
+          place-items: center;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          transition: background 0.12s ease, color 0.12s ease;
+        }
+        .composer-image-remove:hover {
+          background: rgba(239, 68, 68, 0.15);
+          color: #ef4444;
+        }
+
+        /* 消息气泡中的图片展示 */
+        .msg-image-wrap {
+          margin-top: 6px;
+          border-radius: 12px;
+          overflow: hidden;
+          max-width: min(280px, 100%);
+          cursor: zoom-in;
+          border: 1px solid rgba(128, 128, 128, 0.15);
+          transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+        .msg-image-wrap:hover {
+          transform: scale(1.015);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+        }
+        .msg-chat-image {
+          display: block;
+          width: 100%;
+          height: auto;
+          max-height: 260px;
+          object-fit: cover;
+        }
+
+        /* Lightbox 大图预览模态框 */
+        .image-lightbox-modal {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.78);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          z-index: 99999;
+          display: grid;
+          place-items: center;
+          padding: 24px;
+        }
+        .image-lightbox-modal[hidden] { display: none !important; }
+        .image-lightbox-container {
+          position: relative;
+          max-width: min(92vw, 980px);
+          max-height: 88vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+        .image-lightbox-container img {
+          max-width: 100%;
+          max-height: 80vh;
+          object-fit: contain;
+          border-radius: 12px;
+          box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
+          user-select: none;
+        }
+        .image-lightbox-close {
+          position: absolute;
+          top: -36px;
+          right: 0;
+          background: rgba(255, 255, 255, 0.15);
+          color: #ffffff;
+          border: 0;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          cursor: pointer;
+          display: grid;
+          place-items: center;
+          transition: background 0.12s ease;
+        }
+        .image-lightbox-close:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+        .image-lightbox-toolbar {
+          margin-top: 10px;
+          display: flex;
+          gap: 12px;
+        }
+        .image-lightbox-toolbar a {
+          color: #ffffff;
+          font-size: 12.5px;
+          text-decoration: underline;
+          opacity: 0.85;
+          cursor: pointer;
+        }
+        .image-lightbox-toolbar a:hover { opacity: 1; }
         textarea {
           width: 100%; min-height: 44px; max-height: 160px; border: 0; outline: none;
           background: transparent; color: var(--composer-text); font: 14px/1.5 inherit; resize: none; padding: 2px 0 6px;
@@ -3137,9 +3282,27 @@
               </div>
             </div>
             <form id="composer" class="composer">
-              <textarea id="input" placeholder="随心输入，或输入 @ 关联对话与成员..."></textarea>
+              <!-- 待发图片预览条 -->
+              <div class="composer-image-preview-bar" id="composer-image-preview-bar" hidden>
+                <div class="composer-image-chip" id="composer-image-chip">
+                  <img id="composer-image-thumb" src="" alt="待发图片" />
+                  <div class="composer-image-info">
+                    <span class="composer-image-name" id="composer-image-name"></span>
+                    <span class="composer-image-size" id="composer-image-size"></span>
+                  </div>
+                  <button class="composer-image-remove" id="btn-composer-image-remove" type="button" title="移除图片">
+                    <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
+                  </button>
+                </div>
+              </div>
+              <textarea id="input" placeholder="随心输入，或按 Cmd+V 粘贴截图、输入 @ 关联对话..."></textarea>
               <div class="composer-toolbar">
                 <div class="composer-left">
+                  <button class="tool-btn" id="btn-upload-image" type="button" title="上传或粘贴图片 (支持剪贴板 Cmd+V)">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                    <span>图片</span>
+                  </button>
+                  <input type="file" id="file-upload-image" accept="image/*" style="display:none;" />
                   <button class="tool-btn" id="share-thread" type="button" title="选择本地对话并分享到当前团队空间">
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
                     <span>分享对话...</span>
@@ -3414,6 +3577,22 @@
             <div class="thread-select-list scroll" id="thread-select-list"></div>
           </div>
         </div>
+
+        <!-- 图片 Lightbox 大图弹层 -->
+        <div class="image-lightbox-modal" id="image-lightbox-modal" hidden>
+          <div class="image-lightbox-container">
+            <button class="image-lightbox-close" id="image-lightbox-close" type="button" aria-label="关闭预览">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/>
+              </svg>
+            </button>
+            <img id="image-lightbox-img" src="" alt="大图预览" />
+            <div class="image-lightbox-toolbar">
+              <a id="image-lightbox-open-new" href="#" target="_blank" rel="noreferrer">在新标签页打开原图</a>
+              <a id="image-lightbox-copy-link" href="#">复制图片链接</a>
+            </div>
+          </div>
+        </div>
       </div>
     `;
 
@@ -3449,6 +3628,105 @@
     const cfgNickname = root.getElementById("cfg-nickname");
     const connectErrorBanner = root.getElementById("connect-error-banner");
     const btnConnectText = root.getElementById("btn-connect-text");
+
+    // 图片上传与预览相关 DOM 及工具状态
+    const btnUploadImage = root.getElementById("btn-upload-image");
+    const fileUploadImage = root.getElementById("file-upload-image");
+    const composerImagePreviewBar = root.getElementById("composer-image-preview-bar");
+    const composerImageThumb = root.getElementById("composer-image-thumb");
+    const composerImageName = root.getElementById("composer-image-name");
+    const composerImageSize = root.getElementById("composer-image-size");
+    const btnComposerImageRemove = root.getElementById("btn-composer-image-remove");
+
+    // Lightbox 大图弹层 DOM
+    const imageLightboxModal = root.getElementById("image-lightbox-modal");
+    const imageLightboxClose = root.getElementById("image-lightbox-close");
+    const imageLightboxImg = root.getElementById("image-lightbox-img");
+    const imageLightboxOpenNew = root.getElementById("image-lightbox-open-new");
+    const imageLightboxCopyLink = root.getElementById("image-lightbox-copy-link");
+
+    let pendingImage = null; // { name, size, base64 }
+
+    const formatFileSize = (bytes) => {
+      if (!bytes || bytes <= 0) return "0 B";
+      const k = 1024;
+      const sizes = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    };
+
+    const setPendingImage = (fileData) => {
+      if (!fileData) {
+        pendingImage = null;
+        if (composerImagePreviewBar) composerImagePreviewBar.hidden = true;
+        if (composerImageThumb) composerImageThumb.src = "";
+        if (composerImageName) composerImageName.textContent = "";
+        if (composerImageSize) composerImageSize.textContent = "";
+        if (fileUploadImage) fileUploadImage.value = "";
+        return;
+      }
+      pendingImage = fileData;
+      if (composerImageThumb) composerImageThumb.src = fileData.base64;
+      if (composerImageName) composerImageName.textContent = fileData.name || "图片";
+      if (composerImageSize) composerImageSize.textContent = formatFileSize(fileData.size);
+      if (composerImagePreviewBar) composerImagePreviewBar.hidden = false;
+      input?.focus();
+    };
+
+    const handleImageFile = (file) => {
+      if (!file || !file.type.startsWith("image/")) {
+        showToast("请选择有效的图片文件");
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        showToast("图片大小不能超过 10MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target.result;
+        setPendingImage({
+          name: file.name || `image_${Date.now()}.png`,
+          size: file.size,
+          base64,
+        });
+      };
+      reader.onerror = () => {
+        showToast("读取图片失败");
+      };
+      reader.readAsDataURL(file);
+    };
+
+    const openImageLightbox = (imgSrc) => {
+      if (!imageLightboxModal || !imageLightboxImg) return;
+      imageLightboxImg.src = imgSrc;
+      if (imageLightboxOpenNew) imageLightboxOpenNew.href = imgSrc;
+      imageLightboxModal.hidden = false;
+    };
+
+    const closeImageLightbox = () => {
+      if (!imageLightboxModal) return;
+      imageLightboxModal.hidden = true;
+      if (imageLightboxImg) imageLightboxImg.src = "";
+    };
+
+    const resolveImageUrl = (img) => {
+      if (!img) return "";
+      if (typeof img === "string") {
+        if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:")) return img;
+        const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "").replace(/\/+$/, "");
+        if (hub) return `${hub}${img.startsWith("/") ? "" : "/"}${img}`;
+        return img;
+      }
+      if (img.full_url && !img.full_url.includes("127.0.0.1") && !img.full_url.includes("localhost")) {
+        return img.full_url;
+      }
+      const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "").replace(/\/+$/, "");
+      if (hub && img.url && img.url.startsWith("/")) {
+        return `${hub}${img.url}`;
+      }
+      return img.full_url || img.url || "";
+    };
 
     // 智能协同口令条与复制按钮
     const btnCopyCollabToken = root.getElementById("btn-copy-collab-token");
@@ -6110,7 +6388,34 @@
         });
      } else {
        const ref = message.linked_thread?.title ? `<div class="ref">来自对话：${escapeHtml(message.linked_thread.title)}</div>` : "";
-       stack.innerHTML = `<div class="who">${escapeHtml(who)}</div><div class="bubble">${escapeHtml(contentText)}${ref}</div>`;
+       let imagesHtml = "";
+       if (Array.isArray(message.metadata?.images) && message.metadata.images.length > 0) {
+         imagesHtml = message.metadata.images.map((img) => {
+           const resolvedSrc = resolveImageUrl(img);
+           const imgAlt = img.name || "图片";
+           return `<div class="msg-image-wrap" data-img-src="${escapeHtml(resolvedSrc)}" title="点击查看原图"><img class="msg-chat-image" src="${escapeHtml(resolvedSrc)}" alt="${escapeHtml(imgAlt)}" loading="lazy" /></div>`;
+         }).join("");
+       }
+
+       let textBody = "";
+       if (contentText && contentText !== "[图片]") {
+         textBody = `<div class="bubble">${escapeHtml(contentText)}${ref}</div>`;
+       } else if (!imagesHtml) {
+         textBody = `<div class="bubble">${escapeHtml(contentText || "")}${ref}</div>`;
+       } else if (ref) {
+         textBody = `<div class="bubble" style="padding:4px 8px;">${ref}</div>`;
+       }
+
+       stack.innerHTML = `<div class="who">${escapeHtml(who)}</div>${textBody}${imagesHtml}`;
+
+       stack.querySelectorAll(".msg-image-wrap").forEach((wrap) => {
+         wrap.addEventListener("click", (e) => {
+           if (isMultiSelectMode) return;
+           e.stopPropagation();
+           const src = wrap.dataset.imgSrc;
+           if (src) openImageLightbox(src);
+         });
+       });
      }
 
      // 微信式复选圆圈：左侧消息（对方发来的）在左边外侧，右侧消息（我发出的）在右边外侧
@@ -6705,8 +7010,9 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       logTrace("submit_entered", { inFlight: composerInFlight, val: input?.value });
       if (composerInFlight) return;
       const rawContent = input ? input.value : "";
-      const content = rawContent.trim();
-      if (!content) {
+      let content = rawContent.trim();
+      const currentPendingImg = pendingImage;
+      if (!content && !currentPendingImg) {
         logTrace("submit_empty_content", {});
         return;
       }
@@ -6727,10 +7033,46 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         if (input) input.value = "";
         autoResizeInput();
         if (typeof hidePicker === "function") hidePicker();
+
+        // 如有待发送图片，先上传至服务器
+        let uploadedImages = [];
+        if (currentPendingImg) {
+          try {
+            const uploadRes = await api("/api/upload", {
+              method: "POST",
+              body: JSON.stringify({
+                filename: currentPendingImg.name,
+                data: currentPendingImg.base64,
+              }),
+            });
+            if (uploadRes?.ok && uploadRes.url) {
+              uploadedImages.push({
+                url: uploadRes.url,
+                full_url: uploadRes.full_url || uploadRes.url,
+                name: uploadRes.filename || currentPendingImg.name,
+                size: uploadRes.size || currentPendingImg.size,
+              });
+            }
+          } catch (uploadErr) {
+            console.error("图片上传失败:", uploadErr);
+            showToast(`图片上传失败: ${uploadErr.message || "请求异常"}`);
+            // 恢复输入框内容
+            if (input && !input.value) {
+              input.value = rawContent;
+              autoResizeInput();
+            }
+            return;
+          }
+        }
+
+        if (!content && uploadedImages.length > 0) {
+          content = "[图片]";
+        }
+
         // 智能识别用户直接粘贴发送的官方原生分享链接 (https://chatgpt.com/s/cx_...)
         const officialShareMatch = content.match(/https:\/\/chatgpt\.com\/s\/cx_[a-zA-Z0-9_\-]+/);
         const isOfficialShare = Boolean(officialShareMatch);
-        const metadata = isOfficialShare
+        let metadata = isOfficialShare
           ? {
               kind: "codex_context_snapshot",
               share_url: officialShareMatch[0],
@@ -6745,6 +7087,10 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
               },
             }
           : undefined;
+
+        if (uploadedImages.length > 0) {
+          metadata = { ...(metadata || {}), images: uploadedImages };
+        }
 
         let threadInfo = linkedThread;
         if (!threadInfo) {
@@ -6784,6 +7130,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         logTrace("submit_calling_api", { client_id: payload.client_message_id, content: content.slice(0, 30) });
         const msg = await api("/api/messages", { method: "POST", body: JSON.stringify(payload) });
         logTrace("submit_api_success", { msgId: msg?.id, seq: msg?.seq });
+        setPendingImage(null); // 发送成功后清空待发图片并收起预览条
         renderMessage(msg);
       } catch (err) {
         logTrace("submit_api_failed", { err: err.message, stack: err.stack });
@@ -6858,10 +7205,83 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       else if (!picker.hidden) hidePicker();
     });
 
-    input.addEventListener("paste", () => {
+    input.addEventListener("paste", (event) => {
+      // 检查剪贴板中是否包含图片 (截图粘贴 / 复制图片)
+      const items = event.clipboardData?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf("image") !== -1) {
+            const blob = items[i].getAsFile();
+            if (blob) {
+              event.preventDefault(); // 阻止浏览器对图片数据粘贴的默认行为
+              handleImageFile(blob);
+              return;
+            }
+          }
+        }
+      }
       setTimeout(() => {
         inspectInputCollabToken();
       }, 50);
+    });
+
+    // 输入框支持直接拖拽图片
+    input.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    input.addEventListener("drop", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          if (files[i].type.startsWith("image/")) {
+            handleImageFile(files[i]);
+            return;
+          }
+        }
+      }
+    });
+
+    // 工具栏 [📷 图片] 按钮点击与原生文件选择器
+    btnUploadImage?.addEventListener("click", () => {
+      fileUploadImage?.click();
+    });
+    fileUploadImage?.addEventListener("change", () => {
+      const file = fileUploadImage.files?.[0];
+      if (file) {
+        handleImageFile(file);
+      }
+    });
+
+    // 待发图片条中 [✖️] 移除按钮
+    btnComposerImageRemove?.addEventListener("click", () => {
+      setPendingImage(null);
+    });
+
+    // Lightbox 大图弹层交互
+    imageLightboxClose?.addEventListener("click", closeImageLightbox);
+    imageLightboxModal?.addEventListener("click", (e) => {
+      if (e.target === imageLightboxModal || e.target.closest(".image-lightbox-close")) {
+        closeImageLightbox();
+      }
+    });
+    imageLightboxCopyLink?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const href = imageLightboxOpenNew?.href || imageLightboxImg?.src || "";
+      if (!href) return;
+      try {
+        await navigator.clipboard.writeText(href);
+        showToast("✓ 图片链接已复制");
+      } catch {
+        showToast("复制失败");
+      }
+    });
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && imageLightboxModal && !imageLightboxModal.hidden) {
+        closeImageLightbox();
+      }
     });
 
     btnCollabTokenJoin?.addEventListener("click", async (e) => {

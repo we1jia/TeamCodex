@@ -10,6 +10,8 @@ data/*.log
 data/*.json
 !data/hub_discovery.json
 data/messages.json
+data/uploads/*
+!data/uploads/.gitkeep
 
 # OS & Editor
 .DS_Store

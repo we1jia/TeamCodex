@@ -54,6 +54,11 @@ function getPrimaryIp() {
 const primaryIp = getPrimaryIp();
 const allLanIps = getAllIps();
 
+const UPLOADS_DIR = path.join(DATA_DIR, "uploads");
+try {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+} catch {}
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -61,6 +66,10 @@ const MIME = {
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
   ".ico": "image/x-icon",
 };
 
@@ -644,16 +653,17 @@ function readBody(req) {
 }
 
 function serveFile(res, filePath) {
-  const ext = path.extname(filePath);
+  const ext = path.extname(filePath).toLowerCase();
   fs.readFile(filePath, (error, data) => {
     if (error) {
-      res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      res.writeHead(404, { ...corsHeaders(), "Content-Type": "text/plain; charset=utf-8" });
       res.end("not found");
       return;
     }
     res.writeHead(200, {
+      ...corsHeaders(),
       "Content-Type": MIME[ext] || "application/octet-stream",
-      "Cache-Control": "no-store",
+      "Cache-Control": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"].includes(ext) ? "public, max-age=86400" : "no-store",
     });
     res.end(data);
   });
@@ -669,16 +679,28 @@ const server = http.createServer(async (req, res) => {
   }
 
   // 1. Web 静态主页与注入文件路由
-  if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
+  if ((req.method === "GET" || req.method === "HEAD") && (url.pathname === "/" || url.pathname === "/index.html")) {
     serveFile(res, UI_FILE);
     return;
   }
-  if (req.method === "GET" && url.pathname === "/inject/sidebar_fullscreen.js") {
+  if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/inject/sidebar_fullscreen.js") {
     serveFile(res, path.join(ROOT, "inject", "sidebar_fullscreen.js"));
     return;
   }
-  if (req.method === "GET" && url.pathname === "/windows/mock-codex-host.html") {
+  if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/windows/mock-codex-host.html") {
     serveFile(res, path.join(ROOT, "windows", "mock-codex-host.html"));
+    return;
+  }
+  if ((req.method === "GET" || req.method === "HEAD") && url.pathname.startsWith("/uploads/")) {
+    const rawFile = decodeURIComponent(url.pathname.slice("/uploads/".length));
+    const safeFile = path.basename(rawFile);
+    const targetPath = path.join(UPLOADS_DIR, safeFile);
+    if (fs.existsSync(targetPath)) {
+      serveFile(res, targetPath);
+      return;
+    }
+    res.writeHead(404, corsHeaders());
+    res.end("not found");
     return;
   }
 
@@ -1307,6 +1329,57 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 7.5 图片与媒体文件上传 (Upload API)
+  if (req.method === "POST" && url.pathname === "/api/upload") {
+    let body;
+    try {
+      body = JSON.parse((await readBody(req)) || "{}");
+    } catch {
+      sendJson(res, 400, { ok: false, error: "invalid_json", message: "请求体必须为合法 JSON" });
+      return;
+    }
+    const rawData = body.data || body.base64 || body.dataUrl || "";
+    if (!rawData) {
+      sendJson(res, 400, { ok: false, error: "data_required", message: "缺少图片数据 (base64/dataUrl)" });
+      return;
+    }
+    let ext = ".png";
+    let base64Data = rawData;
+    const dataUrlMatch = rawData.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+    if (dataUrlMatch) {
+      const mimeSubtype = dataUrlMatch[1].toLowerCase();
+      ext = mimeSubtype === "jpeg" ? ".jpg" : `.${mimeSubtype}`;
+      base64Data = dataUrlMatch[2];
+    } else if (body.filename) {
+      const parsedExt = path.extname(body.filename).toLowerCase();
+      if (parsedExt && [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"].includes(parsedExt)) {
+        ext = parsedExt;
+      }
+    }
+    try {
+      const buffer = Buffer.from(base64Data, "base64");
+      if (buffer.length > 10 * 1024 * 1024) {
+        sendJson(res, 413, { ok: false, error: "image_too_large", message: "单张图片大小不得超过 10MB" });
+        return;
+      }
+      const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 10)}${ext}`;
+      const filePath = path.join(UPLOADS_DIR, filename);
+      fs.writeFileSync(filePath, buffer);
+      sendJson(res, 201, {
+        ok: true,
+        url: `/uploads/${filename}`,
+        full_url: `http://${primaryIp}:${PORT}/uploads/${filename}`,
+        filename: body.filename || filename,
+        size: buffer.length,
+        ext,
+      });
+      return;
+    } catch (err) {
+      sendJson(res, 500, { ok: false, error: "upload_failed", message: err.message });
+      return;
+    }
+  }
+
   // 8. 团队消息发送 (Messages API)
   if (req.method === "POST" && url.pathname === "/api/messages") {
     let body;
@@ -1326,7 +1399,11 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, auth.status, { ok: false, error: auth.error, message: auth.message });
     }
 
-    const content = String(body.content || "").trim();
+    let content = String(body.content || "").trim();
+    const hasImages = Array.isArray(body.metadata?.images) && body.metadata.images.length > 0;
+    if (!content && hasImages) {
+      content = "[图片]";
+    }
     if (!content) {
       sendJson(res, 400, { error: "content required" });
       return;
