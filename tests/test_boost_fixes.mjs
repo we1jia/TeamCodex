@@ -973,3 +973,29 @@ test("36. 官方 Codex 插件体系整合、元数据规范、Hook 自动注入�
   }
 });
 
+test("37. 通用代理安全决策、热挂载优先与无端口防盲杀机制 (inline-v94)", () => {
+  const launcherCode = fs.readFileSync(path.join(ROOT, "server/launcher_host.mjs"), "utf8");
+  const panelCode = fs.readFileSync(path.join(ROOT, "ui/panel.html"), "utf8");
+  const runPs = fs.readFileSync(path.join(ROOT, "windows/run-teamcodex.ps1"), "utf8");
+
+  // 37.1 启动器必须包含通用进程检测与代理特征抽象，禁止写死特定厂商
+  assert.match(launcherCode, /function isCodexRunning/);
+  assert.match(launcherCode, /function hasCustomProxyConfig/);
+  assert.doesNotMatch(launcherCode, /isCockpitManaged/, "严禁将外部代理机制特化绑定到单一工具名");
+
+  // 37.2 启动器热挂载优先与受控优雅重启
+  assert.match(launcherCode, /mode:\s*"attached"/);
+  assert.match(launcherCode, /requires_restart_confirm/);
+  assert.match(launcherCode, /has_custom_proxy/);
+
+  // 37.3 前端 panel 界面具备受控确认与防丢失提示
+  assert.match(panelCode, /requires_restart_confirm/);
+  assert.match(panelCode, /confirm\(tip\)/);
+  assert.match(panelCode, /force:\s*true/);
+
+  // 37.4 Windows 脚本具备动态嗅探运行中实例 CDP 端口
+  assert.match(runPs, /detectedCdpPort/);
+  assert.match(runPs, /--remote-debugging-port=\(\\d\+\)/);
+});
+
+

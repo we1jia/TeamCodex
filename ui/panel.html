@@ -203,9 +203,34 @@
     $("startBtn").onclick = async () => {
       $("startBtn").disabled = true;
       try {
-        await api("/api/start-codex", { method: "POST" });
-        say("正在启动并挂载");
-      } catch { say("启动失败"); }
+        const res = await api("/api/start-codex", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ force: false }),
+        });
+        if (res.ok) {
+          say(res.message || (res.mode === "attached" ? "已热挂载现有实例" : "正在启动并挂载"));
+        } else if (res.requires_restart_confirm) {
+          const tip = res.message || "检测到 Codex 正在运行但未开启协同端口，是否确认重启？";
+          if (confirm(tip)) {
+            say("正在重启并挂载...");
+            const fRes = await api("/api/start-codex", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ force: true }),
+            });
+            say(fRes.message || "已重启并挂载");
+          } else {
+            say(res.has_custom_proxy
+              ? "已取消重启。您可为代理服务启动参数添加 --remote-debugging-port=18766 后点击重启注入"
+              : "已取消重启。当前会话未受影响");
+          }
+        } else {
+          say(res.message || "启动失败");
+        }
+      } catch {
+        say("启动失败");
+      }
       $("startBtn").disabled = false;
       refresh();
     };

@@ -294,9 +294,33 @@ function Stop-ProcessGracefully {
   }
 }
 
-# 2. 检查是否有开放 CDP 的 Codex / ChatGPT 实例
+# 2. 检查是否有开放 CDP 的 Codex / ChatGPT 实例 (优先动态嗅探运行中实例已开放的任意 CDP 端口)
+$detectedCdpPort = $null
+try {
+  $procCmds = Get-CimInstance Win32_Process -Filter "Name like '%ChatGPT%' or Name like '%Codex%'" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty CommandLine
+  foreach ($cmd in $procCmds) {
+    if ($cmd -match "--remote-debugging-port=(\d+)") {
+      $detectedCdpPort = [int]$matches[1]
+      break
+    }
+  }
+} catch {}
+
+$cdpPortsToTry = @()
+if ($detectedCdpPort) { $cdpPortsToTry += $detectedCdpPort }
+if (-not $cdpPortsToTry.Contains($CdpPort)) { $cdpPortsToTry += $CdpPort }
+
 $cdpReady = $null
-try { $cdpReady = Invoke-RestMethod -Uri "http://127.0.0.1:$CdpPort/json/version" -TimeoutSec 1 } catch {}
+foreach ($tryPort in $cdpPortsToTry) {
+  try {
+    $cdpReady = Invoke-RestMethod -Uri "http://127.0.0.1:$tryPort/json/version" -TimeoutSec 1 -ErrorAction SilentlyContinue
+    if ($cdpReady) {
+      $CdpPort = $tryPort
+      Log-Message "检测到运行中 Codex 实例已启用 CDP 端口: $CdpPort，启用热挂载模式"
+      break
+    }
+  } catch {}
+}
 
 if (-not $cdpReady) {
   # 检查是否有正在运行的 ChatGPT.exe 或 Codex.exe

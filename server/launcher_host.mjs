@@ -221,13 +221,68 @@ function startAttach() {
   child.unref();
 }
 
-function launchCodex() {
+function isCodexRunning() {
+  try {
+    if (process.platform === "win32") {
+      const out = execFileSync(
+        "powershell.exe",
+        ["-NoProfile", "-Command", "Get-Process -Name @('ChatGPT', 'Codex') -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id"],
+        { encoding: "utf8", timeout: 2500 },
+      );
+      return Boolean(out.trim());
+    }
+    const out = execFileSync("/bin/ps", ["-ax", "-o", "command="], { encoding: "utf8", timeout: 2500 });
+    return out.split("\n").some((line) => /ChatGPT\.app\/Contents\/MacOS\/ChatGPT|Codex/i.test(line));
+  } catch {
+    return false;
+  }
+}
+
+function hasCustomProxyConfig() {
+  const proxyEnvs = [
+    "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+    "http_proxy", "https_proxy", "all_proxy",
+    "OPENAI_API_BASE", "OPENAI_BASE_URL",
+  ];
+  for (const envKey of proxyEnvs) {
+    if (process.env[envKey]) return true;
+  }
+
+  const configPaths = [];
+  if (process.env.HOME) {
+    configPaths.push(path.join(process.env.HOME, ".config", "codex", "config.toml"));
+    configPaths.push(path.join(process.env.HOME, "Library", "Application Support", "OpenAI", "ChatGPT", "settings.json"));
+  }
+  if (process.env.USERPROFILE) {
+    configPaths.push(path.join(process.env.USERPROFILE, ".config", "codex", "config.toml"));
+  }
+  if (process.env.APPDATA) {
+    configPaths.push(path.join(process.env.APPDATA, "OpenAI", "ChatGPT", "settings.json"));
+  }
+
+  for (const cfgPath of configPaths) {
+    try {
+      if (fs.existsSync(cfgPath)) {
+        const content = fs.readFileSync(cfgPath, "utf8");
+        if (/proxy|base_url|api_base|localhost|127\.0\.0\.1|route/i.test(content)) {
+          return true;
+        }
+      }
+    } catch {}
+  }
+  return false;
+}
+
+function launchCodex(opts = {}) {
+  const force = Boolean(opts.force);
   const port = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
   if (process.platform === "darwin") {
-    try {
-      execSync(`osascript -e 'tell application "ChatGPT" to quit' 2>/dev/null || true`);
-      execSync(`sleep 0.4; pkill -f "ChatGPT.app/Contents/MacOS/ChatGPT" 2>/dev/null || true`);
-    } catch {}
+    if (force) {
+      try {
+        execSync(`osascript -e 'tell application "ChatGPT" to quit' 2>/dev/null || true`);
+        execSync(`sleep 0.4; pkill -f "ChatGPT.app/Contents/MacOS/ChatGPT" 2>/dev/null || true`);
+      } catch {}
+    }
     spawn("/usr/bin/open", [
       "-a",
       "/Applications/ChatGPT.app",
@@ -422,11 +477,58 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && url.pathname === "/api/start-codex") {
-    launchCodex();
-    setTimeout(() => {
+    let body = {};
+    try {
+      body = JSON.parse((await readBody(req)) || "{}");
+    } catch {}
+
+    const ready = await cdpReady();
+    if (ready) {
       startAttach();
-    }, 1200);
-    sendJson(res, 200, { ok: true });
+      sendJson(res, 200, {
+        ok: true,
+        mode: "attached",
+        message: "检测到 Codex 调试通道已就绪，已直接热挂载，未中断现有会话",
+      });
+      return;
+    }
+
+    const running = isCodexRunning();
+    if (!running) {
+      launchCodex({ force: false });
+      setTimeout(() => {
+        startAttach();
+      }, 1200);
+      sendJson(res, 200, {
+        ok: true,
+        mode: "launched",
+        message: "已拉起 Codex 客户端并正在挂载",
+      });
+      return;
+    }
+
+    if (body.force) {
+      launchCodex({ force: true });
+      setTimeout(() => {
+        startAttach();
+      }, 1500);
+      sendJson(res, 200, {
+        ok: true,
+        mode: "restarted",
+        message: "已重启 Codex 客户端并正在挂载",
+      });
+      return;
+    }
+
+    const customProxy = hasCustomProxyConfig();
+    sendJson(res, 200, {
+      ok: false,
+      requires_restart_confirm: true,
+      has_custom_proxy: customProxy,
+      message: customProxy
+        ? "检测到 Codex 正在运行且可能配置了自定义网络代理。重启客户端可能会中断当前代理服务或重置路由。是否确认重启？"
+        : "检测到 Codex 正在运行，但未开启协同调试端口。重启客户端可开启协同，是否确认重启？",
+    });
     return;
   }
 
