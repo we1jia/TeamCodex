@@ -998,4 +998,30 @@ test("37. 通用代理安全决策、热挂载优先与无端口防盲杀机制 
   assert.match(runPs, /--remote-debugging-port=\(\\d\+\)/);
 });
 
+test("38. 全平台自动化一键打包流水线可用性与四大分发包完整性", () => {
+  const buildAllScript = path.join(ROOT, "scripts/build_all.py");
+  assert.ok(fs.existsSync(buildAllScript), "scripts/build_all.py 一键打包脚本应存在");
+
+  const buildAllCode = fs.readFileSync(buildAllScript, "utf8");
+  assert.match(buildAllCode, /build_mac_zip\.py/);
+  assert.match(buildAllCode, /build_dmg\.py/);
+  assert.match(buildAllCode, /build_zip\.py/);
+  assert.match(buildAllCode, /build_plugin_zip\.py/);
+
+  // 验证打包产物是否存在且具备有效体积
+  const artifacts = [
+    { file: "TeamCodex-macOS.zip", minSize: 1000000 },
+    { file: "TeamCodex-macOS.dmg", minSize: 1500000 },
+    { file: "TeamCodex-Windows-arm64-amd64.zip", minSize: 200000 },
+    { file: "TeamCodex-Codex-Plugin.zip", minSize: 1000000 },
+  ];
+
+  for (const { file, minSize } of artifacts) {
+    const fullPath = path.join(ROOT, file);
+    assert.ok(fs.existsSync(fullPath), `${file} 打包产物应存在`);
+    assert.ok(fs.statSync(fullPath).size >= minSize, `${file} 大小应大于 ${minSize} 字节`);
+  }
+});
+
+
 
