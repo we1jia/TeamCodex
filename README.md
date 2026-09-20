@@ -120,6 +120,7 @@ curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deplo
 
 ### 5. 核心特性
 
+- **全功能团队工作区（看板 / 知识库 / 素材库 / 日历）**：原生无缝集成任务四态看板、闭环审核流转、知识库全文检索、SHA-256 内容寻址素材库与工作日历，让 AI 会话与工程研发生命周期紧密闭环。
 - **原生内嵌与菜单栏伴侣**：基于 CDP 动态挂载侧栏，配套 macOS 菜单栏 / Windows 托盘极简 Mini Dashboard，不抢占主工作区。
 - **免重装双轨热更新**：连集中 Hub 时，侧栏注入脚本启动时自动动态下发并缓存生效，90% 的日常迭代免下载新包；底层外壳直通 Releases 检查。
 - **高亮生命周期互斥**：全屏协作与原生会话保持单选高亮，切回历史对话 100% 恢复原生高亮。
@@ -165,7 +166,39 @@ curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deplo
 
 ---
 
-### 7. 仓库结构
+### 7. 团队全功能工作区：看板、知识库、素材库与工作日历 (Workspace)
+
+TeamCodex 不仅实现了会话上下文的实时接力，更在客户端内原生打造了**围绕 AI 研发全生命周期的轻量级团队工作区**，告别碎片化的聊天记录，让每一次技术决策、资料沉淀与任务交付都有据可查。
+
+<p align="center">
+  <img src="docs/assets/team-workspace-board-dark.png" alt="TeamCodex 任务看板（深色模式）" width="49%" />
+  <img src="docs/assets/team-workspace-calendar-light.png" alt="TeamCodex 工作日历（浅色模式）" width="49%" />
+</p>
+<p align="center">
+  <img src="docs/assets/team-workspace-native-light.png" alt="TeamCodex 原生客户端侧栏集成（Windows 浅色）" width="80%" />
+</p>
+
+#### 1) 敏捷任务看板与闭环审核流 (Kanban & Review Flow)
+- **四态看板流转**：清晰划分为【待开始】、【进行中】、【等待审核】与【已完成】四大流转阶段；
+- **全维度任务元数据**：支持指派主要负责人、协作者（支持跨端多选，如同时指派 `weijia(Mac)` 与 `weijia(Win)`）、专属审核人；精确记录起止日期、审核日期、优先级、阻塞原因、验收要求与交付说明；
+- **严谨闭环审核机制**：提交审核必须指定审核人并填写交付产物说明；仅指定审核人具备【通过】或【退回】权限，退回必须注明具体原因，审核中状态锁定以防篡改。
+
+#### 2) 统一知识库与素材库 (Knowledge Base & Asset Library)
+- **多格式资料纳管**：支持 Markdown 文档编写、代码片段及各类附件上传（单文件上限 10MB，正文全文索引达 20 万字符），支持全文快速检索与分类/标签过滤；
+- **细粒度权限控制**：资料支持【仅我可见】（私人资料）与【当前项目共享】一键切换；私人资料受严格鉴权保护，绝不进入公开广播与旧聊天快照；
+- **SHA-256 内容寻址复用**：素材库与知识库共用资料底座，相同内容文件按 SHA-256 摘要秒级去重复用，提供安全的图片就地预览与原文件下载。
+
+#### 3) 多成员工作日历 (Work Calendar)
+- **日程全景看板**：根据成员独立配置的时区、工作日与不可用日期自动呈现执行与审核安排；
+- **排期智能预警**：清晰标识非工作日提醒、逾期任务告警以及待排期任务清单，避免工期延误。
+
+#### 4) 对话上下文精准引用 (Context Citation)
+- **安全结构化引用**：在 Team 对话中可一键选择任务或已共享资料，生成包含来源 ID、版本与快照读取时间的结构化上下文；
+- **人类最终把关**：确认后仅填入输入框供审查修改，**绝不自动盲发或越权执行指令**，确保安全可控。
+
+---
+
+### 8. 仓库结构
 
 ```text
 TeamCodex/
@@ -175,12 +208,18 @@ TeamCodex/
 ├── assets/                     # 插件与客户端图标、Logo 及界面插图
 ├── inject/                     # CDP 客户端侧注入层、Web Component 与全屏协作 UI
 │   ├── sidebar_fullscreen.js   # 侧栏嵌入、快照脱敏与协同状态机
+│   ├── workspace.js            # 工作区（看板/知识库/素材库/日历）前端组件与状态管理
+│   ├── workspace.css           # 原生主题自适应样式与紧凑响应式布局
 │   └── attach_codex.mjs        # 动态拉取中枢最新脚本、CDP 挂载与心跳同步
 ├── server/                     # 零依赖原生 Node.js 协作服务
 │   ├── dev_host.mjs            # SSE 实时协同中枢 (18765端口，在线人数/多房间/鉴权)
+│   ├── workspace_store.mjs     # 工作区原子写入与 JSON 持久化存储
+│   ├── workspace_routes.mjs    # 工作区 RESTful API 路由与权限校验
+│   ├── workspace_validation.mjs # 任务/资料字段合法性与安全过滤校验
 │   └── launcher_host.mjs       # 本地托盘控制面服务 (18767端口，自检/更新/口令)
 ├── ui/                         # 前端 UI 资源
 │   ├── index.html              # 独立全屏协作网页端
+│   ├── workspace.html          # 工作区独立入口页面
 │   └── panel.html              # 菜单栏/托盘 Mini Dashboard 悬浮控制卡片
 ├── macos/                      # macOS 菜单栏客户端与打包套件
 │   ├── TeamCodex.swift         # 原生 Swift 状态栏应用源码 (Cocoa + WebKit)
@@ -193,8 +232,11 @@ TeamCodex/
 │   ├── 退出TeamCodex.cmd       # [应急工具] 一键强杀所有后台进程并清理托盘
 │   └── installer.nsi           # NSIS 安装向导配置
 ├── scripts/                    # 运维与自动化部署脚本 (deploy-hub.sh)
-├── docs/                       # 架构设计与网络接入全景指南 (HUB_DEPLOYMENT.md)
-├── tests/                      # 59 项全自动化测试套件 (单测与端到端状态机)
+├── docs/                       # 架构设计、工作区规范与网络接入全景指南
+│   ├── WORKSPACE.md            # 工作区数据模型、权限控制与 API 规范指南
+│   ├── HUB_DEPLOYMENT.md       # 中枢部署与网络接入全景指南
+│   └── assets/                 # 架构图、实机演示与工作区截图
+├── tests/                      # 全自动化测试套件 (工作区/权限/状态机/打包)
 ├── version.json                # 客户端版本定义 (v1.2.0)
 ├── Dockerfile                  # 极简 Alpine Node 生产镜像定义
 ├── docker-compose.yml          # 一键容器化服务编排
@@ -203,17 +245,18 @@ TeamCodex/
 
 ---
 
-### 8. 自动化测试
+### 9. 自动化测试
 
 ```bash
 node --test tests/test_boost_fixes.mjs
 node --test tests/test_rooms_and_auth.mjs
-# 输出：59 tests passed (36 插件与状态机注入测试 + 23 房间鉴权与隔离测试)
+node --test tests/test_workspace.mjs tests/test_workspace_bridge.mjs tests/test_workspace_http.mjs
+# 验证：全覆盖测试均顺利通过（涵盖插件状态机、房间鉴权、工作区权限与原子持久化）
 ```
 
 ---
 
-### 9. 常见问题 (FAQ)
+### 10. 常见问题 (FAQ)
 
 - **Q: 以后功能更新需要全员重新下载安装包吗？**  
   **日常更新完全不需要**。TeamCodex 采用双轨更新机制：侧栏协作界面与注入逻辑会在连接团队集中中枢时自动热加载最新脚本；仅在涉及操作系统底层驱动或托盘框架升级时，控制面板才会提示下载新版安装包。
@@ -328,6 +371,7 @@ Full documentation and Nginx TLS templates available at: **[Hub Deployment & Net
 
 ### 5. Core Capabilities
 
+- **Full-Featured Team Workspace (Kanban / Knowledge / Assets / Calendar)**: Natively integrates agile task tracking, review approval flows, full-text searchable docs, SHA-256 deduplicated asset libraries, and work calendars, closing the loop between AI reasoning and engineering lifecycle.
 - **Native Embedding & Tray Companion**: Injects via CDP into Codex sidebars paired with a native macOS menubar / Windows tray Mini Dashboard that never intrudes on your main workspace.
 - **In-Place Hot Updates**: Automatically synchronizes and caches updated sidebar injection scripts from centralized Hubs without forcing users to re-download binaries.
 - **State Machine Mutual Exclusion**: Enforces single-selection highlighting during active collaboration, restoring native thread selections upon exit.
@@ -372,7 +416,39 @@ Execute directly or click prompt pills in the Codex composer:
 
 ---
 
-### 7. Repository Layout
+### 7. Full-Featured Team Workspace: Kanban, Knowledge Base, Asset Library & Work Calendar (Workspace)
+
+Beyond real-time context relay, TeamCodex natively embeds a **lightweight team workspace engineered for AI-native software delivery**, closing the loop between exploratory prompts, architecture decisions, and task delivery.
+
+<p align="center">
+  <img src="docs/assets/team-workspace-board-dark.png" alt="TeamCodex Kanban Board (Dark Mode)" width="49%" />
+  <img src="docs/assets/team-workspace-calendar-light.png" alt="TeamCodex Work Calendar (Light Mode)" width="49%" />
+</p>
+<p align="center">
+  <img src="docs/assets/team-workspace-native-light.png" alt="TeamCodex Native Client Integration (Windows Light)" width="80%" />
+</p>
+
+#### 1) Agile Kanban Board & Closed-Loop Review Flow
+- **Four-Stage Workflow**: Structured progression across 【Backlog (待开始)】, 【In Progress (进行中)】, 【Pending Review (等待审核)】, and 【Completed (已完成)】;
+- **Comprehensive Task Metadata**: Assign primary owners, multi-client collaborators (e.g., simultaneously `weijia(Mac)` and `weijia(Win)`), and dedicated reviewers. Track start/due/review dates, priorities, blockers, acceptance criteria, and delivery notes with complete audit logs;
+- **Strict Review & Approval Pipeline**: Tasks submitted for review mandate a reviewer and delivery notes. Only designated reviewers can approve or return tasks with required feedback; task contents are locked during review to prevent tampering.
+
+#### 2) Unified Knowledge Base & Asset Library
+- **Versatile Document Management**: Supports Markdown writing, code snippets, and multi-format file uploads (up to 10MB, indexing up to 200,000 characters) with full-text search and category/tag filters;
+- **Fine-Grained Privacy & Sharing**: Instant toggle between 【Private (仅我可见)】 and 【Project Shared (当前项目共享)】. Private items are strictly guarded and never broadcasted to peers or shared snapshots;
+- **SHA-256 Content Addressing**: Shared storage engine automatically deduplicates identical payloads, offering safe in-place image previews and raw file downloads.
+
+#### 3) Multi-Member Work Calendar
+- **Cross-Timezone Scheduling**: Automatically visualizes execution and review schedules tailored to each member's configured timezone, workdays, and unavailable dates;
+- **Intelligent Schedule Warnings**: Flags non-working day conflicts, overdue milestones, and unscheduled task backlogs to safeguard delivery timelines.
+
+#### 4) Traceable Context Citations
+- **Structured Citations**: Select any task or shared asset to generate formatted context blocks with source IDs, version numbers, and snapshot timestamps;
+- **Human-in-the-Loop Safeguard**: Inserts context directly into the composer for review and editing—**never automatically dispatches or executes prompts without explicit user confirmation**.
+
+---
+
+### 8. Repository Layout
 
 ```text
 TeamCodex/
@@ -382,12 +458,18 @@ TeamCodex/
 ├── assets/                     # Plugin and application icons, logos & illustrations
 ├── inject/                     # Client CDP injection, Web Components & UI logic
 │   ├── sidebar_fullscreen.js   # Sidebar mount, snapshot scrub, and UI state machine
+│   ├── workspace.js            # Workspace components (Kanban/Knowledge/Assets/Calendar) & state
+│   ├── workspace.css           # Native-adaptive themes & compact responsive styling
 │   └── attach_codex.mjs        # Dynamic script sync, CDP attachment, and heartbeat loop
 ├── server/                     # Zero-dependency Node.js services
 │   ├── dev_host.mjs            # SSE Collab Hub (Port 18765: presence, multi-room, auth)
+│   ├── workspace_store.mjs     # Workspace atomic disk write & JSON persistence
+│   ├── workspace_routes.mjs    # Workspace RESTful API endpoints & permission guards
+│   ├── workspace_validation.mjs # Data validation, length limits & security guards
 │   └── launcher_host.mjs       # Local control plane service (Port 18767: status, updates)
 ├── ui/                         # Frontend UI assets
 │   ├── index.html              # Fullscreen standalone collaboration canvas
+│   ├── workspace.html          # Workspace standalone entrypoint
 │   └── panel.html              # Frosted Mini Dashboard floating card
 ├── macos/                      # macOS status bar app & packaging
 │   ├── TeamCodex.swift         # Native Swift status bar source (Cocoa + WebKit)
@@ -400,8 +482,11 @@ TeamCodex/
 │   ├── 退出TeamCodex.cmd       # [Emergency tool] One-click kill & tray cache cleanup
 │   └── installer.nsi           # NSIS setup wizard configuration
 ├── scripts/                    # Ops & automation deployment scripts (deploy-hub.sh)
-├── docs/                       # Architectural & deployment manuals (HUB_DEPLOYMENT.md)
-├── tests/                      # 59 automated unit and end-to-end test cases
+├── docs/                       # Architectural manuals & workspace design specs
+│   ├── WORKSPACE.md            # Workspace data models, access controls & API guide
+│   ├── HUB_DEPLOYMENT.md       # Hub deployment and network topology guide
+│   └── assets/                 # Architecture diagrams, screencasts & workspace screenshots
+├── tests/                      # Full test suite (workspace, permissions, state machines)
 ├── version.json                # Client version manifest (v1.2.0)
 ├── Dockerfile                  # Lightweight Alpine production container definition
 ├── docker-compose.yml          # Container orchestration configuration
@@ -410,17 +495,18 @@ TeamCodex/
 
 ---
 
-### 8. Automated Testing
+### 9. Automated Testing
 
 ```bash
 node --test tests/test_boost_fixes.mjs
 node --test tests/test_rooms_and_auth.mjs
-# Output: 59 tests passed (36 plugin & state machine injection tests + 23 room auth & isolation tests)
+node --test tests/test_workspace.mjs tests/test_workspace_bridge.mjs tests/test_workspace_http.mjs
+# Verification: Full automated suite passed cleanly (injection, rooms, workspaces & storage)
 ```
 
 ---
 
-### 9. FAQ
+### 10. FAQ
 
 - **Q: Do team members need to re-download binaries for regular updates?**  
   **No**. TeamCodex uses dual-track updates: sidebar collaboration scripts update dynamically in-place when connected to a team Hub. Native installers are only required when underlying platform drivers change.
