@@ -3714,15 +3714,12 @@
       if (!img) return "";
       if (typeof img === "string") {
         if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:")) return img;
-        const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "").replace(/\/+$/, "");
-        if (hub) return `${hub}${img.startsWith("/") ? "" : "/"}${img}`;
-        return img;
+        const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "http://127.0.0.1:18765").replace(/\/+$/, "");
+        return `${hub}${img.startsWith("/") ? "" : "/"}${img}`;
       }
-      if (img.full_url && !img.full_url.includes("127.0.0.1") && !img.full_url.includes("localhost")) {
-        return img.full_url;
-      }
-      const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "").replace(/\/+$/, "");
-      if (hub && img.url && img.url.startsWith("/")) {
+      if (img.dataUrl) return img.dataUrl;
+      const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "http://127.0.0.1:18765").replace(/\/+$/, "");
+      if (img.url && img.url.startsWith("/")) {
         return `${hub}${img.url}`;
       }
       return img.full_url || img.url || "";
@@ -6393,7 +6390,8 @@
          imagesHtml = message.metadata.images.map((img) => {
            const resolvedSrc = resolveImageUrl(img);
            const imgAlt = img.name || "图片";
-           return `<div class="msg-image-wrap" data-img-src="${escapeHtml(resolvedSrc)}" title="点击查看原图"><img class="msg-chat-image" src="${escapeHtml(resolvedSrc)}" alt="${escapeHtml(imgAlt)}" loading="lazy" /></div>`;
+           const rawPath = img.url || "";
+           return `<div class="msg-image-wrap" data-img-src="${escapeHtml(resolvedSrc)}" data-img-path="${escapeHtml(rawPath)}" title="点击查看原图"><img class="msg-chat-image" src="${escapeHtml(resolvedSrc)}" alt="${escapeHtml(imgAlt)}" loading="lazy" /></div>`;
          }).join("");
        }
 
@@ -6409,10 +6407,34 @@
        stack.innerHTML = `<div class="who">${escapeHtml(who)}</div>${textBody}${imagesHtml}`;
 
        stack.querySelectorAll(".msg-image-wrap").forEach((wrap) => {
+         const imgEl = wrap.querySelector("img");
+         const rawPath = wrap.dataset.imgPath;
+
+         const loadSafeDataUrl = async () => {
+           if (!rawPath) return;
+           try {
+             const data = await api(`/api/image-data?path=${encodeURIComponent(rawPath)}`);
+             if (data?.ok && data.dataUrl) {
+               if (imgEl) imgEl.src = data.dataUrl;
+               wrap.dataset.imgSrc = data.dataUrl;
+             }
+           } catch (e) {
+             console.warn("[TeamContext] loadSafeDataUrl failed:", e);
+           }
+         };
+
+         imgEl?.addEventListener("error", () => {
+           loadSafeDataUrl();
+         }, { once: true });
+
+         if (rawPath) {
+           loadSafeDataUrl();
+         }
+
          wrap.addEventListener("click", (e) => {
            if (isMultiSelectMode) return;
            e.stopPropagation();
-           const src = wrap.dataset.imgSrc;
+           const src = wrap.dataset.imgSrc || imgEl?.src;
            if (src) openImageLightbox(src);
          });
        });

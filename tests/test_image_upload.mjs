@@ -120,6 +120,17 @@ test("2. 端到端实测：POST /api/upload 上传与 GET /uploads/* 获取", as
   assert.equal(headRes.statusCode, 200, "HEAD 请求应返回 200");
   assert.equal(headRes.headers["content-type"], "image/png");
 
+  // 2.4.1 测试安全 Base64 Data URL 接口 GET /api/image-data
+  const dataUrlRes = await request({
+    hostname: "127.0.0.1",
+    port: HUB_PORT,
+    path: `/api/image-data?path=${encodeURIComponent(uploadRes.body.url)}`,
+    method: "GET",
+  });
+  assert.equal(dataUrlRes.statusCode, 200, "image-data 接口应返回 200");
+  assert.equal(dataUrlRes.body.ok, true);
+  assert.ok(dataUrlRes.body.dataUrl.startsWith("data:image/png;base64,"));
+
   // 2.5 异常测试：空数据上传应返回 400
   const badRes = await request(
     {

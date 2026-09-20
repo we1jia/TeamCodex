@@ -1380,6 +1380,32 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // 7.6 图片数据获取 (返回安全可靠的 Data URL，彻底绕过沙箱 Mixed Content 与 Private Network 限制)
+  if (req.method === "GET" && url.pathname === "/api/image-data") {
+    const rawPath = url.searchParams.get("path") || url.searchParams.get("url") || "";
+    const filename = path.basename(decodeURIComponent(rawPath));
+    if (!filename) {
+      sendJson(res, 400, { ok: false, error: "filename_required" });
+      return;
+    }
+    const targetPath = path.join(UPLOADS_DIR, filename);
+    if (!fs.existsSync(targetPath)) {
+      sendJson(res, 404, { ok: false, error: "not_found" });
+      return;
+    }
+    try {
+      const ext = path.extname(targetPath).toLowerCase();
+      const mime = MIME[ext] || "image/png";
+      const buffer = fs.readFileSync(targetPath);
+      const dataUrl = `data:${mime.split(";")[0]};base64,${buffer.toString("base64")}`;
+      sendJson(res, 200, { ok: true, dataUrl, size: buffer.length });
+      return;
+    } catch (err) {
+      sendJson(res, 500, { ok: false, error: "read_failed", message: err.message });
+      return;
+    }
+  }
+
   // 8. 团队消息发送 (Messages API)
   if (req.method === "POST" && url.pathname === "/api/messages") {
     let body;
