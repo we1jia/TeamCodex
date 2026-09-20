@@ -24,8 +24,8 @@ InstallDirRegKey HKCU "Software\TeamCodex" "Install_Dir"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
-!define MUI_FINISHPAGE_RUN "$SYSDIR\wscript.exe"
-!define MUI_FINISHPAGE_RUN_PARAMETERS '"$INSTDIR\windows\run-silent.vbs"'
+!define MUI_FINISHPAGE_RUN
+!define MUI_FINISHPAGE_RUN_FUNCTION LaunchTeamCodex
 !define MUI_FINISHPAGE_RUN_TEXT "运行 TeamCodex"
 !insertmacro MUI_PAGE_FINISH
 
@@ -83,3 +83,7 @@ Section "Uninstall"
   ; Remove Files and Installation Directory
   RMDir /r "$INSTDIR"
 SectionEnd
+
+Function LaunchTeamCodex
+  ExecShell "" "wscript.exe" '"$INSTDIR\windows\run-silent.vbs"'
+FunctionEnd
