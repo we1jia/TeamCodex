@@ -588,20 +588,25 @@
         background-color: var(--color-background-primary-ghost-hover, rgba(0, 0, 0, 0.06)) !important;
       }
 
-      /* Team 下拉弹出菜单动画 */
+      /* Team 下拉弹出菜单包装器（固定于侧边栏右侧真实物理坐标，绝对禁止使用任何冲刷位置的位移动画） */
       .team-codex-menu-wrapper {
-        animation: teamMenuFadeIn 110ms cubic-bezier(0.16, 1, 0.3, 1);
-        will-change: transform, opacity;
-      }
-      @keyframes teamMenuFadeIn {
-        from { opacity: 0; transform: scale(0.97) translateY(-2px); }
-        to { opacity: 1; transform: scale(1) translateY(0); }
+        position: fixed !important;
+        transform: none !important;
+        will-change: auto;
       }
 
-      /* 原生类名兜底确保深浅色完美生效 */
+      /* 内层容器承载原生毛玻璃微动效（局部相对变换，绝不破坏外层包装器的物理定位） */
       .team-codex-menu-container {
         box-sizing: border-box;
+        transform-origin: top left;
+        animation: teamMenuScaleIn 100ms cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: transform, opacity;
       }
+      @keyframes teamMenuScaleIn {
+        from { opacity: 0; transform: scale(0.96) translateX(-3px); }
+        to { opacity: 1; transform: scale(1) translateX(0); }
+      }
+
       html[data-theme="light"] .team-codex-menu-container {
         background-color: var(--color-surface-elevated-secondary, rgba(255, 255, 255, 0.92)) !important;
         color: var(--color-text-primary-ghost, #1a1c1f) !important;
@@ -7965,8 +7970,18 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     if (!btn) return;
 
     const rect = btn.getBoundingClientRect();
-    const x = Math.round(rect.right + 6);
+    let x = Math.round(rect.right + 6);
     let y = Math.round(rect.top);
+
+    // 严防左上角 (0, 0) 闪烁：若测得坐标异常，安全回退至侧栏右侧
+    if (!x || x < 60) {
+      const sidebar = findSidebar();
+      const sidebarRect = sidebar?.getBoundingClientRect();
+      x = Math.round((sidebarRect?.right || 260) + 6);
+    }
+    if (!y || y < 40) {
+      y = 120;
+    }
 
     const estimatedHeight = 220;
     if (y + estimatedHeight > window.innerHeight - 12) {
@@ -7978,7 +7993,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     menuWrapper.setAttribute("data-radix-popper-content-wrapper", "");
     menuWrapper.className = "team-codex-menu-wrapper";
     menuWrapper.setAttribute("dir", "ltr");
-    menuWrapper.style.cssText = `position: fixed; left: 0px; top: 0px; transform: translate(${x}px, ${y}px); min-width: max-content; z-index: 99999; will-change: transform;`;
+    menuWrapper.style.cssText = `position: fixed !important; left: ${x}px !important; top: ${y}px !important; min-width: max-content; z-index: 99999; transform: none !important;`;
 
     // 鼠标移入下拉菜单本身 -> 保持打开，取消关闭计时
     menuWrapper.addEventListener("mouseenter", () => {
@@ -8157,6 +8172,12 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     }
   }
 
+  window.__teamContextOpenMenu = openTeamMenu;
+  window.__teamContextCloseMenu = closeTeamMenu;
+  window.__teamContextToggleMenu = toggleTeamMenu;
+  window.__teamContextScheduleOpenMenu = scheduleOpenTeamMenu;
+  window.__teamContextScheduleCloseMenu = scheduleCloseTeamMenu;
+
   function installLeaveHandler() {
     if (window.__teamContextLeaveHandler) {
       document.removeEventListener("click", window.__teamContextLeaveHandler, true);
@@ -8271,7 +8292,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       button.dataset.teamHoverBound = "true";
 
       const onEnter = () => {
-        scheduleOpenTeamMenu(50);
+        (window.__teamContextScheduleOpenMenu || scheduleOpenTeamMenu)(50);
       };
 
       const onLeave = (e) => {
@@ -8281,7 +8302,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         if (toEl && ((wrapper && wrapper.contains(toEl)) || (menu && menu.contains(toEl)))) {
           return;
         }
-        scheduleCloseTeamMenu(220);
+        (window.__teamContextScheduleCloseMenu || scheduleCloseTeamMenu)(220);
       };
 
       button.addEventListener("mouseenter", onEnter);
@@ -8296,7 +8317,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     button.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-      toggleTeamMenu(e);
+      (window.__teamContextToggleMenu || toggleTeamMenu)(e);
     };
   }
 
