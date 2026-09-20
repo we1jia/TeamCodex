@@ -4,13 +4,67 @@ import fs from "node:fs";
 import path from "node:path";
 import http from "node:http";
 
+import { spawn } from "node:child_process";
+import os from "node:os";
+
 const ROOT = path.resolve(import.meta.dirname, "..");
-const HUB_PORT = 18765;
+let activePort = 18765;
+let spawnedServer = null;
+
+// 在执行网络测试前确保 Hub 存活（CI 隔离环境自愈拉起）
+async function ensureHubServer() {
+  const isAlive = await new Promise((resolve) => {
+    const req = http.get({ hostname: "127.0.0.1", port: 18765, path: "/api/rooms", timeout: 800 }, (res) => {
+      resolve(true);
+    });
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => { req.destroy(); resolve(false); });
+  });
+
+  if (isAlive) {
+    activePort = 18765;
+    return;
+  }
+
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "team-ctx-upload-test-"));
+  const tempMessages = path.join(tempDir, "messages.json");
+  activePort = 19878;
+  const SERVER_PATH = path.join(ROOT, "server", "dev_host.mjs");
+  spawnedServer = spawn(process.execPath, [SERVER_PATH], {
+    env: {
+      ...process.env,
+      PORT: String(activePort),
+      MESSAGES_FILE: tempMessages,
+      DATA_DIR: tempDir,
+    },
+    stdio: "ignore",
+  });
+
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    const ok = await new Promise((resolve) => {
+      const r = http.get({ hostname: "127.0.0.1", port: activePort, path: "/api/rooms", timeout: 500 }, () => resolve(true));
+      r.on("error", () => resolve(false));
+      r.on("timeout", () => { r.destroy(); resolve(false); });
+    });
+    if (ok) break;
+  }
+}
+
+process.on("exit", () => {
+  if (spawnedServer) {
+    try { spawnedServer.kill(); } catch {}
+  }
+});
 
 // 辅助网络请求函数
 function request(options, data = null) {
   return new Promise((resolve, reject) => {
-    const req = http.request(options, (res) => {
+    const finalOptions = {
+      ...options,
+      port: options.port || activePort,
+    };
+    const req = http.request(finalOptions, (res) => {
       const chunks = [];
       res.on("data", (chunk) => chunks.push(chunk));
       res.on("end", () => {
@@ -66,6 +120,7 @@ test("1. 后端 dev_host.mjs 图片上传与静态文件托管能力", async () 
 });
 
 test("2. 端到端实测：POST /api/upload 上传与 GET /uploads/* 获取", async () => {
+  await ensureHubServer();
   // 生成一个标准的 1x1 透明 PNG 图片 Base64
   const pngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
   const pngBuffer = Buffer.from(pngBase64, "base64");
@@ -74,7 +129,7 @@ test("2. 端到端实测：POST /api/upload 上传与 GET /uploads/* 获取", as
   const uploadRes = await request(
     {
       hostname: "127.0.0.1",
-      port: HUB_PORT,
+      port: activePort,
       path: "/api/upload",
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -100,7 +155,7 @@ test("2. 端到端实测：POST /api/upload 上传与 GET /uploads/* 获取", as
   // 2.3 通过静态路由 GET /uploads/* 下载并比对内容
   const getRes = await request({
     hostname: "127.0.0.1",
-    port: HUB_PORT,
+    port: activePort,
     path: uploadRes.body.url,
     method: "GET",
   });
@@ -113,7 +168,7 @@ test("2. 端到端实测：POST /api/upload 上传与 GET /uploads/* 获取", as
   // 2.4 测试 HEAD 请求支持
   const headRes = await request({
     hostname: "127.0.0.1",
-    port: HUB_PORT,
+    port: activePort,
     path: uploadRes.body.url,
     method: "HEAD",
   });
@@ -123,7 +178,7 @@ test("2. 端到端实测：POST /api/upload 上传与 GET /uploads/* 获取", as
   // 2.4.1 测试安全 Base64 Data URL 接口 GET /api/image-data
   const dataUrlRes = await request({
     hostname: "127.0.0.1",
-    port: HUB_PORT,
+    port: activePort,
     path: `/api/image-data?path=${encodeURIComponent(uploadRes.body.url)}`,
     method: "GET",
   });
@@ -135,7 +190,7 @@ test("2. 端到端实测：POST /api/upload 上传与 GET /uploads/* 获取", as
   const badRes = await request(
     {
       hostname: "127.0.0.1",
-      port: HUB_PORT,
+      port: activePort,
       path: "/api/upload",
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -149,7 +204,7 @@ test("2. 端到端实测：POST /api/upload 上传与 GET /uploads/* 获取", as
   const hugeRes = await request(
     {
       hostname: "127.0.0.1",
-      port: HUB_PORT,
+      port: activePort,
       path: "/api/upload",
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -164,7 +219,7 @@ test("3. 消息广播与发送集成：支持纯图片与文字+图片消息", a
   const sendImgRes = await request(
     {
       hostname: "127.0.0.1",
-      port: HUB_PORT,
+      port: activePort,
       path: "/api/messages?room=Media",
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -194,7 +249,7 @@ test("3. 消息广播与发送集成：支持纯图片与文字+图片消息", a
   const sendMixedRes = await request(
     {
       hostname: "127.0.0.1",
-      port: HUB_PORT,
+      port: activePort,
       path: "/api/messages?room=Media",
       method: "POST",
       headers: { "Content-Type": "application/json" },
