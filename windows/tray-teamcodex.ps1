@@ -73,7 +73,7 @@ function Show-TeamCodexTray {
   $hubItem = $menu.Items.Add("切换中枢地址")
   $restartItem = $menu.Items.Add("重启注入")
   [void]$menu.Items.Add("-")
-  $updateItem = $menu.Items.Add("当前版本 1.1.2")
+  $updateItem = $menu.Items.Add("当前版本 1.1.3")
   $exitItem = $menu.Items.Add("退出")
   $notify.ContextMenuStrip = $menu
 
@@ -110,7 +110,7 @@ function Show-TeamCodexTray {
   $headerPanel.Controls.Add($titleLabel)
 
   $verLabel = New-Object System.Windows.Forms.Label
-  $verLabel.Text = "v1.1.2"
+  $verLabel.Text = "v1.1.3"
   $verLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9.0)
   $verLabel.AutoSize = $true
   $verLabel.Location = New-Object System.Drawing.Point(92, 6)

@@ -58,7 +58,7 @@ Section "TeamCodex Core" SecCore
   ; Register in Windows Add/Remove Programs
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "DisplayName" "TeamCodex"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "DisplayIcon" "$INSTDIR\windows\assets\TeamCodex.ico"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "DisplayVersion" "1.1.2"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "DisplayVersion" "1.1.3"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "Publisher" "we1jia"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "NoModify" 1
