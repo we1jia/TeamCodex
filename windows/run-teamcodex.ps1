@@ -13,6 +13,49 @@ $LogFile = Join-Path $DataRoot "launcher.log"
 
 New-Item -ItemType Directory -Force -Path $DataRoot | Out-Null
 
+# ==============================================================================
+# 单实例互斥防抖机制 (杜绝二次双击进程互杀，唤醒旧实例后平滑退出)
+# ==============================================================================
+$appMutexName = "Local\TeamCodexAppMutex"
+$createdNew = $false
+$script:appMutex = $null
+try {
+  $script:appMutex = New-Object System.Threading.Mutex($true, $appMutexName, [ref]$createdNew)
+} catch {
+  $createdNew = $false
+}
+
+$isAlreadyRunning = (-not $createdNew)
+if (-not $isAlreadyRunning) {
+  $existingTray = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -eq "powershell.exe" -and $_.ProcessId -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*")
+  }
+  if ($existingTray) {
+    $isAlreadyRunning = $true
+  }
+}
+
+if ($isAlreadyRunning) {
+  try {
+    Invoke-RestMethod -Uri "http://127.0.0.1:18767/api/wake" -TimeoutSec 1 -ErrorAction SilentlyContinue | Out-Null
+  } catch {}
+  Write-Host "[TeamCodex] 检测到已有 TeamCodex 实例正在运行，唤醒已有实例并退出。" -ForegroundColor Cyan
+  exit 0
+}
+
+# ==============================================================================
+# 托盘秒级先行 (Instant Tray): 100毫秒内瞬间拉起常驻托盘，网络与后台服务完全异步执行
+# ==============================================================================
+$trayScript = Join-Path $WindowsRoot "tray-teamcodex.ps1"
+if (Test-Path -LiteralPath $trayScript) {
+  try {
+    Start-Process -FilePath "powershell.exe" -ArgumentList @("-STA", "-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", "`"$trayScript`"") -WindowStyle Hidden
+    Write-Host "[TeamCodex] 托盘进程已瞬间拉起并常驻任务栏通知区。" -ForegroundColor Green
+  } catch {
+    Write-Host "[TeamCodex] 托盘拉起异常: $($_.Exception.Message)" -ForegroundColor Yellow
+  }
+}
+
 function Stop-OrphanNodeProcessesOnPorts {
   param([int[]]$Ports = @(18765, 18766, 18767, 19877))
   foreach ($p in $Ports) {
@@ -48,15 +91,6 @@ function Stop-OrphanNodeProcessesOnPorts {
 }
 Stop-OrphanNodeProcessesOnPorts -Ports @(18765, 19877)
 Stop-OrphanNodeProcessesOnPorts -Ports @(18766, 18767)
-
-# 清理已存在的旧托盘 powershell 实例，避免重复托盘图标
-try {
-  Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-    $_.Name -eq "powershell.exe" -and $_.ProcessId -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*" -or $_.CommandLine -like "*run-teamcodex*")
-  } | ForEach-Object {
-    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
-  }
-} catch {}
 
 $discoveryFile = Join-Path $InstallRoot "data\hub_discovery.json"
 $discoveredHubUrl = $null
@@ -219,18 +253,40 @@ try {
   if ($gw -and -not $candidateIps.Contains($gw)) { $candidateIps += $gw }
 } catch {}
 
+function Test-HubHealthFast {
+  param([string]$Url, [int]$TimeoutMs = 500)
+  try {
+    $req = [System.Net.WebRequest]::Create($Url)
+    $req.Timeout = $TimeoutMs
+    $req.ReadWriteTimeout = $TimeoutMs
+    $req.Method = "GET"
+    $resp = $req.GetResponse()
+    $stream = $resp.GetResponseStream()
+    $reader = New-Object System.IO.StreamReader($stream)
+    $text = $reader.ReadToEnd()
+    $reader.Close()
+    $stream.Close()
+    $resp.Close()
+    return ($text | ConvertFrom-Json)
+  } catch {
+    return $null
+  }
+}
+
 $discoveredHost = $null
+$candidateIps = $candidateIps | Select-Object -Unique
+$portsToCheck = @(18765, $Port) | Select-Object -Unique
+
 foreach ($ip in $candidateIps) {
-  foreach ($p in @(18765, $Port)) {
-    for ($retry = 1; $retry -le 3; $retry++) {
+  foreach ($p in $portsToCheck) {
+    for ($retry = 1; $retry -le 1; $retry++) {
       try {
-        $macHealth = Invoke-RestMethod -Uri "http://${ip}:${p}/api/health" -TimeoutSec 3 -ErrorAction SilentlyContinue
+        $macHealth = Test-HubHealthFast -Url "http://${ip}:${p}/api/health" -TimeoutMs 500
         if ($macHealth -and $macHealth.ok -and $macHealth.service -eq "team-context-hub") {
           $discoveredHost = "http://${ip}:${p}"
           break
         }
       } catch {}
-      Start-Sleep -Milliseconds 300
     }
     if ($discoveredHost) { break }
   }
@@ -368,11 +424,13 @@ Start-Process -FilePath $nodePath -ArgumentList @($LauncherPath) -WorkingDirecto
 Log-Message "开始连接 Codex CDP 进行 TeamCodex 注入..."
 Start-Process -FilePath $nodePath -ArgumentList @($AttachPath) -WorkingDirectory $InstallRoot -WindowStyle Hidden
 
-$trayScript = Join-Path $WindowsRoot "tray-teamcodex.ps1"
-if (Test-Path -LiteralPath $trayScript) {
-  Log-Message "托盘控制板已启动"
+Log-Message "TeamCodex 后台协同链路初始化完成。"
+
+# 保底检查：若托盘因异常未处于运行状态，则启动托盘
+$trayStillRunning = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+  $_.Name -eq "powershell.exe" -and $_.CommandLine -like "*tray-teamcodex*"
+}
+if (-not $trayStillRunning -and (Test-Path -LiteralPath $trayScript)) {
+  Log-Message "托盘控制板未运行，执行保底启动"
   & $trayScript
-} else {
-  Log-Message "未找到托盘脚本，前台等待注入进程。"
-  & $nodePath $AttachPath
 }

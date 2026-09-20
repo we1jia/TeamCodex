@@ -35,9 +35,11 @@ function writeJson(file, data) {
   fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, "utf8");
 }
 
+let lastWakeTimestamp = 0;
+
 function appVersion() {
   const v = readJson(VERSION_FILE, {});
-  return String(v.version || "1.1.4");
+  return String(v.version || "1.1.5");
 }
 
 function loadConfig() {
@@ -455,7 +457,14 @@ const server = http.createServer(async (req, res) => {
       },
       room: { id: cfg.room, key_set: Boolean(cfg.room_key) },
       update,
+      last_wake: lastWakeTimestamp,
     });
+    return;
+  }
+
+  if ((req.method === "GET" || req.method === "POST") && url.pathname === "/api/wake") {
+    lastWakeTimestamp = Date.now();
+    sendJson(res, 200, { ok: true, message: "TeamCodex is awake", timestamp: lastWakeTimestamp });
     return;
   }
 

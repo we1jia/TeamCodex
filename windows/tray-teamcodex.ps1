@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -11,23 +11,23 @@ function Show-TeamCodexTray {
   } catch {}
 
   # ==============================================================================
-  # 1. 单实例互斥锁与旧进程清洗 (采用 Local 作用域杜绝普通权限下的 UnauthorizedAccessException)
+  # 1. 单实例互斥锁与防抖保护 (若已有实例，安全退出绝不互相强杀)
   # ==============================================================================
   $mutexName = "Local\TeamCodexTrayMutex"
   $createdNew = $false
   $script:trayMutex = $null
   try {
     $script:trayMutex = New-Object System.Threading.Mutex($true, $mutexName, [ref]$createdNew)
-    if (-not $createdNew) {
-      $oldProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -eq "powershell.exe" -and $_.ProcessId -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*" -or $_.CommandLine -like "*run-teamcodex*")
-      }
-      foreach ($p in $oldProcs) {
-        Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
-      }
-      Start-Sleep -Milliseconds 250
-    }
-  } catch {}
+  } catch {
+    $createdNew = $false
+  }
+  if (-not $createdNew) {
+    try {
+      $launcherPort = if ($env:TEAM_CODEX_LAUNCHER_PORT) { $env:TEAM_CODEX_LAUNCHER_PORT } else { "18767" }
+      Invoke-RestMethod -Uri "http://127.0.0.1:$launcherPort/api/wake" -TimeoutSec 1 -ErrorAction SilentlyContinue | Out-Null
+    } catch {}
+    exit 0
+  }
 
   $launcherPort = if ($env:TEAM_CODEX_LAUNCHER_PORT) { $env:TEAM_CODEX_LAUNCHER_PORT } else { "18767" }
   $base = "http://127.0.0.1:$launcherPort"
@@ -62,7 +62,34 @@ function Show-TeamCodexTray {
       (Join-Path $env:LOCALAPPDATA "TeamCodex\assets")
     )
 
-    # 策略 1: 优先读取 PNG 资源并转为原生 Win32 32位 ARGB HICON (彻底规避旧 GDI+ 对 ICO 的透明度解码缺陷)
+    # 策略 1: 优先读取已生成的 Win32 标准 32位 DIB 格式 ICO (原生无损支持 32x32 及多种分辨率)
+    $icoNames = @("TeamCodex.ico", "TeamContext.ico")
+    foreach ($dir in $searchDirs) {
+      foreach ($fn in $icoNames) {
+        $p = Join-Path $dir $fn
+        if (Test-Path -LiteralPath $p) {
+          try {
+            $ico = New-Object System.Drawing.Icon($p, 32, 32)
+            if ($ico) { return $ico }
+          } catch {}
+          try {
+            $ico = New-Object System.Drawing.Icon($p)
+            if ($ico) { return $ico }
+          } catch {}
+          try {
+            $bmp = [System.Drawing.Bitmap]::FromFile($p)
+            if ($bmp -and $bmp.Width -gt 0) {
+              $hIcon = $bmp.GetHicon()
+              if ($hIcon -ne [System.IntPtr]::Zero) {
+                return [System.Drawing.Icon]::FromHandle($hIcon)
+              }
+            }
+          } catch {}
+        }
+      }
+    }
+
+    # 策略 2: 稳健兼容读取 PNG 资源并转为原生 Win32 32位 ARGB HICON
     $pngNames = @("TeamCodex-32.png", "TeamCodex.png", "icon.png")
     foreach ($dir in $searchDirs) {
       foreach ($fn in $pngNames) {
@@ -82,33 +109,6 @@ function Show-TeamCodexTray {
       }
     }
 
-    # 策略 2: 兼容读取标准微软 32位 DIB 格式 ICO
-    $icoNames = @("TeamCodex.ico", "TeamContext.ico")
-    foreach ($dir in $searchDirs) {
-      foreach ($fn in $icoNames) {
-        $p = Join-Path $dir $fn
-        if (Test-Path -LiteralPath $p) {
-          try {
-            $ico = New-Object System.Drawing.Icon($p, 32, 32)
-            if ($ico) { return $ico }
-          } catch {}
-          try {
-            $ico = New-Object System.Drawing.Icon($p)
-            if ($ico) { return $ico }
-          } catch {}
-          try {
-            $bmp = [System.Drawing.Bitmap]::FromFile($p)
-            if ($bmp) {
-              $hIcon = $bmp.GetHicon()
-              if ($hIcon -ne [System.IntPtr]::Zero) {
-                return [System.Drawing.Icon]::FromHandle($hIcon)
-              }
-            }
-          } catch {}
-        }
-      }
-    }
-
     return [System.Drawing.SystemIcons]::Application
   }
 
@@ -116,6 +116,9 @@ function Show-TeamCodexTray {
   $notify.Icon = Get-TeamCodexIcon
   $notify.Text = "TeamCodex"
   $notify.Visible = $true
+  try {
+    $notify.ShowBalloonTip(2000, "TeamCodex", "TeamCodex 协同套件已就绪，正在后台连接协作环境...", [System.Windows.Forms.ToolTipIcon]::Info)
+  } catch {}
 
   # ==============================================================================
   # 2. 彻底还原原版右键菜单 (纯净原版，带状态、操作与彻底退出)
@@ -133,7 +136,7 @@ function Show-TeamCodexTray {
   $hubItem = $menu.Items.Add("切换中枢地址")
   $restartItem = $menu.Items.Add("重启注入")
   [void]$menu.Items.Add("-")
-  $updateItem = $menu.Items.Add("当前版本 1.1.4")
+  $updateItem = $menu.Items.Add("当前版本 1.1.5")
   $exitItem = $menu.Items.Add("退出")
   $notify.ContextMenuStrip = $menu
 
@@ -171,7 +174,7 @@ function Show-TeamCodexTray {
   $headerPanel.Controls.Add($titleLabel)
 
   $verLabel = New-Object System.Windows.Forms.Label
-  $verLabel.Text = "v1.1.4"
+  $verLabel.Text = "v1.1.5"
   $verLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9.0)
   $verLabel.AutoSize = $true
   $verLabel.Location = New-Object System.Drawing.Point(92, 6)
@@ -325,6 +328,14 @@ function Show-TeamCodexTray {
 
       $rowRoom.Dot.ForeColor = [System.Drawing.Color]::FromArgb(34, 197, 94)
       $rowRoom.Val.Text = "$($s.room.id)"
+
+      # 检测二次双击唤醒事件并弹出反馈气泡
+      if ($s.last_wake -and $s.last_wake -ne $script:handledWake) {
+        $script:handledWake = $s.last_wake
+        try {
+          $notify.ShowBalloonTip(2000, "TeamCodex", "TeamCodex 协同套件已在运行中", [System.Windows.Forms.ToolTipIcon]::Info)
+        } catch {}
+      }
     } catch {} finally {
       $script:isRefreshing = $false
     }
@@ -411,15 +422,13 @@ function Show-TeamCodexTray {
   $script:appContext = New-Object System.Windows.Forms.ApplicationContext
 
   # ==============================================================================
-  # 5. 彻底强力退出处理 (立即释放资源并强杀进程，绝不挂起)
+  # 5. 彻底退出处理 (仅在用户显式点击菜单【退出】时执行，释放资源并清理)
   # ==============================================================================
   $doExit = {
     try { if ($script:appContext) { $script:appContext.ExitThread() } } catch {}
-    try { $timer.Stop() } catch {}
-    try { $notify.Visible = $false } catch {}
-    try { $notify.Dispose() } catch {}
-    try { $popup.Close() } catch {}
-    try { $popup.Dispose() } catch {}
+    try { $timer.Stop(); $timer.Dispose() } catch {}
+    try { $notify.Visible = $false; $notify.Dispose() } catch {}
+    try { $popup.Close(); $popup.Dispose() } catch {}
     try {
       if ($script:trayMutex) {
         $script:trayMutex.ReleaseMutex()
@@ -465,9 +474,7 @@ function Show-TeamCodexTray {
   Refresh-Status
   try {
     [System.Windows.Forms.Application]::Run($script:appContext)
-  } finally {
-    & $doExit
-  }
+  } catch {}
 }
 
 Show-TeamCodexTray

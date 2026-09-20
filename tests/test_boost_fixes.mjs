@@ -218,8 +218,8 @@ test("8. UI_VERSION inline-v69+、内嵌标签删除图标、分享闭环、房�
   const runCodexPs1 = fs.readFileSync(path.join(ROOT, "windows/run-teamcodex.ps1"), "utf8");
   assert.match(runCodexPs1, /10\.211\.55\.2/, "run-teamcodex.ps1 必须包含 Mac 宿主机 IP 自动探测");
   assert.match(runCodexPs1, /成功发现 Mac 宿主机 TeamCodex 协同中枢/);
-  assert.match(runCodexPs1, /-TimeoutSec\s+3/, "run-teamcodex.ps1 宿主机健康探测超时必须放宽至 3 秒");
-  assert.match(runCodexPs1, /\$retry\s*=\s*1;\s*\$retry\s*-le\s*3/, "run-teamcodex.ps1 必须包含 3 次重试机制");
+  assert.match(runCodexPs1, /Test-HubHealthFast[\s\S]*?500/, "run-teamcodex.ps1 宿主机健康探测单次超时缩短至 500ms 快速失败");
+  assert.match(runCodexPs1, /\$retry\s*=\s*1;\s*\$retry\s*-le\s*1/, "run-teamcodex.ps1 采用 1 次快速重试杜绝阻塞");
 });
 
 test("9. sidebar_fullscreen.js parseCollabToken 智能口令解析与分拆填入", () => {
@@ -945,7 +945,7 @@ test("36. 官方 Codex 插件体系整合、元数据规范、Hook 自动注入�
   assert.ok(fs.existsSync(pluginJsonPath), ".codex-plugin/plugin.json 应存在");
   const manifest = JSON.parse(fs.readFileSync(pluginJsonPath, "utf8"));
   assert.strictEqual(manifest.name, "team-codex");
-  assert.strictEqual(manifest.version, "1.1.4");
+  assert.strictEqual(manifest.version, "1.1.5");
   assert.ok(manifest.skills && manifest.skills.includes("skills/team-codex/"));
   assert.ok(manifest.hooks && manifest.hooks.includes("hooks/hooks.json"));
   assert.ok(manifest.interface && manifest.interface.defaultPrompt.length >= 3);
@@ -1023,6 +1023,46 @@ test("38. 全平台自动化一键打包流水线可用性与四大分发包完�
     }
   }
 });
+
+test("39. v1.1.5 Windows 托盘秒级先行 (Instant Tray)、单实例防抖互斥、移除强杀进程与稳健消息泵", () => {
+  const runPs = fs.readFileSync(path.join(ROOT, "windows/run-teamcodex.ps1"), "utf8");
+  const trayPs = fs.readFileSync(path.join(ROOT, "windows/tray-teamcodex.ps1"), "utf8");
+  const versionJson = JSON.parse(fs.readFileSync(path.join(ROOT, "version.json"), "utf8"));
+  const pluginJson = JSON.parse(fs.readFileSync(path.join(ROOT, ".codex-plugin/plugin.json"), "utf8"));
+  const launcherHost = fs.readFileSync(path.join(ROOT, "server/launcher_host.mjs"), "utf8");
+  const installerNsi = fs.readFileSync(path.join(ROOT, "windows/installer.nsi"), "utf8");
+
+  // 39.1 版本全量同步至 1.1.5
+  assert.strictEqual(versionJson.version, "1.1.5", "version.json 版本必须为 1.1.5");
+  assert.strictEqual(pluginJson.version, "1.1.5", "plugin.json 版本必须为 1.1.5");
+  assert.match(launcherHost, /return String\(v\.version \|\| "1\.1\.5"\);/, "launcher_host.mjs fallback 版本必须为 1.1.5");
+  assert.match(installerNsi, /DisplayVersion"\s+"1\.1\.5"/, "installer.nsi DisplayVersion 必须为 1.1.5");
+  assert.match(trayPs, /当前版本 1\.1\.5/, "tray-teamcodex.ps1 右键菜单必须显示当前版本 1.1.5");
+  assert.match(trayPs, /v1\.1\.5/, "tray-teamcodex.ps1 悬浮面板标题必须显示 v1.1.5");
+
+  // 39.2 启动链路秒级先行：托盘先行拉起且先于耗时操作
+  const instantTrayIdx = runPs.indexOf("Start-Process -FilePath \"powershell.exe\" -ArgumentList @(\"-STA\", \"-NoProfile\", \"-ExecutionPolicy\", \"Bypass\", \"-WindowStyle\", \"Hidden\", \"-File\", \"`\"$trayScript`\"\"");
+  const runtimeEnsureIdx = runPs.indexOf("Ensure-TeamCodexRuntime");
+  const hostProbeIdx = runPs.indexOf("Test-HubHealthFast");
+  assert.ok(instantTrayIdx > 0, "run-teamcodex.ps1 必须在启动初期瞬间拉起托盘进程");
+  assert.ok(instantTrayIdx < runtimeEnsureIdx, "托盘拉起必须严格优先于 Node 运行时环境解压与检查");
+  assert.ok(instantTrayIdx < hostProbeIdx, "托盘拉起必须严格优先于宿主机网络探测");
+
+  // 39.3 单实例互斥防抖机制：绝不互相强杀已运行进程
+  assert.match(runPs, /Local\\TeamCodexAppMutex/, "run-teamcodex.ps1 必须引入 Local\\TeamCodexAppMutex 互斥体");
+  assert.match(runPs, /\/api\/wake/, "run-teamcodex.ps1 检测到已有实例必须触发 /api/wake 唤醒");
+  assert.doesNotMatch(runPs, /Stop-Process -Id \$_\\.ProcessId -Force -ErrorAction SilentlyContinue[\s\S]*?tray-teamcodex/, "run-teamcodex.ps1 严禁强杀正在运行中的托盘 powershell 实例");
+
+  // 39.4 稳固托盘消息泵：拆除 finally 强杀逻辑
+  assert.doesNotMatch(trayPs, /finally\s*\{\s*&\s*\$doExit\s*\}/, "tray-teamcodex.ps1 必须彻底拆除 finally { & $doExit } 强杀逻辑");
+  assert.match(trayPs, /\$exitItem\.Add_Click\(\$doExit\)/, "必须且仅在点击退出菜单项时执行 $doExit");
+  assert.match(trayPs, /ShowBalloonTip\(2000,\s*"TeamCodex",\s*"TeamCodex 协同套件已就绪/, "托盘必须在拉起时第一时间弹出就绪反馈气泡");
+
+  // 39.5 网络嗅探快速失败：500ms 超时与 1 次重试
+  assert.match(runPs, /Test-HubHealthFast[\s\S]*?TimeoutMs = 500/, "单次超时必须缩短至 500ms");
+  assert.match(runPs, /\$retry\s*=\s*1;\s*\$retry\s*-le\s*1/, "探测重试次数必须缩短为 1 次，快速失败转入单机模式");
+});
+
 
 
 
