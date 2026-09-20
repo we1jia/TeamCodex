@@ -1,7 +1,7 @@
 import Cocoa
 import WebKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, WKUIDelegate {
   private var statusItem: NSStatusItem!
   private var popover: NSPopover!
   private var webView: WKWebView!
@@ -110,6 +110,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
   private func setupPopover() {
     let config = WKWebViewConfiguration()
     webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 320, height: 382), configuration: config)
+    webView.uiDelegate = self
     webView.setValue(false, forKey: "drawsBackground")
     if let url = URL(string: "http://127.0.0.1:18767/panel.html") {
       webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 8))
@@ -122,6 +123,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     popover.animates = true
     popover.delegate = self
     popover.contentViewController = controller
+  }
+
+  func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+    let alert = NSAlert()
+    alert.messageText = "TeamCodex"
+    alert.informativeText = message
+    alert.addButton(withTitle: "确认")
+    alert.addButton(withTitle: "取消")
+    let response = alert.runModal()
+    completionHandler(response == .alertFirstButtonReturn)
+  }
+
+  func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+    let alert = NSAlert()
+    alert.messageText = "TeamCodex"
+    alert.informativeText = message
+    alert.addButton(withTitle: "好")
+    alert.runModal()
+    completionHandler()
   }
 
   @objc private func statusClicked(_ sender: NSStatusBarButton) {

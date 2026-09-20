@@ -109,6 +109,8 @@
     }
     button.primary { background: var(--accent); color: white; font-weight: 600; }
     button.primary:hover:not(:disabled) { filter: brightness(1.05); }
+    button.warn { background: var(--warn) !important; color: #1d1d1f !important; font-weight: 600; }
+    button.warn:hover:not(:disabled) { filter: brightness(1.06); }
     button:disabled { opacity: 0.55; cursor: default; }
     .field {
       display: grid;
@@ -200,7 +202,38 @@
       }
     }
 
+    let confirmRestartTimer = null;
+    let isAwaitingRestartConfirm = false;
+
+    function resetStartBtn() {
+      isAwaitingRestartConfirm = false;
+      if (confirmRestartTimer) clearTimeout(confirmRestartTimer);
+      confirmRestartTimer = null;
+      $("startBtn").textContent = "启动并挂载 Codex";
+      $("startBtn").classList.remove("warn");
+    }
+
     $("startBtn").onclick = async () => {
+      // 处于内联等待确认状态时，再次点击直接执行强制重启挂载
+      if (isAwaitingRestartConfirm) {
+        resetStartBtn();
+        $("startBtn").disabled = true;
+        say("正在重启 Codex 并挂载...");
+        try {
+          const fRes = await api("/api/start-codex", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ force: true }),
+          });
+          say(fRes.message || "已重启并挂载");
+        } catch {
+          say("重启挂载失败");
+        }
+        $("startBtn").disabled = false;
+        refresh();
+        return;
+      }
+
       $("startBtn").disabled = true;
       try {
         const res = await api("/api/start-codex", {
@@ -212,7 +245,12 @@
           say(res.message || (res.mode === "attached" ? "已热挂载现有实例" : "正在启动并挂载"));
         } else if (res.requires_restart_confirm) {
           const tip = res.message || "检测到 Codex 正在运行但未开启协同端口，是否确认重启？";
-          if (confirm(tip)) {
+          let confirmed = false;
+          try {
+            confirmed = confirm(tip);
+          } catch {}
+
+          if (confirmed) {
             say("正在重启并挂载...");
             const fRes = await api("/api/start-codex", {
               method: "POST",
@@ -221,9 +259,16 @@
             });
             say(fRes.message || "已重启并挂载");
           } else {
-            say(res.has_custom_proxy
-              ? "已取消重启。您可为代理服务启动参数添加 --remote-debugging-port=18766 后点击重启注入"
-              : "已取消重启。当前会话未受影响");
+            // 弹窗被系统静默拦截或取消时，降级为内联确认按钮，杜绝交互死锁
+            isAwaitingRestartConfirm = true;
+            $("startBtn").textContent = "⚠️ 点击立即确认重启挂载";
+            $("startBtn").classList.add("warn");
+            say("检测到未开启协同端口。点击上方按钮即可确认重启并挂载");
+            if (confirmRestartTimer) clearTimeout(confirmRestartTimer);
+            confirmRestartTimer = setTimeout(() => {
+              resetStartBtn();
+              say("");
+            }, 8000);
           }
         } else {
           say(res.message || "启动失败");
