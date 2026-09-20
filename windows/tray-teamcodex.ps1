@@ -34,6 +34,14 @@ function Show-TeamCodexTray {
 
   $launcherPort = if ($env:TEAM_CODEX_LAUNCHER_PORT) { $env:TEAM_CODEX_LAUNCHER_PORT } else { "18767" }
   $base = "http://127.0.0.1:$launcherPort"
+  $installedVersion = "1.2.0"
+  try {
+    $versionFile = Join-Path (Split-Path -Parent $PSScriptRoot) "version.json"
+    $manifest = Get-Content -LiteralPath $versionFile -Raw -Encoding utf8 | ConvertFrom-Json
+    if ([string]$manifest.version -match '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
+      $installedVersion = [string]$manifest.version
+    }
+  } catch { } # 旧安装目录缺失manifest时仍显示本脚本随包发布的版本。
 
   function Invoke-Launcher {
     param([string]$Path, [string]$Method = "GET", [string]$Body = $null)
@@ -148,7 +156,7 @@ function Show-TeamCodexTray {
   $hubItem = $menu.Items.Add("切换中枢地址")
   $restartItem = $menu.Items.Add("重启注入")
   [void]$menu.Items.Add("-")
-  $updateItem = $menu.Items.Add("当前版本 1.1.5")
+  $updateItem = $menu.Items.Add("当前版本 $installedVersion")
   $exitItem = $menu.Items.Add("退出")
   $notify.ContextMenuStrip = $menu
 
@@ -186,7 +194,7 @@ function Show-TeamCodexTray {
   $headerPanel.Controls.Add($titleLabel)
 
   $verLabel = New-Object System.Windows.Forms.Label
-  $verLabel.Text = "v1.1.5"
+  $verLabel.Text = "v$installedVersion"
   $verLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9.0)
   $verLabel.AutoSize = $true
   $verLabel.Location = New-Object System.Drawing.Point(92, 6)
@@ -311,15 +319,14 @@ function Show-TeamCodexTray {
         $btnUpdate.ForeColor = [System.Drawing.Color]::FromArgb(96, 165, 250)
         $notify.Text = "TeamCodex 有更新"
       } else {
-        $updateItem.Text = "当前版本 $($s.app_version)"
+        $updateItem.Text = if ($s.app_version -and $s.app_version -ne $installedVersion) { "安装 v$installedVersion · 服务 v$($s.app_version)" } else { "当前版本 $installedVersion" }
         $btnUpdate.Text = "检查更新"
         $btnUpdate.ForeColor = [System.Drawing.Color]::FromArgb(241, 245, 249)
         $notify.Text = "TeamCodex"
       }
 
       # 左键弹窗状态同步
-      $verLabel.Text = "服务 v$($s.app_version)"
-      if ($s.build_id) { $verLabel.Text += " (兼容修复)" }
+      $verLabel.Text = if ($s.app_version -and $s.app_version -ne $installedVersion) { "v$installedVersion · 服务待同步" } else { "v$installedVersion" }
       if ($s.codex.pending_update) {
         $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(234, 179, 8)
         $rowCodex.Val.Text = "待重新打开客户端加载新版"

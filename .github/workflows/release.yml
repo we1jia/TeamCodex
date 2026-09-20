@@ -7,15 +7,49 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: "Release version tag (e.g. v1.0.0)"
+        description: "Release tag (leave blank to use version.json)"
         required: false
-        default: "v1.0.0"
+        default: ""
 
 permissions:
   contents: write
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate release version and target commit
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.version_tag }}
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          version = json.loads(Path('version.json').read_text())['version']
+          if not re.fullmatch(r'\d+\.\d+\.\d+', version):
+              raise SystemExit('Invalid version.json release version')
+          expected = f'v{version}'
+          tag = os.environ['REF_NAME'] if os.environ['EVENT_NAME'] == 'push' else (os.environ['INPUT_TAG'] or expected)
+          if tag != expected:
+              raise SystemExit(f'Tag {tag} does not match version.json {expected}')
+          existing = subprocess.run(['git', 'rev-parse', '--verify', f'refs/tags/{tag}^{{commit}}'], capture_output=True, text=True)
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if existing.returncode == 0 and existing.stdout.strip() != head:
+              raise SystemExit(f'Tag {tag} points to a different commit; refusing to replace release assets')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'tag={tag}\n')
+          PY
+
   build-macos:
+    needs: prepare
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -38,7 +72,11 @@ jobs:
 
       - name: Run automated tests
         run: |
+          python3 -m unittest discover -s tests -p 'test_*packaging.py'
           node --test tests/test_image_upload.mjs
+          node --test tests/test_workspace.mjs tests/test_workspace_bridge.mjs tests/test_workspace_http.mjs
+          node --test tests/test_safety.mjs tests/test_runtime_policy.mjs tests/test_runtime_integration.mjs tests/test_runtime_adapters.mjs tests/test_mount_recovery.mjs
+          node --test tests/test_workspace_typography.mjs tests/test_host_layout.mjs tests/test_workspace_dialog.mjs
           node --test tests/test_boost_fixes.mjs
           node --test tests/test_rooms_and_auth.mjs
 
@@ -61,6 +99,7 @@ jobs:
             TeamCodex-Codex-Plugin.zip
 
   build-windows:
+    needs: prepare
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -79,6 +118,9 @@ jobs:
       - name: Build Windows Portable Bundle (ZIP)
         run: python3 windows/build_zip.py
 
+      - name: Verify Windows release packaging
+        run: python3 -m unittest discover -s tests -p 'test_windows_release_packaging.py'
+
       - name: Build Windows Executable Installer (Setup.exe)
         run: |
           cd windows
@@ -93,7 +135,7 @@ jobs:
             TeamCodex-Windows-arm64-amd64.zip
 
   publish-release:
-    needs: [build-macos, build-windows]
+    needs: [prepare, build-macos, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -116,24 +158,17 @@ jobs:
           sha256sum TeamCodex-macOS.dmg TeamCodex-Setup.exe TeamCodex-macOS.zip TeamCodex-Windows-arm64-amd64.zip TeamCodex-Codex-Plugin.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - name: Determine Release Tag
-        id: vars
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.version_tag }}"
-          else
-            TAG="${{ github.ref_name }}"
-          fi
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.vars.outputs.tag }}
-          name: TeamCodex ${{ steps.vars.outputs.tag }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: TeamCodex ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           draft: false
           prerelease: false
+          body_path: docs/releases/${{ needs.prepare.outputs.tag }}.md
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             TeamCodex-macOS.dmg
             TeamCodex-Setup.exe

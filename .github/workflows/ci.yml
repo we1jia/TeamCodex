@@ -35,6 +35,7 @@ jobs:
 
       - name: Run automated tests
         run: |
+          python3 -m unittest discover -s tests -p 'test_*packaging.py'
           node --test tests/test_image_upload.mjs
           node --test tests/test_workspace.mjs tests/test_workspace_bridge.mjs tests/test_workspace_http.mjs
           node --test tests/test_safety.mjs tests/test_runtime_policy.mjs tests/test_runtime_integration.mjs tests/test_runtime_adapters.mjs tests/test_mount_recovery.mjs

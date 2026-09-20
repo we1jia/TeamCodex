@@ -1097,7 +1097,7 @@ test("36. 官方 Codex 插件体系整合、元数据规范、Hook 自动注入�
   assert.ok(fs.existsSync(pluginJsonPath), ".codex-plugin/plugin.json 应存在");
   const manifest = JSON.parse(fs.readFileSync(pluginJsonPath, "utf8"));
   assert.strictEqual(manifest.name, "team-codex");
-  assert.strictEqual(manifest.version, "1.1.5");
+  assert.strictEqual(manifest.version, JSON.parse(fs.readFileSync(path.join(ROOT, "version.json"), "utf8")).version);
   assert.ok(manifest.skills && manifest.skills.includes("skills/team-codex/"));
   assert.ok(manifest.hooks && manifest.hooks.includes("hooks/hooks.json"));
   assert.ok(manifest.interface && manifest.interface.defaultPrompt.length >= 3);
@@ -1166,7 +1166,7 @@ test("38. 全平台自动化一键打包流水线可用性与四大分发包完�
   }
 });
 
-test("39. v1.1.5 Windows 托盘秒级先行 (Instant Tray)、单实例防抖互斥、移除强杀进程与稳健消息泵", () => {
+test("39. 发行版本同步与 Windows 托盘秒级先行、单实例互斥及稳健消息泵", () => {
   const runPs = fs.readFileSync(path.join(ROOT, "windows/run-teamcodex.ps1"), "utf8");
   const trayPs = fs.readFileSync(path.join(ROOT, "windows/tray-teamcodex.ps1"), "utf8");
   const versionJson = JSON.parse(fs.readFileSync(path.join(ROOT, "version.json"), "utf8"));
@@ -1174,13 +1174,15 @@ test("39. v1.1.5 Windows 托盘秒级先行 (Instant Tray)、单实例防抖互�
   const launcherHost = fs.readFileSync(path.join(ROOT, "server/launcher_host.mjs"), "utf8");
   const installerNsi = fs.readFileSync(path.join(ROOT, "windows/installer.nsi"), "utf8");
 
-  // 39.1 版本全量同步至 1.1.5
-  assert.strictEqual(versionJson.version, "1.1.5", "version.json 版本必须为 1.1.5");
-  assert.strictEqual(pluginJson.version, "1.1.5", "plugin.json 版本必须为 1.1.5");
-  assert.match(launcherHost, /return String\(v\.version \|\| "1\.1\.5"\);/, "launcher_host.mjs fallback 版本必须为 1.1.5");
-  assert.match(installerNsi, /DisplayVersion"\s+"1\.1\.5"/, "installer.nsi DisplayVersion 必须为 1.1.5");
-  assert.match(trayPs, /当前版本 1\.1\.5/, "tray-teamcodex.ps1 右键菜单必须显示当前版本 1.1.5");
-  assert.match(trayPs, /v1\.1\.5/, "tray-teamcodex.ps1 悬浮面板标题必须显示 v1.1.5");
+  // 39.1 version.json 是发行版本基准，所有客户端展示与插件版本须一致。
+  const releaseVersion = versionJson.version;
+  assert.match(releaseVersion, /^\d+\.\d+\.\d+$/, "发行版本必须符合 semver");
+  assert.strictEqual(pluginJson.version, releaseVersion, "插件版本必须与发行版本一致");
+  assert.strictEqual(launcherHost.match(/return String\(v\.version \|\| "([^"]+)"\);/)?.[1], releaseVersion, "launcher fallback 版本必须一致");
+  assert.strictEqual(installerNsi.match(/!define APP_VERSION "([^"]+)"/)?.[1], releaseVersion, "Windows 安装器版本必须一致");
+  assert.match(installerNsi, /DisplayVersion"\s+"\$\{APP_VERSION\}"/, "卸载列表必须引用安装器版本");
+  assert.strictEqual(trayPs.match(/\$installedVersion\s*=\s*"([^"]+)"/)?.[1], releaseVersion, "托盘 fallback 版本必须一致");
+  assert.match(trayPs, /version\.json/, "托盘必须读取当前安装版本");
 
   // 39.2 启动链路秒级先行：托盘先行拉起且先于耗时操作
   const instantTrayIdx = runPs.indexOf("Start-Process -FilePath \"powershell.exe\" -ArgumentList @(\"-STA\", \"-NoProfile\", \"-ExecutionPolicy\", \"Bypass\", \"-WindowStyle\", \"Hidden\", \"-File\", \"`\"$trayScript`\"\"");

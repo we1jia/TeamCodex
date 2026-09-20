@@ -17,7 +17,7 @@ const DISCOVERY_FILE = path.join(DATA_DIR, "hub_discovery.json");
 const VERSION_FILE = path.join(ROOT, "version.json");
 const LOG_FILE = path.join(DATA_DIR, "launcher.log");
 const GITHUB_REPO = process.env.TEAM_CODEX_RELEASES_REPO || "we1jia/TeamCodex";
-const BUILD_ID = 'mountfix-20260921-1';
+const BUILD_ID = 'release-1.2.0-20260921';
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -42,7 +42,7 @@ let lastWakeTimestamp = 0;
 
 function appVersion() {
   const v = readJson(VERSION_FILE, {});
-  return String(v.version || "1.1.5");
+  return String(v.version || "1.2.0");
 }
 
 function loadConfig() {

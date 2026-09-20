@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
+import argparse
+import json
 import os
+from pathlib import Path
+import tempfile
 import zipfile
 
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
 TC_DIR = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
-WORKSPACE = os.path.abspath(os.path.join(TC_DIR, '..'))
 OUTPUT_ZIP = os.path.join(TC_DIR, 'TeamCodex-Windows-arm64-amd64.zip')
-OUTPUT_ZIP_PARENT = os.path.join(WORKSPACE, 'TeamCodex-Windows-arm64-amd64.zip')
+SAFE_DISCOVERY = {"default_room": "1024", "rooms": {}, "known_keys": {}}
 
 FILES_TO_PACK = [
     ('windows/一键安装到桌面.cmd', 'TeamCodex-Windows/一键安装到桌面.cmd'),
@@ -62,26 +65,39 @@ FILES_TO_PACK = [
     ('windows/assets/TeamCodex.png', 'TeamCodex-Windows/windows/assets/TeamCodex.png'),
     ('windows/assets/TeamCodex-32.png', 'TeamCodex-Windows/windows/assets/TeamCodex-32.png'),
     ('assets/icon.png', 'TeamCodex-Windows/assets/icon.png'),
-    ('data/hub_discovery.json', 'TeamCodex-Windows/data/hub_discovery.json'),
 ]
 
-def build_zip():
-    print(f'[build_zip] 打包中: {OUTPUT_ZIP}...')
-    temp_zip = OUTPUT_ZIP + '.tmp'
-    with zipfile.ZipFile(temp_zip, 'w', compression=zipfile.ZIP_DEFLATED) as z:
-        for src_rel, zip_target in FILES_TO_PACK:
-            src_full = os.path.join(TC_DIR, src_rel)
-            if not os.path.exists(src_full):
-                raise FileNotFoundError(f'Missing: {src_full}')
-            z.write(src_full, zip_target)
-    os.replace(temp_zip, OUTPUT_ZIP)
-    if os.path.exists(WORKSPACE) and WORKSPACE != TC_DIR:
-        try:
-            import shutil
-            shutil.copy2(OUTPUT_ZIP, OUTPUT_ZIP_PARENT)
-        except Exception:
-            pass
-    print(f'[build_zip] 打包成功! 大小: {os.path.getsize(OUTPUT_ZIP)} 字节')
+def build_zip(*, repo_root=None, output_zip=None):
+    root = Path(repo_root or TC_DIR).resolve()
+    output = Path(output_zip) if output_zip else root / Path(OUTPUT_ZIP).name
+    output = output.resolve()
+    sources = []
+    for src_rel, zip_target in FILES_TO_PACK:
+        source = root / src_rel
+        if not source.is_file():
+            raise FileNotFoundError(f'Missing: {source}')
+        if source.is_symlink() or not source.resolve().is_relative_to(root):
+            raise ValueError(f'Release source must be a regular repository file: {source}')
+        sources.append((source, zip_target))
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    print(f'[build_zip] 打包中: {output}...')
+    with tempfile.NamedTemporaryFile(prefix=f'.{output.name}.', suffix='.tmp', dir=output.parent, delete=False) as temporary:
+        temp_zip = Path(temporary.name)
+    try:
+        with zipfile.ZipFile(temp_zip, 'w', compression=zipfile.ZIP_DEFLATED) as bundle:
+            for source, zip_target in sources:
+                bundle.write(source, zip_target)
+            # 仅提供无账号、无密钥、无设备地址的默认发现文件，绝不读取真实data目录。
+            bundle.writestr('TeamCodex-Windows/data/hub_discovery.json', json.dumps(SAFE_DISCOVERY, indent=2) + '\n')
+        os.replace(temp_zip, output)
+    finally:
+        temp_zip.unlink(missing_ok=True)
+    print(f'[build_zip] 打包成功! 大小: {output.stat().st_size} 字节')
+    return output
 
 if __name__ == '__main__':
-    build_zip()
+    parser = argparse.ArgumentParser(description='Package the Windows runtime without local data or parent-directory copies.')
+    parser.add_argument('--output', type=Path, help='Write only to this archive path; defaults to the repository root.')
+    args = parser.parse_args()
+    build_zip(output_zip=args.output)

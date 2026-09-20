@@ -5,8 +5,12 @@ TeamCodex macOS 打包分发脚本
 """
 
 import os
+from pathlib import Path
 import stat
+import tempfile
 import zipfile
+
+from build_dmg import build_app
 
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
 TC_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
@@ -16,7 +20,6 @@ FILES_AND_DIRS = [
     ("启动TeamCodex.command", "TeamCodex-macOS/启动TeamCodex.command", 0o755),
     ("README.md", "TeamCodex-macOS/README.md", 0o644),
     ("macos/launch.sh", "TeamCodex-macOS/macos/launch.sh", 0o755),
-    ("macos/TeamCodex.app", "TeamCodex-macOS/TeamCodex.app", None),
     ("server/dev_host.mjs", "TeamCodex-macOS/server/dev_host.mjs", 0o644),
     ("server/workspace_store.mjs", "TeamCodex-macOS/server/workspace_store.mjs", 0o644),
     ("server/codex_runtime.mjs", "TeamCodex-macOS/server/codex_runtime.mjs", 0o644),
@@ -39,7 +42,6 @@ FILES_AND_DIRS = [
     ("macos/TeamCodex-Status.png", "TeamCodex-macOS/macos/TeamCodex-Status.png", 0o644),
     ("macos/TeamCodex-Status@2x.png", "TeamCodex-macOS/macos/TeamCodex-Status@2x.png", 0o644),
     ("version.json", "TeamCodex-macOS/version.json", 0o644),
-    ("data/hub_discovery.json", "TeamCodex-macOS/data/hub_discovery.json", 0o644),
 ]
 
 
@@ -73,20 +75,19 @@ def add_tree(z, src_dir, zip_target_dir):
             add_file(z, src_f, zip_f, mode=mode)
 
 
-def build_mac_zip():
-    print(f"[build_mac_zip] 打包中: {OUTPUT_ZIP}...")
-    temp_zip = OUTPUT_ZIP + ".tmp"
-    with zipfile.ZipFile(temp_zip, "w") as z:
-        for item in FILES_AND_DIRS:
-            src_rel, zip_target, default_mode = item
-            src_full = os.path.join(TC_DIR, src_rel)
-            if os.path.isdir(src_full):
-                add_tree(z, src_full, zip_target)
-            else:
-                add_file(z, src_full, zip_target, mode=default_mode)
-    os.replace(temp_zip, OUTPUT_ZIP)
-    size_kb = os.path.getsize(OUTPUT_ZIP) / 1024
-    print(f"[build_mac_zip] 打包成功! 大小: {size_kb:.2f} KB -> {OUTPUT_ZIP}")
+def build_mac_zip(repo_root=TC_DIR, output_zip=None):
+    output_zip = Path(output_zip) if output_zip else Path(repo_root) / Path(OUTPUT_ZIP).name
+    print(f"[build_mac_zip] 打包中: {output_zip}...")
+    with tempfile.TemporaryDirectory(prefix="teamcodex-mac-zip-") as temporary:
+        app = build_app(Path(temporary) / "TeamCodex.app", repo_root)
+        temp_zip = output_zip.with_suffix(".zip.tmp")
+        with zipfile.ZipFile(temp_zip, "w") as z:
+            for src_rel, zip_target, default_mode in FILES_AND_DIRS:
+                add_file(z, Path(repo_root) / src_rel, zip_target, mode=default_mode)
+            add_tree(z, app, "TeamCodex-macOS/TeamCodex.app")
+        os.replace(temp_zip, output_zip)
+    size_kb = output_zip.stat().st_size / 1024
+    print(f"[build_mac_zip] 打包成功! 大小: {size_kb:.2f} KB -> {output_zip}")
 
 
 if __name__ == "__main__":
