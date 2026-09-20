@@ -3,7 +3,7 @@
   const PAGE_ID = "team-context-fullscreen-page";
   const MENU_ID = "team-context-dropdown-menu";
   const TOAST_ID = "team-context-toast-notice";
-  const UI_VERSION = "inline-v95";
+  const UI_VERSION = "inline-v96";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -581,174 +581,42 @@
 
       /* Team 按钮在下拉框打开时的展开状态高亮 (对齐原生探索按钮) */
       #${TAB_ID} button[data-state="open"] {
-        background: rgba(255, 255, 255, 0.1) !important;
-        color: #ffffff !important;
+        background-color: var(--color-background-primary-ghost-hover, rgba(255, 255, 255, 0.08)) !important;
       }
-      :root:not([data-theme="dark"]) #${TAB_ID} button[data-state="open"],
-      html[data-theme="light"] #${TAB_ID} button[data-state="open"] {
-        background: rgba(0, 0, 0, 0.08) !important;
-        color: rgb(26, 28, 31) !important;
+      html[data-theme="light"] #${TAB_ID} button[data-state="open"],
+      :root:not([data-theme="dark"]) #${TAB_ID} button[data-state="open"] {
+        background-color: var(--color-background-primary-ghost-hover, rgba(0, 0, 0, 0.06)) !important;
       }
 
-      /* Team 下拉弹出菜单容器 (对齐原生探索右侧浮层) */
+      /* Team 下拉弹出菜单动画 */
       .team-codex-menu-wrapper {
-        position: fixed !important;
-        left: 0px !important;
-        top: 0px !important;
-        min-width: max-content !important;
-        z-index: 99999 !important;
-        will-change: transform;
-      }
-      .team-codex-menu-container {
-        min-width: 188px;
-        max-width: 260px;
-        padding: 4px;
-        border-radius: 18px;
-        display: flex;
-        flex-direction: column;
-        user-select: none;
-        box-sizing: border-box;
-        animation: teamMenuFadeIn 130ms cubic-bezier(0.16, 1, 0.3, 1);
+        animation: teamMenuFadeIn 110ms cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: transform, opacity;
       }
       @keyframes teamMenuFadeIn {
-        from { opacity: 0; transform: scale(0.96) translateX(-4px); }
-        to { opacity: 1; transform: scale(1) translateX(0); }
+        from { opacity: 0; transform: scale(0.97) translateY(-2px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
       }
 
-      /* 深色模式下拉容器 (默认) */
-      html[data-theme="dark"] .team-codex-menu-container,
-      :root[data-theme="dark"] .team-codex-menu-container,
+      /* 原生类名兜底确保深浅色完美生效 */
       .team-codex-menu-container {
-        background: rgba(36, 36, 36, 0.94) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 0.5px solid rgba(255, 255, 255, 0.12) !important;
-        box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.08) !important;
-        color: #f3f3f3 !important;
+        box-sizing: border-box;
+      }
+      html[data-theme="light"] .team-codex-menu-container {
+        background-color: var(--color-surface-elevated-secondary, rgba(255, 255, 255, 0.92)) !important;
+        color: var(--color-text-primary-ghost, #1a1c1f) !important;
+      }
+      html[data-theme="dark"] .team-codex-menu-container {
+        background-color: var(--color-surface-elevated-secondary, rgba(45, 45, 45, 0.92)) !important;
+        color: var(--color-text-primary-ghost, #ffffff) !important;
       }
 
-      /* 浅色模式下拉容器 */
-      html[data-theme="light"] .team-codex-menu-container,
-      :root:not([data-theme="dark"]) .team-codex-menu-container {
-        background: rgba(255, 255, 255, 0.94) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 0.5px solid rgba(0, 0, 0, 0.1) !important;
-        box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.16), 0 0 0 0.5px rgba(0, 0, 0, 0.06) !important;
-        color: #1a1c1f !important;
-      }
-
-      /* 菜单项排版与交互 */
-      .team-menu-item {
-        display: flex !important;
-        align-items: center !important;
-        min-height: 36px !important;
-        padding: 6px 10px !important;
-        border-radius: 12px !important;
-        font-size: 13px !important;
-        cursor: pointer !important;
-        transition: background-color 120ms ease, color 120ms ease;
-        user-select: none !important;
-        outline: none !important;
-      }
-      html[data-theme="dark"] .team-menu-item,
-      :root[data-theme="dark"] .team-menu-item,
-      .team-menu-item {
-        color: #f3f3f3 !important;
-      }
-      html[data-theme="light"] .team-menu-item,
-      :root:not([data-theme="dark"]) .team-menu-item {
-        color: #1a1c1f !important;
-      }
-      html[data-theme="dark"] .team-menu-item:hover,
-      :root[data-theme="dark"] .team-menu-item:hover,
-      .team-menu-item:hover {
-        background: rgba(255, 255, 255, 0.08) !important;
-      }
-      html[data-theme="light"] .team-menu-item:hover,
-      :root:not([data-theme="dark"]) .team-menu-item:hover {
-        background: rgba(0, 0, 0, 0.06) !important;
-      }
-
-      /* 菜单项内容结构 */
-      .team-menu-item .menu-item-content {
-        display: flex !important;
-        width: 100% !important;
-        min-width: 0 !important;
-        align-items: center !important;
-        gap: 9px !important;
-      }
-      .team-menu-item .menu-item-icon {
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 20px !important;
-        height: 20px !important;
-        opacity: 0.8 !important;
-        flex-shrink: 0 !important;
-      }
-      .team-menu-item:hover .menu-item-icon {
-        opacity: 1 !important;
-      }
-      .team-menu-item .menu-item-label {
-        flex: 1 !important;
-        min-width: 0 !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        white-space: nowrap !important;
-      }
-
-      /* 状态与微标签 (当前/开发中) */
-      .team-menu-item .menu-item-badge {
-        font-size: 11px !important;
-        padding: 1px 6px !important;
-        border-radius: 6px !important;
-        font-weight: 500 !important;
-        flex-shrink: 0 !important;
-      }
-      html[data-theme="dark"] .team-menu-item .menu-item-badge.badge-dev,
-      .team-menu-item .menu-item-badge.badge-dev {
-        background: rgba(255, 255, 255, 0.06) !important;
-        color: rgba(255, 255, 255, 0.45) !important;
-      }
-      html[data-theme="light"] .team-menu-item .menu-item-badge.badge-dev {
-        background: rgba(0, 0, 0, 0.05) !important;
-        color: rgba(0, 0, 0, 0.45) !important;
-      }
-      html[data-theme="dark"] .team-menu-item .menu-item-badge.badge-active,
-      .team-menu-item .menu-item-badge.badge-active {
-        background: rgba(255, 255, 255, 0.12) !important;
-        color: rgba(255, 255, 255, 0.85) !important;
-      }
-      html[data-theme="light"] .team-menu-item .menu-item-badge.badge-active {
-        background: rgba(0, 0, 0, 0.08) !important;
-        color: rgba(0, 0, 0, 0.85) !important;
-      }
-
-      /* 分隔线 */
-      .team-menu-separator {
-        width: 100% !important;
-        padding: 3px 6px !important;
-        box-sizing: border-box !important;
-      }
-      html[data-theme="dark"] .team-menu-separator-line,
-      .team-menu-separator-line {
-        height: 1px !important;
-        width: 100% !important;
-        background: rgba(255, 255, 255, 0.08) !important;
-      }
-      html[data-theme="light"] .team-menu-separator-line {
-        height: 1px !important;
-        width: 100% !important;
-        background: rgba(0, 0, 0, 0.06) !important;
-      }
-
-      /* Toast 提示浮层 (极简毛玻璃胶囊) */
+      /* Toast 提示浮层 (原生 Sonner 风格) */
       #team-context-toast-notice {
         position: fixed !important;
-        top: 24px !important;
+        top: 28px !important;
         left: 50% !important;
-        transform: translateX(-50%) translateY(-10px) !important;
+        transform: translateX(-50%) translateY(0) !important;
         z-index: 100000 !important;
         display: flex !important;
         align-items: center !important;
@@ -758,31 +626,19 @@
         font-size: 13px !important;
         font-weight: 500 !important;
         pointer-events: none !important;
-        opacity: 0 !important;
-        transition: opacity 180ms ease, transform 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+        transition: opacity 160ms ease, transform 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
       }
-      #team-context-toast-notice.show {
-        opacity: 1 !important;
-        transform: translateX(-50%) translateY(0) !important;
+      html[data-theme="light"] #team-context-toast-notice {
+        background: rgba(255, 255, 255, 0.96) !important;
+        color: #1a1c1f !important;
+        border: 0.5px solid rgba(0, 0, 0, 0.1) !important;
+        box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.06) !important;
       }
-      html[data-theme="dark"] #team-context-toast-notice,
-      :root[data-theme="dark"] #team-context-toast-notice,
-      #team-context-toast-notice {
-        background: rgba(30, 30, 30, 0.92) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        color: #fff !important;
-        border: 0.5px solid rgba(255, 255, 255, 0.15) !important;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
-      }
-      html[data-theme="light"] #team-context-toast-notice,
-      :root:not([data-theme="dark"]) #team-context-toast-notice {
-        background: rgba(255, 255, 255, 0.94) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        color: #111 !important;
-        border: 0.5px solid rgba(0, 0, 0, 0.12) !important;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
+      html[data-theme="dark"] #team-context-toast-notice {
+        background: rgba(36, 36, 36, 0.96) !important;
+        color: #ffffff !important;
+        border: 0.5px solid rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.08) !important;
       }
     `;
   }
@@ -899,22 +755,8 @@
   }
 
   function showNativeAppToast(msg) {
-    if (typeof document === "undefined") return;
-    let toast = document.getElementById("__team_context_global_toast__");
-    if (!toast) {
-      toast = document.createElement("div");
-      toast.id = "__team_context_global_toast__";
-      toast.style.cssText = "position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:rgba(24,24,27,0.95);color:#fff;padding:8px 18px;border-radius:20px;font-size:12.5px;font-weight:500;box-shadow:0 8px 24px rgba(0,0,0,0.38);z-index:2147483647;pointer-events:none;transition:opacity 0.18s ease,transform 0.18s ease;backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,0.12);";
-      document.body.appendChild(toast);
-    }
-    toast.textContent = msg;
-    toast.style.opacity = "1";
-    toast.style.transform = "translateX(-50%) translateY(0)";
-    clearTimeout(toast._timer);
-    toast._timer = setTimeout(() => {
-      toast.style.opacity = "0";
-      toast.style.transform = "translateX(-50%) translateY(8px)";
-    }, 2400);
+    document.getElementById("__team_context_global_toast__")?.remove();
+    showTeamNotice(msg);
   }
 
   function triggerSidebarThreadClick(thread) {
@@ -7960,44 +7802,33 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
 
   let teamNoticeTimer = null;
   function showTeamNotice(text) {
+    document.getElementById("__team_context_global_toast__")?.remove();
     let toast = document.getElementById(TOAST_ID);
     if (!toast) {
       toast = document.createElement("div");
       toast.id = TOAST_ID;
       document.body.appendChild(toast);
     }
-    const light = isCodexLight();
+    toast.className =
+      "no-drag z-[100000] flex select-none items-center gap-2 bg-surface-elevated-secondary/95 text-default ring-border ring-[0.5px] shadow-xl-spread backdrop-blur-md rounded-2xl px-4 py-2.5 text-sm font-medium";
     toast.textContent = text;
     toast.style.cssText = `
       position: fixed !important;
-      top: 36px !important;
+      top: 28px !important;
       left: 50% !important;
       transform: translateX(-50%) translateY(0) !important;
-      z-index: 2147483647 !important;
-      display: flex !important;
-      align-items: center !important;
-      gap: 8px !important;
-      padding: 10px 22px !important;
-      border-radius: 9999px !important;
-      font-size: 13.5px !important;
-      font-weight: 500 !important;
+      z-index: 100000 !important;
       pointer-events: none !important;
-      background: ${light ? "rgba(255, 255, 255, 0.98)" : "rgba(30, 31, 34, 0.96)"} !important;
-      color: ${light ? "#111827" : "#ffffff"} !important;
-      border: 1px solid ${light ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.22)"} !important;
-      box-shadow: ${light ? "0 12px 36px rgba(0,0,0,0.18)" : "0 16px 40px rgba(0,0,0,0.6)"} !important;
-      backdrop-filter: blur(20px) !important;
-      -webkit-backdrop-filter: blur(20px) !important;
-      transition: opacity 200ms ease, transform 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
       opacity: 1 !important;
+      transition: opacity 160ms ease, transform 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
     `;
     if (teamNoticeTimer) clearTimeout(teamNoticeTimer);
     teamNoticeTimer = setTimeout(() => {
       toast.style.opacity = "0";
-      toast.style.transform = "translateX(-50%) translateY(-8px)";
+      toast.style.transform = "translateX(-50%) translateY(-6px)";
       teamNoticeTimer = setTimeout(() => {
         toast.remove();
-      }, 250);
+      }, 200);
     }, 2200);
   }
 
@@ -8039,82 +7870,91 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
 
     const menuWrapper = document.createElement("div");
     menuWrapper.id = MENU_ID;
+    menuWrapper.setAttribute("data-radix-popper-content-wrapper", "");
     menuWrapper.className = "team-codex-menu-wrapper";
     menuWrapper.setAttribute("dir", "ltr");
-    menuWrapper.style.transform = `translate(${x}px, ${y}px)`;
+    menuWrapper.style.cssText = `position: fixed; left: 0px; top: 0px; transform: translate(${x}px, ${y}px); min-width: max-content; z-index: 99999; will-change: transform;`;
 
     const isChatActive = isPageActive();
 
     menuWrapper.innerHTML = `
-      <div data-side="right" data-align="start" role="menu" aria-orientation="vertical" data-state="open" dir="ltr"
-           class="team-codex-menu-container no-drag z-50 flex select-none flex-col overflow-y-auto m-px bg-surface-elevated-secondary/90 text-default ring-border ring-[0.5px] shadow-xl-spread backdrop-blur-sm rounded-2xl p-[var(--app-menu-gutter,var(--spacing))] min-w-[188px] max-w-[260px]"
-           tabindex="-1">
+      <div data-side="right" data-align="start" role="menu" aria-orientation="vertical" data-state="open" data-radix-menu-content="" dir="ltr"
+           class="team-codex-menu-container no-drag z-50 flex select-none flex-col overflow-y-auto m-px bg-surface-elevated-secondary/90 text-default ring-border ring-[0.5px] shadow-xl-spread backdrop-blur-sm rounded-2xl p-[var(--app-menu-gutter,var(--spacing))] min-w-[172px] max-w-[240px]"
+           tabindex="-1" data-orientation="vertical" style="outline: none;">
         
         <!-- 菜单项 1: 对话 (当前 Team Codex) -->
         <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
-             role="menuitem" tabindex="-1" data-action="chat">
-          <div class="menu-item-content flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
-            <span class="menu-item-icon _leadingIcon_1qhf5_2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-              </svg>
+             role="menuitem" tabindex="-1" data-orientation="vertical" data-action="chat">
+          <div class="flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
+            <span class="_leadingIcon_1qhf5_2">
+              <span class="inline-flex opacity-75 group-hover:opacity-100 group-focus:opacity-100">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </span>
             </span>
-            <span class="menu-item-label flex-1 min-w-0 truncate">对话</span>
-            ${isChatActive ? '<span class="menu-item-badge badge-active">当前</span>' : ''}
+            <span class="flex-1 min-w-0 truncate">对话</span>
+            ${isChatActive ? '<span class="text-xs text-secondary opacity-60 shrink-0 font-medium">当前</span>' : ''}
           </div>
         </div>
 
-        <!-- 分隔线 -->
-        <div class="team-menu-separator w-full px-row-x py-[var(--app-menu-separator-gutter,var(--spacing))]">
-          <div class="team-menu-separator-line h-px w-full bg-border"></div>
+        <!-- 分隔线 (对齐原生) -->
+        <div class="w-full px-row-x py-[var(--app-menu-separator-gutter,var(--spacing))]">
+          <div class="h-px w-full bg-border"></div>
         </div>
 
         <!-- 菜单项 2: 知识库 -->
         <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
-             role="menuitem" tabindex="-1" data-action="knowledge">
-          <div class="menu-item-content flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
-            <span class="menu-item-icon _leadingIcon_1qhf5_2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-                <path d="M8 7h8"></path>
-                <path d="M8 11h6"></path>
-              </svg>
+             role="menuitem" tabindex="-1" data-orientation="vertical" data-action="knowledge">
+          <div class="flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
+            <span class="_leadingIcon_1qhf5_2">
+              <span class="inline-flex opacity-75 group-hover:opacity-100 group-focus:opacity-100">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                  <path d="M8 7h8"></path>
+                  <path d="M8 11h6"></path>
+                </svg>
+              </span>
             </span>
-            <span class="menu-item-label flex-1 min-w-0 truncate">知识库</span>
-            <span class="menu-item-badge badge-dev">开发中</span>
+            <span class="flex-1 min-w-0 truncate">知识库</span>
+            <span class="text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 dark:bg-white/10 text-default opacity-50 shrink-0">开发中</span>
           </div>
         </div>
 
         <!-- 菜单项 3: 素材库 -->
         <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
-             role="menuitem" tabindex="-1" data-action="materials">
-          <div class="menu-item-content flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
-            <span class="menu-item-icon _leadingIcon_1qhf5_2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                <polyline points="21 15 16 10 5 21"></polyline>
-              </svg>
+             role="menuitem" tabindex="-1" data-orientation="vertical" data-action="materials">
+          <div class="flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
+            <span class="_leadingIcon_1qhf5_2">
+              <span class="inline-flex opacity-75 group-hover:opacity-100 group-focus:opacity-100">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+              </span>
             </span>
-            <span class="menu-item-label flex-1 min-w-0 truncate">素材库</span>
-            <span class="menu-item-badge badge-dev">开发中</span>
+            <span class="flex-1 min-w-0 truncate">素材库</span>
+            <span class="text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 dark:bg-white/10 text-default opacity-50 shrink-0">开发中</span>
           </div>
         </div>
 
         <!-- 菜单项 4: 看板 -->
         <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
-             role="menuitem" tabindex="-1" data-action="kanban">
-          <div class="menu-item-content flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
-            <span class="menu-item-icon _leadingIcon_1qhf5_2">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
-                <rect x="3" y="3" width="5" height="18" rx="1"></rect>
-                <rect x="10" y="3" width="5" height="12" rx="1"></rect>
-                <rect x="17" y="3" width="5" height="15" rx="1"></rect>
-              </svg>
+             role="menuitem" tabindex="-1" data-orientation="vertical" data-action="kanban">
+          <div class="flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
+            <span class="_leadingIcon_1qhf5_2">
+              <span class="inline-flex opacity-75 group-hover:opacity-100 group-focus:opacity-100">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
+                  <rect x="3" y="3" width="5" height="18" rx="1"></rect>
+                  <rect x="10" y="3" width="5" height="12" rx="1"></rect>
+                  <rect x="17" y="3" width="5" height="15" rx="1"></rect>
+                </svg>
+              </span>
             </span>
-            <span class="menu-item-label flex-1 min-w-0 truncate">看板</span>
-            <span class="menu-item-badge badge-dev">开发中</span>
+            <span class="flex-1 min-w-0 truncate">看板</span>
+            <span class="text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 dark:bg-white/10 text-default opacity-50 shrink-0">开发中</span>
           </div>
         </div>
 
@@ -8153,18 +7993,18 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       });
     });
 
-    // 外部点击关闭
+    // 外部点击关闭 (延时挂载避免当次点击被当作外部点击)
     window.__teamMenuOutsideHandler = (e) => {
       const currentMenu = document.getElementById(MENU_ID);
       if (!currentMenu) return;
       const target = e.target instanceof Element ? e.target : e.target?.parentElement;
       if (!target) return;
-      if (currentMenu.contains(target) || wrapper.contains(target)) return;
+      if (currentMenu.contains(target) || btn.contains(target) || wrapper.contains(target)) return;
       closeTeamMenu();
     };
     setTimeout(() => {
       document.addEventListener("click", window.__teamMenuOutsideHandler, true);
-    }, 0);
+    }, 50);
 
     // ESC 关闭
     window.__teamMenuKeyHandler = (e) => {
@@ -8181,7 +8021,6 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     if (event && event.button !== undefined && event.button !== 0) return;
     event?.preventDefault?.();
     event?.stopPropagation?.();
-    event?.stopImmediatePropagation?.();
     const menu = document.getElementById(MENU_ID);
     if (menu) {
       closeTeamMenu();
@@ -8208,9 +8047,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       const sidebar = findSidebar();
       if (!sidebar || !sidebar.contains(target)) return;
 
-      // 侧栏全局离开监听：当用户点击侧栏中的任何交互项（新对话、插件、定时任务、Pull Request、探索、对话项）时，
-      // 必须立刻关闭 TeamCodex 全屏页面，让位给 Codex 原生工作区！
-      // 仅当点击侧边栏纯空白背景底板或滚动条时才忽略。
+      // 侧栏全局离开监听：当用户点击侧栏中的任何交互项时关闭 TeamCodex 全屏页面
       const interactiveEl = target.closest('button, a, [role="button"], [role="tab"], [data-app-action-sidebar-thread-id], nav li, nav > div');
       const isPointer = target instanceof Element && window.getComputedStyle(target).cursor === "pointer";
       if (interactiveEl || isPointer) {
@@ -8283,13 +8120,30 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     const insertionButton = findInsertionButton(navigation);
     const parent = insertionButton?.parentElement || navigation;
     let wrapper = document.getElementById(TAB_ID);
-    if (wrapper && wrapper.dataset.ui !== UI_VERSION) {
+
+    // 幂等防闪烁核心：如果 wrapper 已挂载在正确位置且版本一致，绝不重新 cloneNode 或 replaceWith
+    if (wrapper && wrapper.parentElement === parent && wrapper.dataset.ui === UI_VERSION) {
+      const button = wrapper.querySelector("button");
+      if (button && button.dataset.teamBound === "true") {
+        const isMenuOpen = Boolean(document.getElementById(MENU_ID));
+        const targetState = isMenuOpen ? "open" : (isPageActive() ? "active" : "closed");
+        if (button.getAttribute("data-state") !== targetState) {
+          button.setAttribute("data-state", targetState);
+        }
+        const targetExpanded = isMenuOpen ? "true" : "false";
+        if (button.getAttribute("aria-expanded") !== targetExpanded) {
+          button.setAttribute("aria-expanded", targetExpanded);
+        }
+        return { installed: true, tab: "Team", ui: UI_VERSION, cached: true };
+      }
+    }
+
+    if (wrapper && (wrapper.dataset.ui !== UI_VERSION || wrapper.parentElement !== parent)) {
       wrapper.remove();
       wrapper = null;
     }
 
-    if (!wrapper || wrapper.parentElement !== parent) {
-      wrapper?.remove();
+    if (!wrapper) {
       wrapper = document.createElement("div");
       wrapper.id = TAB_ID;
       wrapper.dataset.ui = UI_VERSION;
@@ -8305,6 +8159,9 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       button.setAttribute("aria-label", "Team");
       button.setAttribute("aria-haspopup", "menu");
       button.setAttribute("aria-expanded", "false");
+      button.setAttribute("data-state", "closed");
+      button.dataset.teamBound = "true";
+
       const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
       const texts = [];
       while (walker.nextNode()) texts.push(walker.currentNode);
@@ -8320,19 +8177,27 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         svg.setAttribute("stroke", "currentColor");
         svg.innerHTML = TEAM_ICON_PATHS;
       }
-      button.onclick = toggleTeamMenu;
-      button.addEventListener("click", toggleTeamMenu, true);
+
+      // 单一受控点击绑定，杜绝捕获/冒泡双触发引起的闪烁
+      button.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleTeamMenu(e);
+      };
+
       wrapper.appendChild(button);
       if (insertionButton?.nextSibling) parent.insertBefore(wrapper, insertionButton.nextSibling);
       else parent.appendChild(wrapper);
     } else {
-      const currentBtn = wrapper.querySelector("button");
-      if (currentBtn) {
-        const newBtn = currentBtn.cloneNode(true);
-        newBtn.setAttribute("aria-haspopup", "menu");
-        newBtn.onclick = toggleTeamMenu;
-        newBtn.addEventListener("click", toggleTeamMenu, true);
-        currentBtn.replaceWith(newBtn);
+      const button = wrapper.querySelector("button");
+      if (button) {
+        button.dataset.teamBound = "true";
+        button.setAttribute("aria-haspopup", "menu");
+        button.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleTeamMenu(e);
+        };
       }
     }
     installLeaveHandler();
@@ -8344,14 +8209,15 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     if (window.__teamContextObserver) {
       window.__teamContextObserver.disconnect();
     }
+    const target = findSidebar() || document.querySelector("aside") || document.body;
     window.__teamContextObserver = new MutationObserver(() => {
       if (window.__teamContextInstallTimer) return;
       window.__teamContextInstallTimer = setTimeout(() => {
         window.__teamContextInstallTimer = null;
         window.__teamContextInstall?.();
-      }, 100);
+      }, 250);
     });
-    window.__teamContextObserver.observe(document.documentElement, { childList: true, subtree: true });
+    window.__teamContextObserver.observe(target, { childList: true, subtree: true });
   }
 
   window.__teamContextOpenPage = openPage;
