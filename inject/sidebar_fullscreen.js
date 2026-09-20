@@ -1,7 +1,9 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v94";
+  const MENU_ID = "team-context-dropdown-menu";
+  const TOAST_ID = "team-context-toast-notice";
+  const UI_VERSION = "inline-v95";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -442,11 +444,13 @@
     const isNowActive = Boolean(active);
     const wrapper = document.getElementById(TAB_ID);
     const button = wrapper?.querySelector("button");
+    const isMenuOpen = Boolean(document.getElementById(MENU_ID));
     if (button) {
       button.dataset.active = String(isNowActive);
       button.setAttribute("aria-current", isNowActive ? "page" : "false");
       button.setAttribute("aria-pressed", String(isNowActive));
-      button.setAttribute("data-state", isNowActive ? "active" : "inactive");
+      button.setAttribute("data-state", isMenuOpen ? "open" : (isNowActive ? "active" : "inactive"));
+      button.setAttribute("aria-expanded", isMenuOpen ? "true" : "false");
     }
     if (wrapper) {
       wrapper.dataset.active = String(isNowActive);
@@ -573,6 +577,212 @@
       #${TAB_ID} button:focus-visible {
         outline: 2px solid var(--accent-color, rgb(58, 131, 247)) !important;
         outline-offset: -2px;
+      }
+
+      /* Team 按钮在下拉框打开时的展开状态高亮 (对齐原生探索按钮) */
+      #${TAB_ID} button[data-state="open"] {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: #ffffff !important;
+      }
+      :root:not([data-theme="dark"]) #${TAB_ID} button[data-state="open"],
+      html[data-theme="light"] #${TAB_ID} button[data-state="open"] {
+        background: rgba(0, 0, 0, 0.08) !important;
+        color: rgb(26, 28, 31) !important;
+      }
+
+      /* Team 下拉弹出菜单容器 (对齐原生探索右侧浮层) */
+      .team-codex-menu-wrapper {
+        position: fixed !important;
+        left: 0px !important;
+        top: 0px !important;
+        min-width: max-content !important;
+        z-index: 99999 !important;
+        will-change: transform;
+      }
+      .team-codex-menu-container {
+        min-width: 188px;
+        max-width: 260px;
+        padding: 4px;
+        border-radius: 18px;
+        display: flex;
+        flex-direction: column;
+        user-select: none;
+        box-sizing: border-box;
+        animation: teamMenuFadeIn 130ms cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      @keyframes teamMenuFadeIn {
+        from { opacity: 0; transform: scale(0.96) translateX(-4px); }
+        to { opacity: 1; transform: scale(1) translateX(0); }
+      }
+
+      /* 深色模式下拉容器 (默认) */
+      html[data-theme="dark"] .team-codex-menu-container,
+      :root[data-theme="dark"] .team-codex-menu-container,
+      .team-codex-menu-container {
+        background: rgba(36, 36, 36, 0.94) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 0.5px solid rgba(255, 255, 255, 0.12) !important;
+        box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.5), 0 0 0 0.5px rgba(255, 255, 255, 0.08) !important;
+        color: #f3f3f3 !important;
+      }
+
+      /* 浅色模式下拉容器 */
+      html[data-theme="light"] .team-codex-menu-container,
+      :root:not([data-theme="dark"]) .team-codex-menu-container {
+        background: rgba(255, 255, 255, 0.94) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 0.5px solid rgba(0, 0, 0, 0.1) !important;
+        box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.16), 0 0 0 0.5px rgba(0, 0, 0, 0.06) !important;
+        color: #1a1c1f !important;
+      }
+
+      /* 菜单项排版与交互 */
+      .team-menu-item {
+        display: flex !important;
+        align-items: center !important;
+        min-height: 36px !important;
+        padding: 6px 10px !important;
+        border-radius: 12px !important;
+        font-size: 13px !important;
+        cursor: pointer !important;
+        transition: background-color 120ms ease, color 120ms ease;
+        user-select: none !important;
+        outline: none !important;
+      }
+      html[data-theme="dark"] .team-menu-item,
+      :root[data-theme="dark"] .team-menu-item,
+      .team-menu-item {
+        color: #f3f3f3 !important;
+      }
+      html[data-theme="light"] .team-menu-item,
+      :root:not([data-theme="dark"]) .team-menu-item {
+        color: #1a1c1f !important;
+      }
+      html[data-theme="dark"] .team-menu-item:hover,
+      :root[data-theme="dark"] .team-menu-item:hover,
+      .team-menu-item:hover {
+        background: rgba(255, 255, 255, 0.08) !important;
+      }
+      html[data-theme="light"] .team-menu-item:hover,
+      :root:not([data-theme="dark"]) .team-menu-item:hover {
+        background: rgba(0, 0, 0, 0.06) !important;
+      }
+
+      /* 菜单项内容结构 */
+      .team-menu-item .menu-item-content {
+        display: flex !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        align-items: center !important;
+        gap: 9px !important;
+      }
+      .team-menu-item .menu-item-icon {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 20px !important;
+        height: 20px !important;
+        opacity: 0.8 !important;
+        flex-shrink: 0 !important;
+      }
+      .team-menu-item:hover .menu-item-icon {
+        opacity: 1 !important;
+      }
+      .team-menu-item .menu-item-label {
+        flex: 1 !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        white-space: nowrap !important;
+      }
+
+      /* 状态与微标签 (当前/开发中) */
+      .team-menu-item .menu-item-badge {
+        font-size: 11px !important;
+        padding: 1px 6px !important;
+        border-radius: 6px !important;
+        font-weight: 500 !important;
+        flex-shrink: 0 !important;
+      }
+      html[data-theme="dark"] .team-menu-item .menu-item-badge.badge-dev,
+      .team-menu-item .menu-item-badge.badge-dev {
+        background: rgba(255, 255, 255, 0.06) !important;
+        color: rgba(255, 255, 255, 0.45) !important;
+      }
+      html[data-theme="light"] .team-menu-item .menu-item-badge.badge-dev {
+        background: rgba(0, 0, 0, 0.05) !important;
+        color: rgba(0, 0, 0, 0.45) !important;
+      }
+      html[data-theme="dark"] .team-menu-item .menu-item-badge.badge-active,
+      .team-menu-item .menu-item-badge.badge-active {
+        background: rgba(255, 255, 255, 0.12) !important;
+        color: rgba(255, 255, 255, 0.85) !important;
+      }
+      html[data-theme="light"] .team-menu-item .menu-item-badge.badge-active {
+        background: rgba(0, 0, 0, 0.08) !important;
+        color: rgba(0, 0, 0, 0.85) !important;
+      }
+
+      /* 分隔线 */
+      .team-menu-separator {
+        width: 100% !important;
+        padding: 3px 6px !important;
+        box-sizing: border-box !important;
+      }
+      html[data-theme="dark"] .team-menu-separator-line,
+      .team-menu-separator-line {
+        height: 1px !important;
+        width: 100% !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+      }
+      html[data-theme="light"] .team-menu-separator-line {
+        height: 1px !important;
+        width: 100% !important;
+        background: rgba(0, 0, 0, 0.06) !important;
+      }
+
+      /* Toast 提示浮层 (极简毛玻璃胶囊) */
+      #team-context-toast-notice {
+        position: fixed !important;
+        top: 24px !important;
+        left: 50% !important;
+        transform: translateX(-50%) translateY(-10px) !important;
+        z-index: 100000 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        padding: 8px 18px !important;
+        border-radius: 9999px !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        pointer-events: none !important;
+        opacity: 0 !important;
+        transition: opacity 180ms ease, transform 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+      }
+      #team-context-toast-notice.show {
+        opacity: 1 !important;
+        transform: translateX(-50%) translateY(0) !important;
+      }
+      html[data-theme="dark"] #team-context-toast-notice,
+      :root[data-theme="dark"] #team-context-toast-notice,
+      #team-context-toast-notice {
+        background: rgba(30, 30, 30, 0.92) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        color: #fff !important;
+        border: 0.5px solid rgba(255, 255, 255, 0.15) !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4) !important;
+      }
+      html[data-theme="light"] #team-context-toast-notice,
+      :root:not([data-theme="dark"]) #team-context-toast-notice {
+        background: rgba(255, 255, 255, 0.94) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        color: #111 !important;
+        border: 0.5px solid rgba(0, 0, 0, 0.12) !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15) !important;
       }
     `;
   }
@@ -7748,6 +7958,238 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     setTabActive(true);
   }
 
+  let teamNoticeTimer = null;
+  function showTeamNotice(text) {
+    let toast = document.getElementById(TOAST_ID);
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = TOAST_ID;
+      document.body.appendChild(toast);
+    }
+    const light = isCodexLight();
+    toast.textContent = text;
+    toast.style.cssText = `
+      position: fixed !important;
+      top: 36px !important;
+      left: 50% !important;
+      transform: translateX(-50%) translateY(0) !important;
+      z-index: 2147483647 !important;
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      padding: 10px 22px !important;
+      border-radius: 9999px !important;
+      font-size: 13.5px !important;
+      font-weight: 500 !important;
+      pointer-events: none !important;
+      background: ${light ? "rgba(255, 255, 255, 0.98)" : "rgba(30, 31, 34, 0.96)"} !important;
+      color: ${light ? "#111827" : "#ffffff"} !important;
+      border: 1px solid ${light ? "rgba(0, 0, 0, 0.15)" : "rgba(255, 255, 255, 0.22)"} !important;
+      box-shadow: ${light ? "0 12px 36px rgba(0,0,0,0.18)" : "0 16px 40px rgba(0,0,0,0.6)"} !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      transition: opacity 200ms ease, transform 200ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+      opacity: 1 !important;
+    `;
+    if (teamNoticeTimer) clearTimeout(teamNoticeTimer);
+    teamNoticeTimer = setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateX(-50%) translateY(-8px)";
+      teamNoticeTimer = setTimeout(() => {
+        toast.remove();
+      }, 250);
+    }, 2200);
+  }
+
+  function closeTeamMenu() {
+    const menu = document.getElementById(MENU_ID);
+    if (menu) {
+      menu.remove();
+    }
+    const wrapper = document.getElementById(TAB_ID);
+    const btn = wrapper?.querySelector("button");
+    if (btn) {
+      btn.setAttribute("aria-expanded", "false");
+      btn.setAttribute("data-state", isPageActive() ? "active" : "closed");
+    }
+    if (window.__teamMenuOutsideHandler) {
+      document.removeEventListener("click", window.__teamMenuOutsideHandler, true);
+      window.__teamMenuOutsideHandler = null;
+    }
+    if (window.__teamMenuKeyHandler) {
+      document.removeEventListener("keydown", window.__teamMenuKeyHandler, true);
+      window.__teamMenuKeyHandler = null;
+    }
+  }
+
+  function openTeamMenu() {
+    closeTeamMenu();
+    const wrapper = document.getElementById(TAB_ID);
+    const btn = wrapper?.querySelector("button");
+    if (!btn) return;
+
+    const rect = btn.getBoundingClientRect();
+    const x = Math.round(rect.right + 6);
+    let y = Math.round(rect.top);
+
+    const estimatedHeight = 220;
+    if (y + estimatedHeight > window.innerHeight - 12) {
+      y = Math.max(12, window.innerHeight - estimatedHeight - 12);
+    }
+
+    const menuWrapper = document.createElement("div");
+    menuWrapper.id = MENU_ID;
+    menuWrapper.className = "team-codex-menu-wrapper";
+    menuWrapper.setAttribute("dir", "ltr");
+    menuWrapper.style.transform = `translate(${x}px, ${y}px)`;
+
+    const isChatActive = isPageActive();
+
+    menuWrapper.innerHTML = `
+      <div data-side="right" data-align="start" role="menu" aria-orientation="vertical" data-state="open" dir="ltr"
+           class="team-codex-menu-container no-drag z-50 flex select-none flex-col overflow-y-auto m-px bg-surface-elevated-secondary/90 text-default ring-border ring-[0.5px] shadow-xl-spread backdrop-blur-sm rounded-2xl p-[var(--app-menu-gutter,var(--spacing))] min-w-[188px] max-w-[260px]"
+           tabindex="-1">
+        
+        <!-- 菜单项 1: 对话 (当前 Team Codex) -->
+        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
+             role="menuitem" tabindex="-1" data-action="chat">
+          <div class="menu-item-content flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
+            <span class="menu-item-icon _leadingIcon_1qhf5_2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+            </span>
+            <span class="menu-item-label flex-1 min-w-0 truncate">对话</span>
+            ${isChatActive ? '<span class="menu-item-badge badge-active">当前</span>' : ''}
+          </div>
+        </div>
+
+        <!-- 分隔线 -->
+        <div class="team-menu-separator w-full px-row-x py-[var(--app-menu-separator-gutter,var(--spacing))]">
+          <div class="team-menu-separator-line h-px w-full bg-border"></div>
+        </div>
+
+        <!-- 菜单项 2: 知识库 -->
+        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
+             role="menuitem" tabindex="-1" data-action="knowledge">
+          <div class="menu-item-content flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
+            <span class="menu-item-icon _leadingIcon_1qhf5_2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                <path d="M8 7h8"></path>
+                <path d="M8 11h6"></path>
+              </svg>
+            </span>
+            <span class="menu-item-label flex-1 min-w-0 truncate">知识库</span>
+            <span class="menu-item-badge badge-dev">开发中</span>
+          </div>
+        </div>
+
+        <!-- 菜单项 3: 素材库 -->
+        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
+             role="menuitem" tabindex="-1" data-action="materials">
+          <div class="menu-item-content flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
+            <span class="menu-item-icon _leadingIcon_1qhf5_2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </span>
+            <span class="menu-item-label flex-1 min-w-0 truncate">素材库</span>
+            <span class="menu-item-badge badge-dev">开发中</span>
+          </div>
+        </div>
+
+        <!-- 菜单项 4: 看板 -->
+        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
+             role="menuitem" tabindex="-1" data-action="kanban">
+          <div class="menu-item-content flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
+            <span class="menu-item-icon _leadingIcon_1qhf5_2">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="size-full">
+                <rect x="3" y="3" width="5" height="18" rx="1"></rect>
+                <rect x="10" y="3" width="5" height="12" rx="1"></rect>
+                <rect x="17" y="3" width="5" height="15" rx="1"></rect>
+              </svg>
+            </span>
+            <span class="menu-item-label flex-1 min-w-0 truncate">看板</span>
+            <span class="menu-item-badge badge-dev">开发中</span>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    document.body.appendChild(menuWrapper);
+    btn.setAttribute("aria-haspopup", "menu");
+    btn.setAttribute("aria-expanded", "true");
+    btn.setAttribute("data-state", "open");
+
+    // 菜单项点击逻辑
+    menuWrapper.querySelectorAll(".team-menu-item").forEach((item) => {
+      item.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const action = item.getAttribute("data-action");
+        if (action === "chat") {
+          closeTeamMenu();
+          const existing = document.getElementById(PAGE_ID);
+          if (existing) {
+            positionPage(existing);
+            setTabActive(true);
+          }
+          window.__teamContextOpenPage?.();
+        } else if (action === "knowledge") {
+          closeTeamMenu();
+          showTeamNotice("📚 知识库功能正在开发中");
+        } else if (action === "materials") {
+          closeTeamMenu();
+          showTeamNotice("🎨 素材库功能正在开发中");
+        } else if (action === "kanban") {
+          closeTeamMenu();
+          showTeamNotice("📋 看板功能正在开发中");
+        }
+      });
+    });
+
+    // 外部点击关闭
+    window.__teamMenuOutsideHandler = (e) => {
+      const currentMenu = document.getElementById(MENU_ID);
+      if (!currentMenu) return;
+      const target = e.target instanceof Element ? e.target : e.target?.parentElement;
+      if (!target) return;
+      if (currentMenu.contains(target) || wrapper.contains(target)) return;
+      closeTeamMenu();
+    };
+    setTimeout(() => {
+      document.addEventListener("click", window.__teamMenuOutsideHandler, true);
+    }, 0);
+
+    // ESC 关闭
+    window.__teamMenuKeyHandler = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        closeTeamMenu();
+      }
+    };
+    document.addEventListener("keydown", window.__teamMenuKeyHandler, true);
+  }
+
+  function toggleTeamMenu(event) {
+    if (event && event.button !== undefined && event.button !== 0) return;
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    event?.stopImmediatePropagation?.();
+    const menu = document.getElementById(MENU_ID);
+    if (menu) {
+      closeTeamMenu();
+    } else {
+      openTeamMenu();
+    }
+  }
+
   function installLeaveHandler() {
     if (window.__teamContextLeaveHandler) {
       document.removeEventListener("click", window.__teamContextLeaveHandler, true);
@@ -7758,7 +8200,11 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       if (window.__teamContextSilentSwitch) return;
       const target = event.target instanceof Element ? event.target : event.target?.parentElement;
       if (!target) return;
-      if (target.closest(`#${TAB_ID}`) || target.closest(`#${PAGE_ID}`)) return;
+      if (target.closest(`#${TAB_ID}`) || target.closest(`#${PAGE_ID}`) || target.closest(`#${MENU_ID}`)) return;
+      
+      // 点击其他区域时收起 Team 下拉菜单
+      closeTeamMenu();
+
       const sidebar = findSidebar();
       if (!sidebar || !sidebar.contains(target)) return;
 
@@ -7773,6 +8219,11 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     };
     window.__teamContextKeyHandler = (event) => {
       if (event.key === "Escape") {
+        const currentMenu = document.getElementById(MENU_ID);
+        if (currentMenu) {
+          closeTeamMenu();
+          return;
+        }
         const page = document.getElementById(PAGE_ID);
         const shadow = page?.shadowRoot;
         if (shadow) {
@@ -7787,21 +8238,21 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
             threadSelectModal.hidden = true;
             return;
           }
-         const contextSelectModal = shadow.getElementById("context-select-modal");
-         if (contextSelectModal && !contextSelectModal.hidden) {
-           contextSelectModal.hidden = true;
-           return;
-         }
-         const snapshotDetailModal = shadow.getElementById("snapshot-detail-modal");
-         if (snapshotDetailModal && !snapshotDetailModal.hidden) {
-           snapshotDetailModal.hidden = true;
-           return;
-         }
-         if (isMultiSelectMode) {
-           exitMultiSelectMode();
-           return;
-         }
-         const connectModal = shadow.getElementById("connect-modal");
+          const contextSelectModal = shadow.getElementById("context-select-modal");
+          if (contextSelectModal && !contextSelectModal.hidden) {
+            contextSelectModal.hidden = true;
+            return;
+          }
+          const snapshotDetailModal = shadow.getElementById("snapshot-detail-modal");
+          if (snapshotDetailModal && !snapshotDetailModal.hidden) {
+            snapshotDetailModal.hidden = true;
+            return;
+          }
+          if (isMultiSelectMode) {
+            exitMultiSelectMode();
+            return;
+          }
+          const connectModal = shadow.getElementById("connect-modal");
           if (connectModal && !connectModal.hidden) {
             connectModal.hidden = true;
             return;
@@ -7836,19 +8287,6 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       wrapper.remove();
       wrapper = null;
     }
-    const open = (event) => {
-      if (event && event.button !== undefined && event.button !== 0) return;
-      event?.preventDefault?.();
-      event?.stopPropagation?.();
-      event?.stopImmediatePropagation?.();
-      const existing = document.getElementById(PAGE_ID);
-      if (existing) {
-        // 当全屏页已挂载并在 DOM 中时，禁止调用 returnToConversation()，改为保持页面并聚焦
-        positionPage(existing);
-        setTabActive(true);
-      }
-      window.__teamContextOpenPage?.();
-    };
 
     if (!wrapper || wrapper.parentElement !== parent) {
       wrapper?.remove();
@@ -7865,6 +8303,8 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         if (attr.name.startsWith("data-") || attr.name === "href") button.removeAttribute(attr.name);
       });
       button.setAttribute("aria-label", "Team");
+      button.setAttribute("aria-haspopup", "menu");
+      button.setAttribute("aria-expanded", "false");
       const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
       const texts = [];
       while (walker.nextNode()) texts.push(walker.currentNode);
@@ -7880,15 +8320,19 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         svg.setAttribute("stroke", "currentColor");
         svg.innerHTML = TEAM_ICON_PATHS;
       }
-      button.onclick = open;
-      button.addEventListener("click", open, true);
+      button.onclick = toggleTeamMenu;
+      button.addEventListener("click", toggleTeamMenu, true);
       wrapper.appendChild(button);
       if (insertionButton?.nextSibling) parent.insertBefore(wrapper, insertionButton.nextSibling);
       else parent.appendChild(wrapper);
     } else {
       const currentBtn = wrapper.querySelector("button");
       if (currentBtn) {
-        currentBtn.onclick = open;
+        const newBtn = currentBtn.cloneNode(true);
+        newBtn.setAttribute("aria-haspopup", "menu");
+        newBtn.onclick = toggleTeamMenu;
+        newBtn.addEventListener("click", toggleTeamMenu, true);
+        currentBtn.replaceWith(newBtn);
       }
     }
     installLeaveHandler();
@@ -7914,6 +8358,9 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
   window.__teamContextClosePage = closePage;
   window.__teamContextReturnToConversation = returnToConversation;
   window.__teamContextInstall = installTab;
+  window.__teamContextOpenMenu = openTeamMenu;
+  window.__teamContextCloseMenu = closeTeamMenu;
+  window.__teamContextToggleMenu = toggleTeamMenu;
   
   function setupThemeWatcher() {
     if (window.__teamContextThemeObserver) {
