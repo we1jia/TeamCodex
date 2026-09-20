@@ -14,7 +14,13 @@ else
   root="$(cd "$script_dir/.." && pwd)"
 fi
 
-data_dir="$root/data"
+data_dir="${TEAM_CONTEXT_DATA_DIR:-}"
+if [[ -z "$data_dir" && -f "$root/data-directory.txt" ]]; then
+  IFS= read -r data_dir < "$root/data-directory.txt"
+fi
+data_dir="${data_dir:-$root/data}"
+[[ "$data_dir" == /* ]] || { echo "TeamCodex 数据目录必须是绝对路径" >&2; exit 1; }
+export TEAM_CONTEXT_DATA_DIR="$data_dir"
 log_file="$data_dir/launcher.log"
 mkdir -p "$data_dir"
 
@@ -83,18 +89,9 @@ unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy NO_PROXY
 } >>"$log_file" 2>&1
 
 LAUNCHER_PORT="${TEAM_CODEX_LAUNCHER_PORT:-18767}"
-if ! curl --noproxy '*' -fsS --max-time 1 "http://127.0.0.1:${LAUNCHER_PORT}/api/status" >/dev/null 2>&1; then
+if ! curl --noproxy '*' -fsS --max-time 2 "http://127.0.0.1:${LAUNCHER_PORT}/panel.html" >/dev/null 2>&1; then
   nohup "$node_bin" "$root/server/launcher_host.mjs" >>"$log_file" 2>&1 &
 fi
 
-# 清理父进程已消亡 (PPID=1) 的孤儿修饰键监听器，防止阻塞系统输入事件与触控板
-ps -ef | grep "bare-modifier-monitor" | grep -v grep | awk '$3 == 1 {print $2}' | xargs kill -9 2>/dev/null || true
-
-# 清理已有的旧 attach_codex 实例，确保单实例独占 CDP 连接
-pgrep -f "inject/attach_codex.mjs" | grep -v "$$" | xargs kill 2>/dev/null || true
-
-export TEAM_CONTEXT_DEFAULT_ROOM="${TEAM_CONTEXT_DEFAULT_ROOM:-1024}"
-export TEAM_CONTEXT_DEFAULT_ROOM_KEY="${TEAM_CONTEXT_DEFAULT_ROOM_KEY:-123456}"
-
-nohup "$node_bin" "$root/inject/attach_codex.mjs" >>"$log_file" 2>&1 &
-echo "$(date '+%Y-%m-%d %H:%M:%S') attach_codex started in background" >>"$log_file"
+# 启动器负责唯一的本目录注入器；引导脚本不杀 Codex、其他安装实例或系统监听器。
+echo "$(date '+%Y-%m-%d %H:%M:%S') TeamCodex launcher ready; waiting for current Codex" >>"$log_file"

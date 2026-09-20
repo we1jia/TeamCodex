@@ -46,13 +46,15 @@ test("Multi-room, Room Key Authentication & Static Asset Suite", async (t) => {
   // 建立隔离的临时测试数据目录，杜绝测试状态污染
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "team-ctx-test-"));
   const tempFile = path.join(tempDir, "messages.json");
+  const openTrace = path.join(tempDir, 'desktop-open.jsonl');
 
-  const child = spawn("node", [SERVER_PATH], {
+  const child = spawn(process.execPath, ['--import', path.join(ROOT, 'tests/fixtures/mock_desktop_open.mjs'), SERVER_PATH], {
     env: {
       ...process.env,
       TEAM_CONTEXT_PORT: String(TEST_PORT),
       TEAM_CONTEXT_DATA_DIR: tempDir,
       TEAM_CONTEXT_DATA_FILE: tempFile,
+      TEAM_CONTEXT_TEST_OPEN_TRACE: openTrace,
     },
     stdio: "pipe",
   });
@@ -577,9 +579,13 @@ test("Multi-room, Room Key Authentication & Static Asset Suite", async (t) => {
   await t.test("17. 系统浏览器打开外部 URL (POST /api/open-url)", async () => {
     const invalidRes = await request({ path: "/api/open-url", method: "POST" }, { url: "javascript:alert(1)" });
     assert.equal(invalidRes.status, 400);
+    assert.equal(fs.existsSync(openTrace), false);
 
     const validRes = await request({ path: "/api/open-url", method: "POST" }, { url: "https://chatgpt.com/s/cx_test" });
     assert.equal(validRes.status, 200);
     assert.equal(validRes.body.ok, true);
+    const calls = fs.readFileSync(openTrace, 'utf8').trim().split('\n').map(line => JSON.parse(line));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].args.at(-1), 'https://chatgpt.com/s/cx_test');
   });
 });

@@ -12,6 +12,8 @@ data/*.json
 data/messages.json
 data/uploads/*
 !data/uploads/.gitkeep
+data/workspace-blobs/
+data-directory.txt
 
 # OS & Editor
 .DS_Store

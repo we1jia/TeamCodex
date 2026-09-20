@@ -3,8 +3,10 @@ import http from "node:http";
 import https from "node:https";
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, execFileSync, execSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createLaunchController } from './codex_runtime_policy.mjs';
+import { inspectRuntime, restartDesktop, launchDesktop, ownNodeWorkers } from './codex_runtime.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.TEAM_CODEX_LAUNCHER_PORT || 18767);
@@ -15,6 +17,7 @@ const DISCOVERY_FILE = path.join(DATA_DIR, "hub_discovery.json");
 const VERSION_FILE = path.join(ROOT, "version.json");
 const LOG_FILE = path.join(DATA_DIR, "launcher.log");
 const GITHUB_REPO = process.env.TEAM_CODEX_RELEASES_REPO || "we1jia/TeamCodex";
+const BUILD_ID = 'mountfix-20260921-1';
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -166,43 +169,26 @@ async function checkUpdate({ force = false } = {}) {
 }
 
 function isAttachRunning() {
-  try {
-    if (process.platform === "win32") {
-      const out = execFileSync(
-        "powershell.exe",
-        [
-          "-NoProfile",
-          "-Command",
-          "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*attach_codex.mjs*' } | Select-Object -ExpandProperty ProcessId",
-        ],
-        { encoding: "utf8", timeout: 4000 },
-      );
-      return Boolean(out.trim());
-    }
-    execFileSync("pgrep", ["-f", "inject/attach_codex.mjs"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
+  try { return ownNodeWorkers(path.join(ROOT, 'inject/attach_codex.mjs')).length > 0; } catch { return false; }
+}
+
+async function stopAttach() {
+  const workers = ownNodeWorkers(path.join(ROOT, 'inject/attach_codex.mjs'));
+  for (const worker of workers) {
+    const fresh = ownNodeWorkers(path.join(ROOT, 'inject/attach_codex.mjs')).find(item => item.pid === worker.pid && item.startedAt === worker.startedAt);
+    if (fresh) { try { process.kill(fresh.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
   }
+  for (let attempt = 0; attempt < 50; attempt++) {
+    if (!isAttachRunning()) return;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error('本安装目录的注入器尚未退出，停止重复启动');
 }
 
-function stopAttach() {
-  try {
-    if (process.platform === "win32") {
-      execSync(
-        `powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*attach_codex.mjs*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"`,
-        { stdio: "ignore" },
-      );
-    } else {
-      execSync("pkill -f inject/attach_codex.mjs || true", { stdio: "ignore" });
-    }
-  } catch {}
-}
-
-function startAttach() {
+async function startAttach({ allowUiUpdate = false } = {}) {
   const cfg = loadConfig();
-  stopAttach();
-  const attachLogPath = path.join(ROOT, "data", "attach.log");
+  await stopAttach();
+  const attachLogPath = path.join(DATA_DIR, "attach.log");
   let outFd = "ignore";
   try {
     fs.mkdirSync(path.dirname(attachLogPath), { recursive: true });
@@ -217,113 +203,21 @@ function startAttach() {
       TEAM_CONTEXT_HOST: cfg.hub_url,
       TEAM_CONTEXT_DEFAULT_ROOM: cfg.room,
       TEAM_CONTEXT_DEFAULT_ROOM_KEY: cfg.room_key,
+      TEAM_CONTEXT_ALLOW_UI_UPDATE: allowUiUpdate ? '1' : '0',
+      TEAM_CONTEXT_DATA_DIR: DATA_DIR,
     },
   });
+  if (typeof outFd === 'number') fs.closeSync(outFd);
   child.unref();
 }
 
-function isCodexRunning() {
-  try {
-    if (process.platform === "win32") {
-      const out = execFileSync(
-        "powershell.exe",
-        ["-NoProfile", "-Command", "Get-Process -Name @('ChatGPT', 'Codex') -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id"],
-        { encoding: "utf8", timeout: 2500 },
-      );
-      return Boolean(out.trim());
-    }
-    const out = execFileSync("/bin/ps", ["-ax", "-o", "command="], { encoding: "utf8", timeout: 2500 });
-    return out.split("\n").some((line) => /ChatGPT\.app\/Contents\/MacOS\/ChatGPT|Codex/i.test(line));
-  } catch {
-    return false;
-  }
-}
-
-function hasCustomProxyConfig() {
-  const proxyEnvs = [
-    "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
-    "http_proxy", "https_proxy", "all_proxy",
-    "OPENAI_API_BASE", "OPENAI_BASE_URL",
-  ];
-  for (const envKey of proxyEnvs) {
-    if (process.env[envKey]) return true;
-  }
-
-  const configPaths = [];
-  if (process.env.HOME) {
-    configPaths.push(path.join(process.env.HOME, ".config", "codex", "config.toml"));
-    configPaths.push(path.join(process.env.HOME, "Library", "Application Support", "OpenAI", "ChatGPT", "settings.json"));
-  }
-  if (process.env.USERPROFILE) {
-    configPaths.push(path.join(process.env.USERPROFILE, ".config", "codex", "config.toml"));
-  }
-  if (process.env.APPDATA) {
-    configPaths.push(path.join(process.env.APPDATA, "OpenAI", "ChatGPT", "settings.json"));
-  }
-
-  for (const cfgPath of configPaths) {
-    try {
-      if (fs.existsSync(cfgPath)) {
-        const content = fs.readFileSync(cfgPath, "utf8");
-        if (/proxy|base_url|api_base|localhost|127\.0\.0\.1|route/i.test(content)) {
-          return true;
-        }
-      }
-    } catch {}
-  }
-  return false;
-}
-
-function reapOrphanModifierMonitors() {
-  if (process.platform === "darwin") {
-    try {
-      execSync("ps -ef | grep 'bare-modifier-monitor' | grep -v grep | awk '$3 == 1 {print $2}' | xargs kill -9 2>/dev/null || true");
-    } catch {}
-  }
-}
-
-// 启动后台孤儿扫描，每 15 秒静默回收脱离父进程 (PPID=1) 的全局事件拦截器，彻底根除触控板卡顿
-setInterval(reapOrphanModifierMonitors, 15000).unref();
-
-function launchCodex(opts = {}) {
-  const force = Boolean(opts.force);
-  const port = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
-  if (process.platform === "darwin") {
-    if (force) {
-      try {
-        execSync(`osascript -e 'tell application "ChatGPT" to quit' 2>/dev/null || true`);
-        const start = Date.now();
-        while (Date.now() - start < 3000) {
-          try {
-            execSync(`/usr/bin/pgrep -f "ChatGPT.app/Contents/MacOS/ChatGPT"`, { stdio: "ignore" });
-            execSync(`/bin/sleep 0.3`);
-          } catch {
-            break;
-          }
-        }
-        execSync(`/usr/bin/pkill -f "ChatGPT.app/Contents/MacOS/ChatGPT" 2>/dev/null || true`);
-        execSync(`/usr/bin/pkill -f "bare-modifier-monitor" 2>/dev/null || true`);
-        execSync(`/usr/bin/pkill -f "browser_crashpad_handler" 2>/dev/null || true`);
-        execSync(`/bin/sleep 0.5`);
-      } catch {}
-    }
-    reapOrphanModifierMonitors();
-    spawn("/usr/bin/open", [
-      "-n",
-      "-a",
-      "/Applications/ChatGPT.app",
-      "--args",
-      "--remote-debugging-address=127.0.0.1",
-      `--remote-debugging-port=${port}`,
-    ], { detached: true, stdio: "ignore" }).unref();
-  } else if (process.platform === "win32") {
-    const runScript = path.join(ROOT, "windows", "run-teamcodex.ps1");
-    spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", runScript], {
-      detached: true,
-      stdio: "ignore",
-    }).unref();
-  }
-}
+// 不接管其他软件的账号、代理和进程；只执行本控制面确认过的目标操作。
+const launchController = createLaunchController({
+  inspect: inspectRuntime,
+  restart: restartDesktop,
+  launch: launchDesktop,
+  attach: () => startAttach(),
+});
 
 async function hubHealth(hubUrl) {
   try {
@@ -342,41 +236,17 @@ async function hubHealth(hubUrl) {
   return null;
 }
 
-function findActiveCdpPort() {
-  const defaultPort = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
-  try {
-    if (process.platform === "win32") {
-      const out = execFileSync(
-        "powershell.exe",
-        ["-NoProfile", "-Command", "Get-CimInstance Win32_Process -Filter \"Name like '%ChatGPT%' or Name like '%Codex%'\" | Select-Object -ExpandProperty CommandLine"],
-        { encoding: "utf8", timeout: 2500 },
-      );
-      const m = out.match(/--remote-debugging-port=(\d+)/);
-      if (m) return Number(m[1]);
-    } else {
-      const out = execFileSync("/bin/ps", ["-ax", "-o", "command="], { encoding: "utf8", timeout: 2500 });
-      for (const line of out.split("\n")) {
-        if (/ChatGPT|Codex/i.test(line)) {
-          const m = line.match(/--remote-debugging-port=(\d+)/);
-          if (m) return Number(m[1]);
-        }
-      }
-    }
-  } catch {}
-  return defaultPort;
-}
-
-async function cdpReady() {
-  const detectedPort = findActiveCdpPort();
-  const defaultPort = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
-  const portsToTry = Array.from(new Set([detectedPort, defaultPort]));
-  for (const p of portsToTry) {
-    try {
-      const { status } = await requestJson(`http://127.0.0.1:${p}/json/version`, 800);
-      if (status === 200) return true;
-    } catch {}
-  }
-  return false;
+async function codexStatus() {
+  const runtime = await inspectRuntime().catch(error => ({ state: 'unknown', target: null, message: error.message }));
+  const receipt = readJson(path.join(DATA_DIR, 'attach-state.json'), {});
+  const fresh = Date.now() - Number(receipt.updatedAt || 0) < 12000;
+  const sameTarget = runtime.target && runtime.target.pid === receipt.targetPid && runtime.port === receipt.port;
+  return {
+    running: runtime.state === 'unknown' ? null : runtime.state !== 'not_running', state: runtime.state, managed: runtime.managed,
+    injected: runtime.state === 'ready' && fresh && sameTarget && receipt.installed === true,
+    ui_version: sameTarget ? receipt.uiVersion || '' : '', pending_update: sameTarget && receipt.pendingUpdate === true,
+    message: runtime.message || (runtime.state === 'restart_required' ? '未开启调试通道，请检查启动方式' : runtime.state === 'ambiguous' ? '多个实例，等待选择目标' : receipt.message || ''),
+  };
 }
 
 function cors() {
@@ -425,6 +295,11 @@ const server = http.createServer(async (req, res) => {
     res.end();
     return;
   }
+  if (req.method === 'POST') {
+    const origin = req.headers.origin;
+    const trustedOrigins = ['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT];
+    if (origin && !trustedOrigins.includes(origin)) return sendJson(res, 403, { ok: false, message: '仅允许本机控制面发起操作' });
+  }
 
   if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/panel.html")) {
     fs.readFile(PANEL_FILE, (err, data) => {
@@ -441,20 +316,18 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET" && url.pathname === "/api/status") {
     const cfg = loadConfig();
-    const [hub, codex, update] = await Promise.all([hubHealth(cfg.hub_url), cdpReady(), checkUpdate()]);
+    const [hub, codex, update] = await Promise.all([hubHealth(cfg.hub_url), codexStatus(), checkUpdate()]);
     sendJson(res, 200, {
       ok: true,
       app_version: appVersion(),
+      build_id: BUILD_ID,
       hub: {
         ok: Boolean(hub),
         url: cfg.hub_url,
         version: hub?.version || "",
         lanUrl: hub?.lanUrl || cfg.hub_url,
       },
-      codex: {
-        running: codex,
-        injected: codex && isAttachRunning(),
-      },
+      codex,
       room: { id: cfg.room, key_set: Boolean(cfg.room_key) },
       update,
       last_wake: lastWakeTimestamp,
@@ -499,87 +372,43 @@ const server = http.createServer(async (req, res) => {
       room: body.room ? String(body.room) : undefined,
       room_key: body.room_key != null ? String(body.room_key) : undefined,
     });
-    startAttach();
+    await startAttach();
     sendJson(res, 200, { ok: true, ...cfg });
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/restart-inject") {
-    startAttach();
-    sendJson(res, 200, { ok: true });
+    try {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      await startAttach({ allowUiUpdate: body.allowUiUpdate === true });
+      sendJson(res, 200, { ok: true, message: '注入器已启动；只等待当前实例，不会重启 Codex' });
+    } catch (error) { sendJson(res, 409, { ok: false, message: error.message }); }
     return;
   }
 
-  if (req.method === "POST" && url.pathname === "/api/start-codex") {
-    let body = {};
+  if (req.method === 'POST' && url.pathname === '/api/shutdown') {
+    sendJson(res, 202, { ok: true, message: '正在退出本安装控制面和注入器；共享 Hub 与 Codex 保留' });
+    stopAttach().then(() => server.close(() => process.exit(0))).catch(error => console.error('[shutdown]', error.message));
+    return;
+  }
+  if (req.method === 'POST' && url.pathname === '/api/start-codex') {
     try {
-      body = JSON.parse((await readBody(req)) || "{}");
-    } catch {}
-
-    const ready = await cdpReady();
-    if (ready) {
-      startAttach();
-      sendJson(res, 200, {
-        ok: true,
-        mode: "attached",
-        message: "检测到 Codex 调试通道已就绪，已直接热挂载，未中断现有会话",
-      });
-      return;
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const result = await launchController.request(body);
+      sendJson(res, 200, result);
+    } catch (error) {
+      sendJson(res, error.status || 500, { ok: false, message: error.message });
     }
-
-    const running = isCodexRunning();
-    if (!running) {
-      launchCodex({ force: false });
-      setTimeout(() => {
-        startAttach();
-      }, 1200);
-      sendJson(res, 200, {
-        ok: true,
-        mode: "launched",
-        message: "已拉起 Codex 客户端并正在挂载",
-      });
-      return;
-    }
-
-    if (body.force) {
-      launchCodex({ force: true });
-      setTimeout(() => {
-        startAttach();
-      }, 1500);
-      sendJson(res, 200, {
-        ok: true,
-        mode: "restarted",
-        message: "已重启 Codex 客户端并正在挂载",
-      });
-      return;
-    }
-
-    const customProxy = hasCustomProxyConfig();
-    sendJson(res, 200, {
-      ok: false,
-      requires_restart_confirm: true,
-      has_custom_proxy: customProxy,
-      message: customProxy
-        ? "检测到 Codex 正在运行且可能配置了自定义网络代理。重启客户端可能会中断当前代理服务或重置路由。是否确认重启？"
-        : "检测到 Codex 正在运行，但未开启协同调试端口。重启客户端可开启协同，是否确认重启？",
-    });
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/update/download") {
     const update = await checkUpdate();
-    if (!update.has_update) {
-      return sendJson(res, 200, { ok: true, skipped: true, message: "已是最新版本" });
-    }
-    try {
-      const dest = openUpdate(update);
-      sendJson(res, 200, { ok: true, dest });
-    } catch (err) {
-      sendJson(res, 500, { ok: false, error: err.message, url: update.url });
-    }
+    if (!update.has_update) return sendJson(res, 200, { ok: true, skipped: true, message: "已是最新版本" });
+    try { sendJson(res, 200, { ok: true, dest: openUpdate(update) }); }
+    catch (error) { sendJson(res, 500, { ok: false, error: error.message }); }
     return;
   }
-
   res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
   res.end("not found");
 });
@@ -590,5 +419,5 @@ server.listen(PORT, "127.0.0.1", () => {
     fs.appendFileSync(LOG_FILE, `${line}\n`);
   } catch {}
   console.log(line);
-  startAttach();
+  if (process.env.TEAM_CODEX_NO_ATTACH !== '1') startAttach().catch(error => console.error('[attach]', error.message));
 });

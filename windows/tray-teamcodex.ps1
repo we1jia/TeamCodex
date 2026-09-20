@@ -37,17 +37,26 @@ function Show-TeamCodexTray {
 
   function Invoke-Launcher {
     param([string]$Path, [string]$Method = "GET", [string]$Body = $null)
-    try {
-      if ($Method -eq "GET") {
-        return Invoke-RestMethod -Uri "$base$Path" -TimeoutSec 1
-      }
-      if ($Body) {
-        return Invoke-RestMethod -Uri "$base$Path" -Method Post -ContentType "application/json" -Body $Body -TimeoutSec 2
-      }
-      return Invoke-RestMethod -Uri "$base$Path" -Method Post -TimeoutSec 2
-    } catch {
-      return $null
+    if ($Method -eq "GET") {
+      try { return Invoke-RestMethod -Uri "$base$Path" -TimeoutSec 3 } catch { return $null }
     }
+    # 重启可能需要等待用户保存；异步 HTTP + 消息泵，不冻结托盘也不超时后谎报成功。
+    Add-Type -AssemblyName System.Net.Http
+    $client = New-Object System.Net.Http.HttpClient
+    $client.Timeout = [TimeSpan]::FromSeconds(45)
+    try {
+      if (-not $Body) { $Body = "{}" }
+      $content = New-Object System.Net.Http.StringContent($Body, [System.Text.Encoding]::UTF8, "application/json")
+      $pending = $client.PostAsync("$base$Path", $content)
+      while (-not $pending.IsCompleted) {
+        [System.Windows.Forms.Application]::DoEvents()
+        Start-Sleep -Milliseconds 50
+      }
+      $response = $pending.GetAwaiter().GetResult()
+      $text = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+      return ($text | ConvertFrom-Json)
+    } catch { return @{ ok = $false; message = "控制面请求失败或超时，状态未确认，请检查后再操作" } }
+    finally { $client.Dispose() }
   }
 
   # ==============================================================================
@@ -286,7 +295,7 @@ function Show-TeamCodexTray {
   # ==============================================================================
   $script:isRefreshing = $false
   function Refresh-Status {
-    if ($script:isRefreshing) { return }
+    if ($script:isRefreshing -or $script:isLaunching) { return }
     $script:isRefreshing = $true
     try {
       $s = Invoke-Launcher "/api/status"
@@ -309,8 +318,12 @@ function Show-TeamCodexTray {
       }
 
       # 左键弹窗状态同步
-      $verLabel.Text = "v$($s.app_version)"
-      if ($s.codex.injected) {
+      $verLabel.Text = "服务 v$($s.app_version)"
+      if ($s.build_id) { $verLabel.Text += " (兼容修复)" }
+      if ($s.codex.pending_update) {
+        $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(234, 179, 8)
+        $rowCodex.Val.Text = "待重新打开客户端加载新版"
+      } elseif ($s.codex.injected) {
         $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(34, 197, 94)
         $rowCodex.Val.Text = "已挂载"
       } elseif ($s.codex.running) {
@@ -361,12 +374,31 @@ function Show-TeamCodexTray {
   }
 
   # 动作函数
+  $script:isLaunching = $false
   $doStart = {
+    if ($script:isLaunching) { return }
+    $script:isLaunching = $true
+    $btnStart.Enabled = $false
+    $startItem.Enabled = $false
     try {
-      Invoke-Launcher "/api/start-codex" "POST" | Out-Null
-      $notify.ShowBalloonTip(2000, "TeamCodex", "正在启动并挂载 Codex...", [System.Windows.Forms.ToolTipIcon]::Info)
+      $result = Invoke-Launcher "/api/start-codex" "POST" "{}"
+      if ($result -and $result.requires_restart_confirm -and $result.confirmToken) {
+        $choice = [System.Windows.Forms.MessageBox]::Show([string]$result.message, "TeamCodex - 确认目标操作", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+        if ($choice -ne [System.Windows.Forms.DialogResult]::Yes) {
+          $notify.ShowBalloonTip(2000, "TeamCodex", "已取消，未启动或重启 Codex", [System.Windows.Forms.ToolTipIcon]::Info)
+          return
+        }
+        $payload = @{ confirmToken = $result.confirmToken } | ConvertTo-Json -Compress
+        $result = Invoke-Launcher "/api/start-codex" "POST" $payload
+      }
+      $message = if ($result.message) { [string]$result.message } else { "未收到有效结果，请检查控制面" }
+      $notify.ShowBalloonTip(3500, "TeamCodex", $message, [System.Windows.Forms.ToolTipIcon]::Info)
+    } finally {
+      $script:isLaunching = $false
+      $btnStart.Enabled = $true
+      $startItem.Enabled = $true
       Refresh-Status
-    } catch {}
+    }
   }
   $doToken = {
     try {
@@ -391,8 +423,8 @@ function Show-TeamCodexTray {
   }
   $doRestart = {
     try {
-      Invoke-Launcher "/api/restart-inject" "POST" | Out-Null
-      $notify.ShowBalloonTip(2000, "TeamCodex", "正在重启注入...", [System.Windows.Forms.ToolTipIcon]::Info)
+      $result = Invoke-Launcher "/api/restart-inject" "POST" "{}"
+      $notify.ShowBalloonTip(2000, "TeamCodex", [string]$result.message, [System.Windows.Forms.ToolTipIcon]::Info)
       Refresh-Status
     } catch {}
   }
@@ -411,9 +443,8 @@ function Show-TeamCodexTray {
         $notify.ShowBalloonTip(3500, "TeamCodex 检查更新", "$($s.message)。请检查网络或访问 GitHub Releases。", [System.Windows.Forms.ToolTipIcon]::Warning)
       } else {
         $btnUpdate.Text = "检查更新"
-        Invoke-Launcher "/api/restart-inject" "POST" | Out-Null
         $curVer = if ($s -and $s.current) { "v$($s.current)" } else { "当前版本" }
-        $notify.ShowBalloonTip(3000, "TeamCodex 检查更新", "$curVer 已经是最新版本！已刷新免重装热更新。", [System.Windows.Forms.ToolTipIcon]::Info)
+        $notify.ShowBalloonTip(3000, "TeamCodex 检查更新", "$curVer 已经是最新服务版本。界面是否加载请看实际挂载状态。", [System.Windows.Forms.ToolTipIcon]::Info)
       }
       Refresh-Status
     } catch {
@@ -432,24 +463,8 @@ function Show-TeamCodexTray {
     try { $timer.Stop(); $timer.Dispose() } catch {}
     try { $notify.Visible = $false; $notify.Dispose() } catch {}
     try { $popup.Close(); $popup.Dispose() } catch {}
-    try {
-      # 显式退出时清理 TeamCodex 后台服务 Node 进程 (端口 18765, 18767)
-      $ports = @(18765, 18767)
-      foreach ($p in $ports) {
-        try {
-          $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
-          foreach ($conn in $conns) {
-            $netPid = $conn.OwningProcess
-            if ($netPid -and $netPid -gt 4) {
-              $proc = Get-Process -Id $netPid -ErrorAction SilentlyContinue
-              if ($proc -and $proc.ProcessName -like "*node*") {
-                Stop-Process -Id $netPid -Force -ErrorAction SilentlyContinue
-              }
-            }
-          }
-        } catch {}
-      }
-    } catch {}
+    # 只退出此安装的控制面/注入器，保留共享 Hub，不按端口结束其他程序。
+    try { Invoke-Launcher "/api/shutdown" "POST" "{}" | Out-Null } catch {}
     try {
       if ($script:trayMutex) {
         $script:trayMutex.ReleaseMutex()

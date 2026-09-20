@@ -3,12 +3,14 @@ import http from "node:http";
 import https from "node:https";
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { CdpWebSocket } from "./cdp_websocket.mjs";
+import { inspectRuntime } from '../server/codex_runtime.mjs';
+import { fingerprint, hotUpdateDecision } from '../server/codex_runtime_policy.mjs';
+const consumedUpdates = new Set();
 import {
   assertSafeCodexUiTarget,
-  parseDebuggingPortFromCommand,
   parsePort,
 } from "./safety.mjs";
 
@@ -19,8 +21,6 @@ for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "http
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const INJECT_FILE = path.join(ROOT, "inject", "sidebar_fullscreen.js");
 const HOST_URL = process.env.TEAM_CONTEXT_HOST || "http://127.0.0.1:18765";
-const CHATGPT_BIN = "/Applications/ChatGPT.app/Contents/MacOS/ChatGPT";
-const FALLBACK_CDP_PORT = Number(process.env.TEAM_CONTEXT_CDP_PORT || 18766);
 const DEFAULT_ROOM = process.env.TEAM_CONTEXT_DEFAULT_ROOM || "1024";
 const DEFAULT_ROOM_KEY = process.env.TEAM_CONTEXT_DEFAULT_ROOM_KEY || "123456";
 
@@ -89,7 +89,8 @@ async function resolveInjectScript() {
       return remote;
     }
   } catch {}
-  return fs.readFileSync(INJECT_FILE, "utf8");
+  const { workspaceBundle } = await import('../server/workspace_bundle.mjs');
+  return workspaceBundle(ROOT) + fs.readFileSync(INJECT_FILE, "utf8");
 }
 
 function postJson(url, payload) {
@@ -166,39 +167,7 @@ function listListenPorts() {
   }
 }
 
-function listChatGptCommands() {
-  if (process.platform === "win32") {
-    try {
-      const output = execFileSync("powershell.exe", ["-NoProfile", "-Command", "Get-CimInstance Win32_Process -Filter \"Name like '%ChatGPT%' or Name like '%Codex%'\" | Select-Object -ExpandProperty CommandLine"], { encoding: "utf8" });
-      return output.split("\n").map((l) => l.trim()).filter(Boolean);
-    } catch {
-      return [];
-    }
-  }
-  try {
-    const output = execFileSync("/bin/ps", ["-ax", "-o", "pid=", "-o", "command="], {
-      encoding: "utf8",
-    });
-    return output
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => /ChatGPT\.app\/Contents\/MacOS\/ChatGPT|Codex/i.test(line));
-  } catch {
-    return [];
-  }
-}
-
-function discoverCdpPort() {
-  if (process.env.TEAM_CONTEXT_CDP_URL) {
-    const parsed = new URL(process.env.TEAM_CONTEXT_CDP_URL);
-    return parsePort(parsed.port);
-  }
-  for (const command of listChatGptCommands()) {
-    const port = parseDebuggingPortFromCommand(command);
-    if (port) return port;
-  }
-  return null;
-}
+// 当前进程/端口由只读 runtime 检查提供，不缓存已经退出的 Codex 实例。
 
 function injectSource(script) {
   return `document.querySelectorAll('#team-context-fullscreen-page iframe, iframe[src*="127.0.0.1:18765"]').forEach((node) => node.remove());
@@ -314,7 +283,21 @@ function isCodexPage(target) {
   return url.startsWith("app://") || /Codex|ChatGPT/i.test(title) || /index\.html|mock-codex/i.test(url);
 }
 
+// 原生 binding 与轮询兜底可能同时拿到同一个调用，写操作只能执行一次。
+const nativeRpcRequests = new Map();
 function executeNativeRpc(reqPayload) {
+  const key = `${reqPayload.hubUrl || HOST_URL}:${reqPayload.id}`;
+  const existing = nativeRpcRequests.get(key);
+  if (existing) return existing;
+  const pending = performNativeRpc(reqPayload);
+  nativeRpcRequests.set(key, pending);
+  pending.finally(() => {
+    while (nativeRpcRequests.size > 64) nativeRpcRequests.delete(nativeRpcRequests.keys().next().value);
+  });
+  return pending;
+}
+
+function performNativeRpc(reqPayload) {
   const { id, path, method = "GET", headers = {}, body = null, hubUrl = null } = reqPayload;
   return new Promise((resolve) => {
     const hub = (hubUrl || HOST_URL).replace(/\/$/, "");
@@ -382,7 +365,6 @@ async function injectTarget(target, source, sessions) {
       session.onEvent(async (msg) => {
         if (msg.method === "Runtime.bindingCalled" && msg.params?.name === "__teamContextNativeCall") {
           try {
-            console.log("[attach_codex] bindingCalled payload:", msg.params.payload);
             const payload = JSON.parse(msg.params.payload || "{}");
             if (payload && payload.id) {
               const resp = await executeNativeRpc(payload);
@@ -426,14 +408,12 @@ async function injectTarget(target, source, sessions) {
     }).catch(() => null);
 
     const pageProbe = probeState?.result?.value;
-    const isUpToDate = Boolean(pageProbe?.installed && (!targetUiVersion || pageProbe?.version === targetUiVersion));
-
     let result = null;
-    if (!isUpToDate) {
-      result = await session.send("Runtime.evaluate", {
-        expression: source,
-        returnByValue: true,
-      });
+    const allowUpdate = process.env.TEAM_CONTEXT_ALLOW_UI_UPDATE === '1' && !consumedUpdates.has(target.id);
+    const action = hotUpdateDecision({ installed: pageProbe?.installed, currentVersion: pageProbe?.version, nextVersion: targetUiVersion, allowUpdate });
+    if (action !== 'keep' && action !== 'defer') {
+      result = await session.send('Runtime.evaluate', { expression: source, returnByValue: true });
+      consumedUpdates.add(target.id);
     }
     const pageState = await session.send("Runtime.evaluate", {
       expression: "(() => ({ pending: window.__teamContextTakePending ? window.__teamContextTakePending() : null, config: window.__teamContextGetConfig ? window.__teamContextGetConfig() : null, pendingConfig: window.__teamContextPendingConfig || null, pendingCalls: window.__teamContextTakePendingCalls ? window.__teamContextTakePendingCalls() : null }))()",
@@ -481,6 +461,7 @@ async function injectTarget(target, source, sessions) {
 
     const message = payload?.message || (payload?.content ? payload : null);
     const targetHost = (state.config?.hubUrl || HOST_URL).replace(/\/$/, "");
+    let syncError = '';
     try {
       if (message?.content) {
         await postJson(`${targetHost}/api/messages`, {
@@ -518,9 +499,13 @@ async function injectTarget(target, source, sessions) {
       }
     } catch (syncErr) {
       console.warn(`[attach_codex] snapshot/sync failed (host=${targetHost}): ${syncErr.message}`);
-      return { installed: true, syncError: syncErr.message };
+      syncError = syncErr.message;
     }
-    return result?.result?.value || result;
+    const receipt = await session.send('Runtime.evaluate', {
+      expression: "({installed:!!window.__teamContextTabInstalled && !!document.getElementById('team-context-sidebar-tab'),ui:window.__teamContextUiVersion||''})",
+      returnByValue: true,
+    });
+    return { ...(receipt?.result?.value || { installed: false }), pendingUpdate: action === 'defer' || result?.result?.value?.pendingUpdate === true, ...(syncError ? { syncError } : {}) };
   } catch (error) {
     console.warn(`[attach_codex] cdp session error on target ${target.id}: ${error.message}`);
     session?.close();
@@ -529,171 +514,62 @@ async function injectTarget(target, source, sessions) {
   }
 }
 
-async function attachLoop(initialPort) {
-  let currentPort = initialPort;
-  let safety = assertSafeCodexUiTarget({
-    cdpUrl: `http://127.0.0.1:${currentPort}`,
-    listenPorts: listListenPorts(),
-  });
-  if (!safety.ok) {
-    console.error(safety.reason);
-    process.exit(2);
-  }
-  const sessions = new Map();
-  console.log(`attach Codex CDP http://127.0.0.1:${currentPort} host=${HOST_URL}`);
-  let currentDelay = 1500;
-  let lastOk = "";
-  let consecutiveErrors = 0;
-  for (;;) {
-    try {
-      const source = injectSource(await resolveInjectScript());
-      const targets = await getJson(`http://127.0.0.1:${currentPort}/json/list`);
-      currentDelay = 1500; // 成功连接后恢复基础 1.5s 周期
-      consecutiveErrors = 0;
-      const pages = targets.filter(isCodexPage);
-      const activeIds = new Set(pages.map((p) => p.id));
-      for (const [id, s] of sessions.entries()) {
-        if (!activeIds.has(id)) {
-          s?.close();
-          sessions.delete(id);
-        }
-      }
-      for (const target of pages) {
-        const value = await injectTarget(target, source, sessions);
-        if (value?.reason === "not-codex-sidebar") continue;
-        const summary = `${target.title || target.id}: ${JSON.stringify(value)}`;
-        if (summary !== lastOk) {
-          console.log(summary);
-          lastOk = summary;
-        }
-      }
-    } catch (error) {
-      consecutiveErrors += 1;
-      console.error(`inject retry (${currentDelay}ms): ${error.message} (port=${currentPort})`);
-      
-      // 当连接失败时（例如 Cockpit 切号导致实例重启并换了端口），主动嗅探最新端口
-      const newPort = discoverCdpPort();
-      if (newPort && newPort !== currentPort) {
-        const newSafety = assertSafeCodexUiTarget({
-          cdpUrl: `http://127.0.0.1:${newPort}`,
-          listenPorts: listListenPorts(),
-        });
-        if (newSafety.ok) {
-          console.log(`[attach_codex] 检测到 Codex 调试端口迁移: ${currentPort} -> ${newPort}，正在无缝切换热重连...`);
-          for (const [id, s] of sessions.entries()) {
-            try { s?.close(); } catch {}
-          }
-          sessions.clear();
-          currentPort = newPort;
-          safety = newSafety;
-          currentDelay = 1000;
-          consecutiveErrors = 0;
-          await new Promise((resolve) => setTimeout(resolve, currentDelay));
-          continue;
-        }
-      }
-
-      // 针对 macOS：在错误退避时顺手清理脱离父进程 (PPID=1) 的孤儿修饰键监听器，保持系统输入丝滑
-      if (process.platform === "darwin" && consecutiveErrors % 3 === 0) {
-        try {
-          execFileSync("/bin/sh", [
-            "-c",
-            "ps -ef | grep 'bare-modifier-monitor' | grep -v grep | awk '$3 == 1 {print $2}' | xargs kill -9 2>/dev/null || true",
-          ]);
-        } catch {}
-      }
-
-      // 错误时指数退避，最大 8000ms，避免死循环打爆系统调度
-      currentDelay = Math.min(Math.round(currentDelay * 1.5), 8000);
-    }
-    await new Promise((resolve) => setTimeout(resolve, currentDelay));
-  }
-}
-
-function waitForPort(port, attempts = 100) {
-  return new Promise((resolve, reject) => {
-    const tryOnce = async (left) => {
-      try {
-        await getJson(`http://127.0.0.1:${port}/json/version`);
-        resolve();
-      } catch (error) {
-        if (left <= 0) reject(error);
-        else setTimeout(() => tryOnce(left - 1), 250);
-      }
-    };
-    tryOnce(attempts);
-  });
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function launchCodexWithCdp(port) {
-  console.log(`starting ChatGPT with --remote-debugging-port=${port}`);
-  if (process.platform === "darwin") {
-    try {
-      execFileSync("/bin/sh", ["-c", "ps -ef | grep 'bare-modifier-monitor' | grep -v grep | awk '$3 == 1 {print $2}' | xargs kill -9 2>/dev/null || true"]);
-    } catch {}
-    const appPath = "/Applications/ChatGPT.app";
-    if (fs.existsSync(appPath)) {
-      try {
-        execFileSync("/usr/bin/open", [
-          "-n",
-          "-a",
-          appPath,
-          "--args",
-          "--remote-debugging-address=127.0.0.1",
-          `--remote-debugging-port=${port}`,
-        ]);
-        return;
-      } catch (e) {
-        console.warn(`open -n failed, fallback to binary: ${e.message}`);
-      }
-    }
-  }
-  let clientBin = CHATGPT_BIN;
-  if (process.platform === "win32") {
-    clientBin = process.env.TEAM_CODEX_EXE || path.join(process.env.LOCALAPPDATA || "", "Programs", "ChatGPT", "ChatGPT.exe");
-  }
-  if (!fs.existsSync(clientBin)) {
-    console.error(`找不到客户端可执行文件: ${clientBin}`);
-    process.exit(4);
-  }
-  const child = spawn(
-    clientBin,
-    ["--remote-debugging-address=127.0.0.1", `--remote-debugging-port=${port}`],
-    { detached: true, stdio: "ignore" },
-  );
-  child.unref();
-}
-
-async function waitForCodexRestart() {
-  console.log("检测到现有 Codex 正在运行但无调试端口，等待带有调试端口的实例就绪...");
-  for (let i = 0; i < 30; i += 1) {
-    const discovered = discoverCdpPort();
-    if (discovered) return discovered;
-    if (!listChatGptCommands().length) return null;
-    await sleep(1000);
-  }
-  return null;
+function writeAttachState(state) {
+  const directory = process.env.TEAM_CONTEXT_DATA_DIR || path.join(ROOT, 'data');
+  fs.mkdirSync(directory, { recursive: true });
+  const file = path.join(directory, 'attach-state.json');
+  const temporary = file + '.' + process.pid + '.tmp';
+  fs.writeFileSync(temporary, JSON.stringify({ ...state, updatedAt: Date.now(), injectorPid: process.pid }));
+  fs.renameSync(temporary, file);
 }
 
 async function main() {
-  let port = discoverCdpPort();
-  const chatGptRunning = listChatGptCommands().length > 0;
-  if (!port && chatGptRunning) {
-    port = await waitForCodexRestart();
+  const sessions = new Map();
+  let previousTarget = '';
+  let stopped = false;
+  const close = () => { stopped = true; for (const session of sessions.values()) session.close(); sessions.clear(); };
+  process.on('SIGTERM', close);
+  process.on('SIGINT', close);
+  while (!stopped) {
+    try {
+      const runtime = await inspectRuntime({ resolveInstalled: false });
+      const identity = runtime.target ? fingerprint(runtime.target) : '';
+      if (runtime.state !== 'ready' || identity !== previousTarget) {
+        for (const session of sessions.values()) session.close();
+        sessions.clear();
+      }
+      previousTarget = identity;
+      if (runtime.state !== 'ready') {
+        writeAttachState({ installed: false, state: runtime.state, targetPid: runtime.target?.pid || null, message: '等待当前实例的调试通道；不会自行启动或重启 Codex' });
+      } else {
+        const port = runtime.port;
+        const safety = assertSafeCodexUiTarget({ cdpUrl: 'http://127.0.0.1:' + port, listenPorts: listListenPorts() });
+        if (!safety.ok) throw new Error(safety.reason);
+        const source = injectSource(await resolveInjectScript());
+        const targets = await getJson('http://127.0.0.1:' + port + '/json/list');
+        const pages = targets.filter(isCodexPage);
+        const activeIds = new Set(pages.map(page => page.id));
+        for (const [id, session] of sessions) if (!activeIds.has(id)) { session.close(); sessions.delete(id); }
+        let installed = false, pendingUpdate = false, uiVersion = '';
+        for (const target of pages) {
+          // 调试连接期间发生切号时，丢弃旧结果，不能向旧目标继续注入。
+          const latest = await inspectRuntime({ resolveInstalled: false });
+          if (latest.state !== 'ready' || fingerprint(latest.target) !== identity || latest.port !== port) throw new Error('目标实例已变化，等待重新绑定');
+          const value = await injectTarget(target, source, sessions);
+          installed ||= value?.installed === true;
+          pendingUpdate ||= value?.pendingUpdate === true;
+          if (value?.ui) uiVersion = value.ui;
+        }
+        writeAttachState({ installed, pendingUpdate, uiVersion, state: installed ? 'attached' : 'waiting_page', targetPid: runtime.target.pid, port });
+      }
+    } catch (error) {
+      for (const session of sessions.values()) session.close();
+      sessions.clear();
+      writeAttachState({ installed: false, state: 'waiting', message: String(error.message).slice(0, 250) });
+    }
+    if (!stopped) await new Promise(resolve => setTimeout(resolve, 2500));
   }
-  if (!port) {
-    port = FALLBACK_CDP_PORT;
-    await launchCodexWithCdp(port);
-    await waitForPort(port, 100);
-  }
-  await attachLoop(port);
+  writeAttachState({ installed: false, state: 'stopped' });
 }
 
-main().catch((error) => {
-  console.error(error.message || error);
-  process.exit(1);
-});
+main().catch(error => { console.error(error.message || error); process.exitCode = 1; });

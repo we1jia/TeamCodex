@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>TeamCodex · 隔离样式夹具</title>
+  <link rel="stylesheet" href="/workspace.css">
+  <style>
+    :root { font:13px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color-scheme:dark; --bg-page:#181818; --bg-card:#262626; --bg-card-hover:#333; --text-primary:#ececec; --text-secondary:#96969c; --border-subtle:#303033; --accent-color:#879bc5; }
+    :root[data-theme=light] { color-scheme:light; --bg-page:#fff; --bg-card:#f7f7f8; --bg-card-hover:#ededf0; --text-primary:#27272a; --text-secondary:#71717a; --border-subtle:#e5e5e7; --accent-color:#446eb2; }
+    body { margin:0; background:var(--bg-page); color:var(--text-primary); }
+    .fixture-titlebar { position:fixed;inset:0 0 auto;height:38px;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--border-subtle);font-size:12px;background:var(--bg-card); }
+    .fixture-titlebar button { font:inherit;color:inherit;background:transparent;border:0;padding:4px 10px; }
+    .fixture-sidebar { position:fixed;left:0;top:38px;bottom:0;width:220px;box-sizing:border-box;border-right:1px solid var(--border-subtle);padding:18px 12px;background:var(--bg-card); }
+    .fixture-sidebar p { padding:5px 8px; }
+    .fixture-sidebar p:last-child { background:var(--bg-card-hover);border-radius:6px; }
+    #workspace { position:fixed;left:220px;top:38px;right:0;bottom:0;--ws-font-size:13px;--team-host-top:38px;--team-host-left:220px; }
+  </style>
+</head>
+<body>
+  <header class="fixture-titlebar"><span>Codex · Windows 标题栏模拟（仅布局测试）</span><div><button id="theme">明暗主题</button><button id="window-control" aria-label="模拟窗口控制">窗口控制</button></div></header>
+  <aside class="fixture-sidebar"><strong>Codex</strong><p>新对话</p><p>Pull Request</p><p>定时任务</p><p>插件</p><p>Team</p></aside>
+  <div id="workspace"></div>
+  <script src="/workspace.js"></script>
+  <script>
+    const member={id:'fixture-member',name:'设计成员',kind:'human',timezone:'Asia/Shanghai',workDays:[1,2,3,4,5],unavailable:[]};
+    const today=new Date().toISOString().slice(0,10);
+    const task=(id,title,status,priority='normal')=>({id,title,status,priority,description:'仅用于布局测试',assigneeId:member.id,reviewerId:'',collaboratorIds:[],resourceIds:[],startDate:today,dueDate:today,reviewDate:'',result:'',version:1});
+    const state={room:{id:'layout-fixture',name:'项目工作区'},member,members:[member],tasks:[task('task-1','整理项目架构与接口说明','todo'),task('task-2','统一原生样式与 Windows 标题栏安全区','in_progress','high'),task('task-3','检查知识文档和任务关联','review')],resources:[{id:'resource-1',title:'项目架构与接口约定.md',knowledge:true,visibility:'room',version:1,ownerId:member.id,status:'confirmed',updatedAt:today,category:'',tags:[],excerpt:'',filename:'architecture.md',mime:'text/markdown'},{id:'resource-2',title:'Windows_150percent_窗口缩放与超长文件名布局兼容说明_验收记录.md',knowledge:true,visibility:'private',version:1,ownerId:member.id,status:'draft',updatedAt:today,category:'',tags:[],excerpt:'',filename:'windows-layout.md',mime:'text/markdown'}],attachments:[]};
+    const scope={hubUrl:location.origin,roomId:'layout-fixture',nickname:member.name,memberId:member.id};
+    localStorage.setItem('team_workspace_identity:'+JSON.stringify([scope.hubUrl,scope.roomId]),'static-fixture-only');
+    window.fixtureWorkspace=TeamWorkspace.mount(document.getElementById('workspace'),{getScope:()=>scope,request:async(path,options={})=>{if(options.method&&options.method!=='GET')throw Error('静态夹具禁止写入');if(path.startsWith('/api/workspace/state'))return structuredClone(state);throw Error('静态夹具无此接口');}});
+    fixtureWorkspace.open('kanban');
+    document.getElementById('theme').onclick=()=>document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';
+    document.getElementById('window-control').onclick=()=>{document.getElementById('window-control').dataset.clicked='true';};
+  </script>
+</body>
+</html>

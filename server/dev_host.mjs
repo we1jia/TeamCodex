@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import os from "node:os";
 import crypto from "node:crypto";
 import { execSync, spawn } from "node:child_process";
+import { createWorkspaceRoutes } from './workspace_routes.mjs';
+import { workspaceBundle } from './workspace_bundle.mjs';
 
 function resolveBindHost(raw) {
   if (!raw) return "0.0.0.0";
@@ -625,8 +627,8 @@ function broadcastStatusToRoom(roomId) {
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Room-Id,X-Room-Key,*",
+    "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Room-Id,X-Room-Key,X-Workspace-Token,*",
     "Access-Control-Allow-Private-Network": "true",
     "Content-Security-Policy": "frame-ancestors *",
   };
@@ -669,6 +671,8 @@ function serveFile(res, filePath) {
   });
 }
 
+const handleWorkspace = createWorkspaceRoutes({ directory: DATA_DIR, getRoom, extractRoomId, verifyRoomAuth, sendJson, broadcast: broadcastToRoom });
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${HOST}:${PORT}`);
 
@@ -678,13 +682,22 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (await handleWorkspace(req, res, url)) return;
+
+  if (req.method === 'GET' && ['/workspace', '/workspace.html', '/inject/workspace.js', '/inject/workspace.css', '/ui/workspace_boot.js'].includes(url.pathname)) {
+    const file = url.pathname.startsWith('/workspace') ? 'ui/workspace.html' : url.pathname.slice(1);
+    serveFile(res, path.join(ROOT, file));
+    return;
+  }
+
   // 1. Web 静态主页与注入文件路由
   if ((req.method === "GET" || req.method === "HEAD") && (url.pathname === "/" || url.pathname === "/index.html")) {
     serveFile(res, UI_FILE);
     return;
   }
   if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/inject/sidebar_fullscreen.js") {
-    serveFile(res, path.join(ROOT, "inject", "sidebar_fullscreen.js"));
+    res.writeHead(200, { ...corsHeaders(), 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(workspaceBundle(ROOT) + fs.readFileSync(path.join(ROOT, 'inject/sidebar_fullscreen.js'), 'utf8'));
     return;
   }
   if ((req.method === "GET" || req.method === "HEAD") && url.pathname === "/windows/mock-codex-host.html") {

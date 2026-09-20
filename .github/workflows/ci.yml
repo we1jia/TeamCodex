@@ -4,13 +4,15 @@ on:
   push:
     branches:
       - main
+      - 'codex/**'
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   test:
-    name: Regression Suite (59 Tests)
+    name: Regression Suite
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -34,5 +36,8 @@ jobs:
       - name: Run automated tests
         run: |
           node --test tests/test_image_upload.mjs
+          node --test tests/test_workspace.mjs tests/test_workspace_bridge.mjs tests/test_workspace_http.mjs
+          node --test tests/test_safety.mjs tests/test_runtime_policy.mjs tests/test_runtime_integration.mjs tests/test_runtime_adapters.mjs tests/test_mount_recovery.mjs
+          node --test tests/test_workspace_typography.mjs tests/test_host_layout.mjs tests/test_workspace_dialog.mjs
           node --test tests/test_boost_fixes.mjs
           node --test tests/test_rooms_and_auth.mjs

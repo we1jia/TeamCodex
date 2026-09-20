@@ -17,6 +17,7 @@
       --accent: #0071e3;
       --fill: rgba(0, 0, 0, 0.05);
       --input-bg: rgba(255, 255, 255, 0.82);
+      --dialog-bg: #f7f7f8;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -31,6 +32,7 @@
         --accent: #0a84ff;
         --fill: rgba(255, 255, 255, 0.08);
         --input-bg: rgba(0, 0, 0, 0.35);
+        --dialog-bg: #242424;
       }
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -185,9 +187,10 @@
     async function refresh() {
       try {
         const s = await api("/api/status");
-        $("ver").textContent = "v" + (s.app_version || "");
+        $("ver").textContent = "v" + (s.app_version || "") + (s.build_id ? " · " + s.build_id : "");
+        $("ver").title = '服务构建：' + (s.build_id || '旧版') + '；实际界面：' + (s.codex?.ui_version || '未验证');
         setDot("codexDot", s.codex?.injected || s.codex?.running);
-        $("codexText").textContent = s.codex?.injected ? "已挂载" : s.codex?.running ? "已打开，等待挂载" : "未连接";
+        $("codexText").textContent = s.codex?.injected ? (s.codex?.pending_update ? "已挂载；新版界面在下次正常重开 Codex 后生效" : "已挂载（已验证）") : s.codex?.message || (s.codex?.running ? "已打开，等待挂载确认" : "未打开");
         $("codexDot").className = "dot " + (s.codex?.injected ? "ok" : s.codex?.running ? "wait" : "bad");
         $("hubDot").className = "dot " + (s.hub?.ok ? "ok" : "bad");
         $("hubText").textContent = s.hub?.ok ? (s.hub.lanUrl || s.hub.url) : "未连接";
@@ -205,86 +208,54 @@
       }
     }
 
-    let confirmRestartTimer = null;
-    let isAwaitingRestartConfirm = false;
-
-    function resetStartBtn() {
-      isAwaitingRestartConfirm = false;
-      if (confirmRestartTimer) clearTimeout(confirmRestartTimer);
-      confirmRestartTimer = null;
-      $("startBtn").textContent = "启动并挂载 Codex";
-      $("startBtn").classList.remove("warn");
-    }
-
-    $("startBtn").onclick = async () => {
-      // 处于内联等待确认状态时，再次点击直接执行强制重启挂载
-      if (isAwaitingRestartConfirm) {
-        resetStartBtn();
-        $("startBtn").disabled = true;
-        say("正在重启 Codex 并挂载...");
-        try {
-          const fRes = await api("/api/start-codex", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ force: true }),
-          });
-          say(fRes.message || "已重启并挂载");
-        } catch {
-          say("重启挂载失败");
-        }
-        $("startBtn").disabled = false;
-        refresh();
-        return;
-      }
-
-      $("startBtn").disabled = true;
+    let pendingLaunch = null;
+    let confirmExpiry = null;
+    const confirmation = document.createElement('div');
+    confirmation.hidden = true;
+    confirmation.setAttribute('role', 'alertdialog');
+    confirmation.setAttribute('aria-label', '确认启动或重启 Codex');
+    confirmation.style.cssText = 'position:fixed;inset:12px;z-index:30;padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--dialog-bg);overflow:auto;box-shadow:0 8px 40px #0003';
+    confirmation.innerHTML = '<p id="launch-confirm-message"></p><button id="launch-confirm-accept" type="button">确认启动 / 重启</button> <button id="launch-confirm-cancel" type="button">取消</button>';
+    $('msg').after(confirmation);
+    $('launch-confirm-message').style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;margin-bottom:20px';
+    const cancelLaunch = () => {
+      pendingLaunch = null;
+      clearTimeout(confirmExpiry);
+      confirmation.hidden = true;
+      $('startBtn').disabled = false;
+    };
+    $('launch-confirm-cancel').onclick = () => { cancelLaunch(); say('已取消，不会重启或挂载'); };
+    window.addEventListener('pagehide', cancelLaunch);
+    $('startBtn').onclick = async () => {
+      cancelLaunch();
+      $('startBtn').disabled = true;
       try {
-        const res = await api("/api/start-codex", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ force: false }),
-        });
-        if (res.ok) {
-          say(res.message || (res.mode === "attached" ? "已热挂载现有实例" : "正在启动并挂载"));
-        } else if (res.requires_restart_confirm) {
-          const tip = res.message || "检测到 Codex 正在运行但未开启协同端口，是否确认重启？";
-          let confirmed = false;
-          try {
-            confirmed = confirm(tip);
-          } catch {}
-
-          if (confirmed) {
-            say("正在重启并挂载...");
-            const fRes = await api("/api/start-codex", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ force: true }),
-            });
-            say(fRes.message || "已重启并挂载");
-          } else {
-            // 弹窗被系统静默拦截或取消时，降级为内联确认按钮，杜绝交互死锁
-            isAwaitingRestartConfirm = true;
-            $("startBtn").textContent = "⚠️ 点击立即确认重启挂载";
-            $("startBtn").classList.add("warn");
-            say("检测到未开启协同端口。点击上方按钮即可确认重启并挂载");
-            if (confirmRestartTimer) clearTimeout(confirmRestartTimer);
-            confirmRestartTimer = setTimeout(() => {
-              resetStartBtn();
-              say("");
-            }, 8000);
-          }
-        } else {
-          say(res.message || "启动失败");
+        const response = await api('/api/start-codex', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        say(response.message || '检查完成');
+        if (response.requires_restart_confirm && response.confirmToken) {
+          pendingLaunch = response.confirmToken;
+          $('launch-confirm-message').textContent = response.message;
+          confirmation.hidden = false;
+          confirmExpiry = setTimeout(() => { cancelLaunch(); say('确认已过期，请重新检查状态'); }, 60000);
         }
-      } catch {
-        say("启动失败");
-      }
-      $("startBtn").disabled = false;
-      refresh();
+      } catch (error) { say('检查失败：' + error.message); }
+      finally { if (!pendingLaunch) $('startBtn').disabled = false; }
+    };
+    $('launch-confirm-accept').onclick = async () => {
+      if (!pendingLaunch) return;
+      const confirmToken = pendingLaunch;
+      cancelLaunch();
+      $('startBtn').disabled = true;
+      say('正在处理已确认的目标实例，请等待...');
+      try {
+        const response = await api('/api/start-codex', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmToken }) });
+        say(response.message || '已提交操作，等待实际挂载结果');
+      } catch (error) { say('操作失败：' + error.message); }
+      finally { $('startBtn').disabled = false; refresh(); }
     };
     $("restartBtn").onclick = async () => {
-      await api("/api/restart-inject", { method: "POST" });
-      say("已重启注入");
+      const result = await api("/api/restart-inject", { method: "POST", headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      say(result.message || "已启动观察器，等待实际挂载结果");
       refresh();
     };
     $("checkUpdateBtn").onclick = async () => {

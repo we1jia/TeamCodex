@@ -3,7 +3,24 @@
   const PAGE_ID = "team-context-fullscreen-page";
   const MENU_ID = "team-context-dropdown-menu";
   const TOAST_ID = "team-context-toast-notice";
-  const UI_VERSION = "inline-v96";
+  const UI_VERSION = "inline-v98";
+
+  // 旧 UI 保留草稿与监听器，但“曾安装”不代表 React 重建后的入口仍在。
+  if (window.__teamContextTabInstalled && (!window.TeamWorkspace || window.__teamContextUiVersion !== UI_VERSION)) {
+    let recoveryError = '';
+    if (!document.getElementById(TAB_ID) && typeof window.__teamContextInstall === 'function') {
+      try { window.__teamContextInstall(); }
+      catch (error) { recoveryError = String(error.message || error); }
+    }
+    ensureWatchers();
+    return {
+      installed: Boolean(document.getElementById(TAB_ID)),
+      pendingUpdate: window.__teamContextUiVersion !== UI_VERSION,
+      reason: window.TeamWorkspace ? 'client-reopen-required' : 'awaiting-workspace-bundle',
+      ui: window.__teamContextUiVersion || '',
+      ...(recoveryError ? { recoveryError } : {}),
+    };
+  }
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -350,6 +367,19 @@
     };
   }
 
+  function readWorkspaceTypography() {
+    const navigation = findNav();
+    const control = [...(navigation?.querySelectorAll('button') || [])].find(button =>
+      /^(插件|Plugins|新对话|New chat|定时任务|Scheduled tasks?)$/i.test(textOf(button))
+    );
+    const nativeStyle = window.getComputedStyle(control || document.body);
+    const size = control ? Number.parseFloat(nativeStyle.fontSize) : NaN;
+    return {
+      fontFamily: nativeStyle.fontFamily,
+      fontSize: Number.isFinite(size) && size > 0 ? nativeStyle.fontSize : '13px',
+    };
+  }
+
   function applyCodexTheme(page) {
     if (!page) return;
     const tokens = readHostThemeTokens();
@@ -357,6 +387,12 @@
     page.dataset.themeFamily = tokens.detectedFamily;
     page.style.background = tokens.hostBg;
     page.style.color = tokens.hostColor;
+    page.style.colorScheme = tokens.isLight ? 'light' : 'dark';
+    // body 是正文基准（当前为16px），工作区控件跟随原生菜单字号（当前为13px）。
+    const hostFont = readWorkspaceTypography();
+    page.style.setProperty('--ws-font', hostFont.fontFamily);
+    page.style.setProperty('--ws-font-size', hostFont.fontSize);
+    page.style.setProperty('--team-native-control-font-size', hostFont.fontSize);
 
     const setVars = (el) => {
       if (!el) return;
@@ -707,46 +743,53 @@
   }
 
   function getTitlebarHeight() {
-    const isWin =
-      /Windows|Win32|Win64/i.test(navigator.userAgent || navigator.platform || "") ||
-      window.__TEAM_CONTEXT_OS__ === "win32" ||
-      (typeof process !== "undefined" && process?.platform === "win32");
-    if (!isWin) return 0;
+    if (!isWindowsHost()) return 0;
 
-    // 1. 优先探测原生侧边栏顶部相对于窗口顶部的距离（菜单栏下方）
-    const sidebar = findSidebar();
-    if (sidebar) {
-      const sr = sidebar.getBoundingClientRect();
-      if (sr.top >= 28 && sr.top <= 60) return Math.round(sr.top);
+    const sidebarRect = visibleHostRect(findSidebar());
+    let inset = sidebarRect && sidebarRect.top > 0 && sidebarRect.top <= 160 ? sidebarRect.top : 0;
+    // 聊天header/main的高度不是系统标题栏。只采集语义明确的标题栏和窗口控件。
+    const titlebarSelectors = [
+      '[data-testid="titlebar"]', '[data-testid="window-titlebar"]', '[data-window-titlebar]',
+      '.titlebar', '.window-titlebar', '.app-titlebar',
+      '[data-testid="window-controls"]', '[data-testid="titlebar-controls"]', '[data-window-controls]',
+      '.window-controls', '.titlebar-controls',
+      'button[aria-label="Minimize window"]', 'button[aria-label="Maximize window"]',
+      'button[aria-label="Close window"]', 'button[aria-label="最小化窗口"]',
+      'button[aria-label="最大化窗口"]', 'button[aria-label="关闭窗口"]',
+    ].join(', ');
+    for (const element of document.querySelectorAll(titlebarSelectors)) {
+      const rect = visibleHostRect(element);
+      if (rect && rect.top >= 0 && rect.top <= 80 && rect.bottom <= 160) inset = Math.max(inset, rect.bottom);
     }
-
-    // 2. 探测右侧主工作区（main / thread-scroll-container）的实际 top 偏移
-    const mainCandidate =
-      document.querySelector("main") ||
-      document.querySelector('[role="main"]') ||
-      document.querySelector(".thread-scroll-container") ||
-      document.querySelector("aside.app-shell-left-panel + *");
-    if (mainCandidate) {
-      const mr = mainCandidate.getBoundingClientRect();
-      if (mr.top >= 28 && mr.top <= 60) return Math.round(mr.top);
-    }
-
-    // 3. 探测系统/自定义菜单栏容器高度
-    const headerEl = document.querySelector("header, [data-testid='titlebar'], .titlebar");
-    if (headerEl) {
-      const hr = headerEl.getBoundingClientRect();
-      if (hr.height >= 28 && hr.height <= 60) return Math.round(hr.height);
-    }
-
-    // 4. Windows 11 原生菜单栏（文件 编辑 视图 帮助）物理避让标准兜底：38px
+    // DOMRect已经是CSS像素；125%/150%显示缩放不能再乘devicePixelRatio。
+    if (inset > 0) return Math.max(38, Math.ceil(inset));
     return 38;
   }
 
-  function positionPage(page) {
-    const sidebar = findSidebar();
-    const rect = sidebar?.getBoundingClientRect?.();
-    const isSidebarVisible = !!(rect && rect.width > 50 && window.getComputedStyle(sidebar).display !== "none" && window.getComputedStyle(sidebar).visibility !== "hidden");
-    const leftOffset = isSidebarVisible ? Math.max(0, rect.right) : 0;
+  function isWindowsHost() {
+    return /Windows|Win32|Win64/i.test(`${navigator.userAgent || ''} ${navigator.platform || ''}`) ||
+      window.__TEAM_CONTEXT_OS__ === 'win32' ||
+      (typeof process !== 'undefined' && process?.platform === 'win32');
+  }
+
+  function visibleHostRect(element) {
+    if (!element?.getBoundingClientRect) return null;
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || rect.width <= 0 || rect.height <= 0) return null;
+    return rect;
+  }
+
+  function positionPage(page = document.getElementById(PAGE_ID)) {
+    if (!page) return;
+    const isWindows = isWindowsHost();
+    if (isWindows) restoreNativeAppShellHeader();
+    const rect = visibleHostRect(findSidebar());
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    const sidebarRight = rect ? Math.min(viewportWidth, Math.max(0, rect.right)) : 0;
+    const visibleSidebarWidth = rect ? sidebarRight - Math.max(0, rect.left) : 0;
+    const isSidebarVisible = visibleSidebarWidth > 50;
+    const leftOffset = isSidebarVisible ? sidebarRight : 0;
     const topOffset = getTitlebarHeight();
 
     page.style.left = `${leftOffset}px`;
@@ -756,21 +799,22 @@
     page.style.height = topOffset > 0 ? `calc(100vh - ${topOffset}px)` : "100vh";
     page.style.maxHeight = topOffset > 0 ? `calc(100vh - ${topOffset}px)` : "100vh";
     page.style.boxSizing = "border-box";
+    page.style.setProperty('--team-host-top', `${topOffset}px`);
+    page.style.setProperty('--team-host-left', `${leftOffset}px`);
 
-    const isWindows = /Windows|Win32|Win64/i.test(navigator.userAgent || navigator.platform || "");
-    if (isWindows) {
-      page.dataset.platform = "windows";
-      page.setAttribute("data-platform", "windows");
-    }
-
+    const isMac = !isWindows && (/Macintosh|MacIntel|Mac OS X/i.test(`${navigator.userAgent || ''} ${navigator.platform || ''}`) || window.__TEAM_CONTEXT_OS__ === 'darwin');
+    page.dataset.platform = isWindows ? 'windows' : isMac ? 'macos' : 'other';
     const isCollapsed = !isSidebarVisible || leftOffset < 60;
     page.dataset.sidebarCollapsed = String(isCollapsed);
+    page.style.setProperty('--team-host-leading-safe', isMac && isCollapsed ? '84px' : '0px');
     const wrap = page.shadowRoot?.querySelector(".wrap");
     if (wrap) {
       wrap.dataset.sidebarCollapsed = String(isCollapsed);
-      if (isWindows) wrap.dataset.platform = "windows";
+      wrap.dataset.platform = page.dataset.platform;
     }
   }
+
+  window.__teamContextPositionPage = positionPage;
 
   function escapeHtml(value) {
     return String(value || "")
@@ -782,6 +826,11 @@
   }
 
   function hideNativeAppShellHeader() {
+    // Windows的draggable header可能承载最小化/最大化/关闭；只避让，不隐藏。
+    if (isWindowsHost()) {
+      restoreNativeAppShellHeader();
+      return;
+    }
     try {
       const headers = document.querySelectorAll('header[data-pip-obstacle="app-shell-header"], header.draggable');
       headers.forEach((h) => {
@@ -808,6 +857,10 @@
   function closePage() {
     const page = document.getElementById(PAGE_ID);
     if (page) {
+      if (page.__requestWorkspaceLeave?.() === false) return false;
+      const dirtyDialog = page.shadowRoot?.querySelector('dialog[open][data-dirty="true"]');
+      if (dirtyDialog && !window.confirm('Team 中有尚未保存的修改，确定离开？')) return false;
+      page.shadowRoot?.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
       page.style.display = "none";
       page.style.visibility = "hidden";
     }
@@ -815,6 +868,7 @@
     document.documentElement.removeAttribute("data-team-codex-open");
     document.body?.removeAttribute("data-team-codex-open");
     restoreNativeAppShellHeader();
+    return true;
   }
 
   function showNativeAppToast(msg) {
@@ -4134,6 +4188,38 @@
     };
     window.__teamContextApi = api;
 
+    // 新模块使用同一房间、原生 RPC 与主题，不另开浏览器或覆盖宿主样式。
+    const chatWrap = root.querySelector('.wrap');
+    let workspace = null;
+    page.__requestWorkspaceLeave = () => workspace?.closeEditor?.() !== false;
+    page.__showWorkspace = (section = 'chat') => {
+      if (section === 'chat') {
+        if (workspace?.hide() === false) return false;
+        if (chatWrap) chatWrap.style.display = '';
+        return;
+      }
+      if (!window.TeamWorkspace) {
+        showToast('当前注入包缺少工作区模块，请更新完整源码包后再试');
+        return;
+      }
+      if (!workspace) workspace = window.TeamWorkspace.mount(root, {
+        request: api,
+        getScope: () => ({ hubUrl: config.hubUrl, roomId: defaultRoomId(), memberId: config.memberId, nickname: config.nickname }),
+        isVisible: () => isPageActive(),
+        notice: showToast,
+        onChat: () => page.__showWorkspace('chat'),
+        onReference: (content) => {
+          page.__showWorkspace('chat');
+          input.value = `${input.value ? input.value + '\n\n' : ''}${content}`;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.focus();
+          showToast('引用已放入输入框，尚未发送');
+        },
+      });
+      if (workspace.open(section) === false) return false;
+      if (chatWrap) chatWrap.style.display = 'none';
+    };
+
     const openExternalUrl = async (targetUrl) => {
       if (!targetUrl) return;
       try {
@@ -5136,6 +5222,11 @@
 
   // 微信式消息主体直接多选状态
   let isMultiSelectMode = false;
+  window.__teamContextExitSelection = () => {
+    if (!isMultiSelectMode) return false;
+    exitMultiSelectMode();
+    return true;
+  };
   const selectedMessageIds = new Set();
   let pointerDragging = false;
   let dragAnchorIndex = -1;
@@ -8052,7 +8143,6 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
               </span>
             </span>
             <span class="flex-1 min-w-0 truncate">知识库</span>
-            <span class="text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 dark:bg-white/10 text-default opacity-50 shrink-0">开发中</span>
           </div>
         </div>
 
@@ -8070,7 +8160,6 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
               </span>
             </span>
             <span class="flex-1 min-w-0 truncate">素材库</span>
-            <span class="text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 dark:bg-white/10 text-default opacity-50 shrink-0">开发中</span>
           </div>
         </div>
 
@@ -8088,7 +8177,6 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
               </span>
             </span>
             <span class="flex-1 min-w-0 truncate">看板</span>
-            <span class="text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 dark:bg-white/10 text-default opacity-50 shrink-0">开发中</span>
           </div>
         </div>
 
@@ -8123,15 +8211,11 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
             setTabActive(true);
           }
           window.__teamContextOpenPage?.();
-        } else if (action === "knowledge") {
+          document.getElementById(PAGE_ID)?.__showWorkspace?.('chat');
+        } else if (["knowledge", "materials", "kanban"].includes(action)) {
           closeTeamMenu();
-          showTeamNotice("📚 知识库功能正在开发中");
-        } else if (action === "materials") {
-          closeTeamMenu();
-          showTeamNotice("🎨 素材库功能正在开发中");
-        } else if (action === "kanban") {
-          closeTeamMenu();
-          showTeamNotice("📋 看板功能正在开发中");
+          openPage();
+          document.getElementById(PAGE_ID)?.__showWorkspace?.(action);
         }
       });
     });
@@ -8201,7 +8285,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       const interactiveEl = target.closest('button, a, [role="button"], [role="tab"], [data-app-action-sidebar-thread-id], nav li, nav > div');
       const isPointer = target instanceof Element && window.getComputedStyle(target).cursor === "pointer";
       if (interactiveEl || isPointer) {
-        window.__teamContextClosePage?.();
+        if (window.__teamContextClosePage?.() === false) { event.preventDefault(); event.stopImmediatePropagation(); }
       }
     };
 
@@ -8234,6 +8318,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         const page = document.getElementById(PAGE_ID);
         const shadow = page?.shadowRoot;
         if (shadow) {
+          if (shadow.querySelector('dialog[open]')) return; // 原生 dialog 自己处理 Escape 和未保存提示。
           const picker = shadow.getElementById("picker");
           if (picker && !picker.hidden) {
             picker.hidden = true;
@@ -8255,8 +8340,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
             snapshotDetailModal.hidden = true;
             return;
           }
-          if (isMultiSelectMode) {
-            exitMultiSelectMode();
+          if (window.__teamContextExitSelection?.()) {
             return;
           }
           const connectModal = shadow.getElementById("connect-modal");
@@ -8359,6 +8443,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       const template =
         [...navigation.querySelectorAll("button")].find((item) => /^(新对话|New chat)$/i.test(textOf(item))) ||
         insertionButton;
+      if (!template) return { installed: false, reason: 'navigation-template-missing' };
       const button = template.cloneNode(true);
       button.type = "button";
       button.removeAttribute("disabled");
@@ -8406,12 +8491,15 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     if (window.__teamContextObserver) {
       window.__teamContextObserver.disconnect();
     }
-    const target = findSidebar() || document.querySelector("aside") || document.body;
+    // React 会整体替换 aside；监听稳定根节点，只在入口缺失时调度恢复。
+    const target = document.body;
+    if (!target || typeof MutationObserver === 'undefined') return;
     window.__teamContextObserver = new MutationObserver(() => {
+      if (document.getElementById(TAB_ID) || !findNav()) return;
       if (window.__teamContextInstallTimer) return;
       window.__teamContextInstallTimer = setTimeout(() => {
         window.__teamContextInstallTimer = null;
-        window.__teamContextInstall?.();
+        try { window.__teamContextInstall?.(); } catch { /* 下一次侧栏变化或注入轮询会重试。 */ }
       }, 250);
     });
     window.__teamContextObserver.observe(target, { childList: true, subtree: true });
@@ -8454,17 +8542,17 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
   const existing = document.getElementById(PAGE_ID);
   const result = installTab();
   if (existing) {
+    const wasActive = isPageActive();
     if (existing.dataset.ui !== UI_VERSION || !existing.shadowRoot?.getElementById?.("snapshot-detail-import-new") || !existing.shadowRoot?.getElementById?.("thread-select-modal")) {
-      existing.remove();
-      openPage();
+      // 不重建仍被旧定时器/事件引用的页面。保留状态，等待用户重新打开客户端。
+      return { installed: true, pendingUpdate: true, reason: 'client-reopen-required', ui: existing.dataset.ui };
     } else {
       existing.style.zIndex = "35";
       existing.style.setProperty("-webkit-app-region", "no-drag", "important");
-      hideNativeAppShellHeader();
-      positionPage(existing);
+      if (wasActive) { hideNativeAppShellHeader(); positionPage(existing); }
     }
   }
-  window.__teamContextTabInstalled = true;
+  window.__teamContextTabInstalled = result.installed === true;
   window.__teamContextUiVersion = UI_VERSION;
   return result;
 })();

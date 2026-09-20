@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Team · 项目工作区</title>
+  <link rel="stylesheet" href="/inject/workspace.css">
+  <style>
+    :root { font: 14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color-scheme: light; }
+    :root[data-theme=dark] { color-scheme: dark; --bg-page:#181818; --bg-card:#222; --bg-card-hover:#303030; --text-primary:#ececec; --text-secondary:#a1a1aa; --border-subtle:#383838; --accent-color:#80abf7; }
+    body { margin:0; height:100vh; color:var(--text-primary,#1a1c1f); background:var(--bg-page,#fff); }
+    #workspace { height:100%; }
+    #connection, #reference { max-width:460px; padding:40px; margin:auto; }
+    #connection label { display:block; margin:18px 0; }
+    #connection input, #reference textarea { box-sizing:border-box; width:100%; padding:10px; margin-top:6px; font:inherit; }
+    button { font:inherit; padding:8px 12px; cursor:pointer; }
+    [hidden] { display:none!important; }
+    #theme { position:fixed; right:14px; bottom:12px; z-index:2; border:1px solid var(--border-subtle,#ddd); background:var(--bg-page,#fff); color:inherit; border-radius:6px; font-size:11px; padding:5px 8px; }
+  </style>
+</head>
+<body>
+  <form id="connection">
+    <h1>Team 工作区</h1><p>连接当前 Hub 的项目空间。不会修改房间配置。</p>
+    <label>空间<input name="room" value="1024" required></label>
+    <label>房间密钥<input name="key" type="password" autocomplete="off" required></label>
+    <label>你的名字<input name="name" value="团队成员" required></label>
+    <p id="error" role="alert"></p><button type="submit">进入工作区</button>
+  </form>
+  <div id="workspace" hidden></div>
+  <section id="reference" hidden><h2>对话引用草稿</h2><p>独立页面不自动发送消息。可复制到 Codex，嵌入模式会直接填入 Team 对话框。</p><textarea rows="16" aria-label="引用草稿"></textarea><button id="back">返回工作区</button></section>
+  <button id="theme" type="button" aria-label="切换预览主题">切换主题</button>
+  <script src="/inject/workspace.js"></script>
+  <script src="/ui/workspace_boot.js"></script>
+</body>
+</html>

@@ -82,47 +82,7 @@ if (Test-Path -LiteralPath $trayScript) {
   }
 }
 
-function Stop-OrphanNodeProcessesOnPorts {
-  param([int[]]$Ports = @(18765, 18766, 18767, 19877))
-  foreach ($p in $Ports) {
-    $foundPort = $false
-    try {
-      $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
-      if ($conns) {
-        $foundPort = $true
-        foreach ($conn in $conns) {
-          $procId = $conn.OwningProcess
-          if ($procId -and $procId -gt 4) {
-            $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
-            if ($proc -and $proc.ProcessName -like "*node*") {
-              Write-Host "[TeamCodex] 清理占用端口 $p 的孤立 Node 进程 (PID $procId)..." -ForegroundColor Yellow
-              Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
-            }
-          }
-        }
-      }
-    } catch {}
-    if (-not $foundPort) {
-      try {
-        $lines = netstat -ano | Select-String ":$p\s+.*LISTENING\s+(\d+)"
-        foreach ($match in $lines) {
-          if ($match.Matches[0].Groups[1].Value) {
-            $netPid = [int]$match.Matches[0].Groups[1].Value
-            if ($netPid -gt 4) {
-              $proc = Get-Process -Id $netPid -ErrorAction SilentlyContinue
-              if ($proc -and $proc.ProcessName -like "*node*") {
-                Write-Host "[TeamCodex] 清理占用端口 $p 的孤立 Node 进程 (PID $netPid)..." -ForegroundColor Yellow
-                Stop-Process -Id $netPid -Force -ErrorAction SilentlyContinue
-              }
-            }
-          }
-        }
-      } catch {}
-    }
-  }
-}
-Stop-OrphanNodeProcessesOnPorts -Ports @(18765, 19877)
-Stop-OrphanNodeProcessesOnPorts -Ports @(18766, 18767)
+# 不按端口清理 Node：占用者可能是代理或其他 TeamCodex 安装实例。
 
 $discoveryFile = Join-Path $InstallRoot "data\hub_discovery.json"
 $discoveredHubUrl = $null
@@ -346,106 +306,12 @@ if ($discoveredHost) {
   }
 }
 
-function Stop-ProcessGracefully {
-  param(
-    [System.Diagnostics.Process[]]$Processes,
-    [int]$TimeoutSeconds = 4
-  )
-  if (-not $Processes -or $Processes.Count -eq 0) { return }
-
-  Log-Message "正在向当前运行的客户端发送窗口关闭消息 (优雅退出，保存草稿)..."
-  foreach ($p in $Processes) {
-    try {
-      if (-not $p.HasExited) {
-        $closed = $p.CloseMainWindow()
-        if (-not $closed) {
-          $p.Close()
-        }
-      }
-    } catch {}
-  }
-
-  $sw = [System.Diagnostics.Stopwatch]::StartNew()
-  while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-    $stillRunning = Get-Process -Name @("ChatGPT", "Codex") -ErrorAction SilentlyContinue
-    if (-not $stillRunning) { break }
-    Start-Sleep -Milliseconds 200
-  }
-
-  $remaining = Get-Process -Name @("ChatGPT", "Codex") -ErrorAction SilentlyContinue
-  if ($remaining) {
-    Log-Message "客户端在 ${TimeoutSeconds} 秒内未完全退出，执行安全清理..."
-    foreach ($rem in $remaining) {
-      try { Stop-Process -Id $rem.Id -Force -ErrorAction SilentlyContinue } catch {}
-    }
-    Start-Sleep -Milliseconds 500
-  } else {
-    Log-Message "原客户端已平滑优雅退出。"
-  }
-}
-
-# 2. 检查是否有开放 CDP 的 Codex / ChatGPT 实例 (优先动态嗅探运行中实例已开放的任意 CDP 端口)
-$detectedCdpPort = $null
-try {
-  $procCmds = Get-CimInstance Win32_Process -Filter "Name like '%ChatGPT%' or Name like '%Codex%'" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty CommandLine
-  foreach ($cmd in $procCmds) {
-    if ($cmd -match "--remote-debugging-port=(\d+)") {
-      $detectedCdpPort = [int]$matches[1]
-      break
-    }
-  }
-} catch {}
-
-$cdpPortsToTry = @()
-if ($detectedCdpPort) { $cdpPortsToTry += $detectedCdpPort }
-if (-not $cdpPortsToTry.Contains($CdpPort)) { $cdpPortsToTry += $CdpPort }
-
-$cdpReady = $null
-foreach ($tryPort in $cdpPortsToTry) {
-  try {
-    $cdpReady = Invoke-RestMethod -Uri "http://127.0.0.1:$tryPort/json/version" -TimeoutSec 1 -ErrorAction SilentlyContinue
-    if ($cdpReady) {
-      $CdpPort = $tryPort
-      Log-Message "检测到运行中 Codex 实例已启用 CDP 端口: $CdpPort，启用热挂载模式"
-      break
-    }
-  } catch {}
-}
-
-if (-not $cdpReady) {
-  # 检查是否有正在运行的 ChatGPT.exe 或 Codex.exe
-  $running = Get-Process -Name @("ChatGPT", "Codex") -ErrorAction SilentlyContinue
-  
-  # 优先在进程还在运行的时候捕获其真实可执行文件路径
-  $codexExe = Resolve-CodexPath
-
-  if ($running) {
-    Log-Message "检测到 ChatGPT/Codex 正在运行但未开启协同调试端口。"
-    Log-Message "开始平滑接管：保存当前草稿并重启客户端..."
-    Stop-ProcessGracefully -Processes $running -TimeoutSeconds 4
-  }
-
-  if ($codexExe) {
-    Log-Message "正在以协同模式拉起 Codex/ChatGPT (调试端口: $CdpPort): $codexExe"
-    $codexArgs = @(
-      "--remote-debugging-address=127.0.0.1",
-      "--remote-debugging-port=$CdpPort"
-    )
-    Start-Process -FilePath $codexExe -ArgumentList $codexArgs -WorkingDirectory (Split-Path -Parent $codexExe)
-    $cdpReady = Wait-Endpoint -Url "http://127.0.0.1:$CdpPort/json/version" -Attempts 40
-    if ($cdpReady) {
-      Log-Message "Codex/ChatGPT 协同调试通道已就绪！"
-    } else {
-      Log-Message "警告: 未能在预期时间内连通调试端口，请检查防火墙或进程是否启动。"
-    }
-  } else {
-    Log-Message "未自动找到 ChatGPT.exe 或 Codex.exe。请手动启动 Codex 并添加 --remote-debugging-port=$CdpPort 参数。"
-  }
-}
+# Windows 的受控启动/重启由本地控制面独立完成，不能递归调用此带互斥锁的引导脚本。
+# 已有 CDP 时观察器自动挂载；无 CDP 时面板要求明确确认，不在后台擅自接管客户端。
 
 $env:TEAM_CONTEXT_HOST = $targetHost
 $env:TEAM_CONTEXT_PORT = [string]$Port
-$env:TEAM_CONTEXT_CDP_URL = "http://127.0.0.1:$CdpPort"
+# 不向观察器固定旧端口；账号切换后由目标主进程重新确定端口。
 $env:TEAM_CONTEXT_DEFAULT_ROOM = "1024"
 $env:TEAM_CONTEXT_DEFAULT_ROOM_KEY = $discoveredRoomKey
 
@@ -453,8 +319,7 @@ $LauncherPath = Join-Path $InstallRoot "server\launcher_host.mjs"
 Log-Message "正在启动本地控制面..."
 Start-Process -FilePath $nodePath -ArgumentList @($LauncherPath) -WorkingDirectory $InstallRoot -WindowStyle Hidden
 
-Log-Message "开始连接 Codex CDP 进行 TeamCodex 注入..."
-Start-Process -FilePath $nodePath -ArgumentList @($AttachPath) -WorkingDirectory $InstallRoot -WindowStyle Hidden
+Log-Message "控制面将启动只跟随当前实例的观察器。无调试通道时，请在面板确认启动/重启。"
 
 Log-Message "TeamCodex 后台协同链路初始化完成。"
 

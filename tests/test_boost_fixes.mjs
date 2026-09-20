@@ -16,7 +16,8 @@ test("1. attach_codex.mjs 修复验证与 target 识别", () => {
 
   // 1.2 快照同步异常时不再强制 session.close() 引发级联断连重连
   assert.match(content, /catch\s*\(syncErr\)\s*\{\s*console\.warn\(`\[attach_codex\] snapshot\/sync failed/);
-  assert.match(content, /return \{ installed: true, syncError: syncErr\.message \};/);
+  assert.match(content, /syncError = syncErr\.message;/);
+  assert.match(content, /const receipt = await session\.send/);
 
   // 1.3 彻底拔除 CDP 守护进程每 1.5 秒覆盖前端快照的死循环
   assert.doesNotMatch(content, /window\.__teamContextApply\s*&&\s*window\.__teamContextApply\(\$\{JSON\.stringify\(snap\)\}\)/);
@@ -378,14 +379,14 @@ test("13. 服务端动态维护成员列表与 hub_discovery.json 共享通道�
   assert.equal(disc.known_keys?.["1024"], "123456");
 });
 
-test("14. Windows 脚本孤立进程强杀、优先读取共享发现与杜绝本地重复拉起 Hub", () => {
+test("14. Windows 正式入口不按端口强杀，并保留共享 Hub 发现", () => {
   const testPs1 = fs.readFileSync(path.join(ROOT, "windows/run-test.ps1"), "utf8");
   const codexPs1 = fs.readFileSync(path.join(ROOT, "windows/run-teamcodex.ps1"), "utf8");
 
   // 14.1 强杀 18765 和 19877 孤立 node.exe 进程
   assert.match(testPs1, /function Stop-OrphanNodeProcessesOnPorts/);
   assert.match(testPs1, /Stop-OrphanNodeProcessesOnPorts -Ports @\(18765, 19877\)/);
-  assert.match(codexPs1, /Stop-OrphanNodeProcessesOnPorts -Ports @\(18765, 19877\)/);
+  assert.doesNotMatch(codexPs1, /Stop-OrphanNodeProcessesOnPorts|Stop-Process.*-Force/);
 
   // 14.2 优先读取 data/hub_discovery.json
   assert.match(testPs1, /hub_discovery\.json/);
@@ -435,23 +436,116 @@ test("16. isPageActive 活性判据与切回原生对话高亮无损互斥", () 
   assert.match(uiCode, /function closePage\(\)\s*\{[\s\S]*?removeAttribute\("data-team-codex-open"\)/);
   assert.match(uiCode, /function setTabActive\(active\)[\s\S]*?removeAttribute\("data-team-codex-open"\)/);
 
-  // 16.4 Tab 重新点击走 openPage 保证复位并恢复可见性
-  assert.match(uiCode, /const open = \(event\) => \{[\s\S]*?window\.__teamContextOpenPage\?\.\(\);/);
+  // 16.4 Tab 现在打开菜单；选择“对话”仍须恢复同一页面并保持原生高亮互斥。
+  const functionSource = (name) => {
+    const match = uiCode.match(new RegExp(`  function ${name}\\([^]*?\\n  \\}`));
+    assert.ok(match, `应存在 ${name} 函数`);
+    return match[0];
+  };
+  const menuSource = functionSource("openTeamMenu");
+  assert.match(menuSource, /action === "chat"[\s\S]*?window\.__teamContextOpenPage\?\.\(\);/);
+  assert.match(functionSource("bindTeamButton"), /button\.onclick[\s\S]*?__teamContextToggleMenu/);
+
+  const nodes = new Map();
+  class FixtureElement {
+    attributes = new Map();
+    dataset = {};
+    style = { setProperty() {} };
+    listeners = new Map();
+    setAttribute(name, value) { this.attributes.set(name, value); }
+    getAttribute(name) { return this.attributes.get(name) ?? null; }
+    removeAttribute(name) { this.attributes.delete(name); }
+    addEventListener(type, callback) { this.listeners.set(type, callback); }
+    removeEventListener(type) { this.listeners.delete(type); }
+    appendChild(child) { nodes.set(child.id, child); }
+    remove() { nodes.delete(this.id); }
+    contains(target) { return target === this; }
+    getBoundingClientRect() { return { right: 240, top: 120 }; }
+    querySelector() { return this.button || null; }
+    querySelectorAll() {
+      this.items ||= [...this.innerHTML.matchAll(/data-action="([^"]+)"/g)].map((match) => {
+        const item = new FixtureElement();
+        item.setAttribute("data-action", match[1]);
+        return item;
+      });
+      return this.items;
+    }
+  }
+  const button = new FixtureElement();
+  const wrapper = new FixtureElement();
+  wrapper.button = button;
+  const page = new FixtureElement();
+  page.dataset.ui = uiCode.match(/const UI_VERSION = "([^"]+)"/)[1];
+  page.style.display = "none";
+  const shownViews = [];
+  page.__showWorkspace = view => shownViews.push(view);
+  nodes.set("tab", wrapper);
+  nodes.set("page", page);
+  const html = new FixtureElement();
+  const body = new FixtureElement();
+  const nativeThread = new FixtureElement();
+  nativeThread.setAttribute("data-app-action-sidebar-thread-selected", "true");
+  let restoredHeader = 0;
+  const sandbox = {
+    TAB_ID: "tab", PAGE_ID: "page", MENU_ID: "menu", UI_VERSION: page.dataset.ui,
+    window: { innerHeight: 800 }, Element: FixtureElement,
+    document: {
+      documentElement: html, body,
+      getElementById: id => nodes.get(id) || null,
+      createElement: () => new FixtureElement(),
+      addEventListener() {}, removeEventListener() {},
+    },
+    isCodexLight: () => true, ensureTabStyles() {}, positionPage() {}, applyCodexTheme() {},
+    hideNativeAppShellHeader() {}, restoreNativeAppShellHeader: () => restoredHeader++,
+    cancelTeamMenuTimers() {}, setTimeout: callback => callback(),
+  };
+  vm.createContext(sandbox);
+  vm.runInContext([
+    "isPageActive", "setTabActive", "closePage", "openPage", "closeTeamMenu",
+    "openTeamMenu", "toggleTeamMenu", "bindTeamButton",
+  ].map(functionSource).join("\n"), sandbox);
+  sandbox.window.__teamContextOpenPage = sandbox.openPage;
+  const click = { preventDefault() {}, stopPropagation() {}, button: 0 };
+  sandbox.bindTeamButton(button);
+  button.onclick(click);
+  assert.ok(nodes.has("menu"), "Tab 点击应打开菜单");
+  assert.equal(button.getAttribute("aria-expanded"), "true");
+  assert.equal(sandbox.isPageActive(), false, "仅打开菜单不得激活 Team 页面");
+  button.onclick(click);
+  assert.equal(nodes.has("menu"), false, "再次点击应关闭菜单");
+
+  for (const action of ["chat", "knowledge", "materials", "kanban"]) {
+    button.onclick(click);
+    const item = nodes.get("menu").items.find(item => item.getAttribute("data-action") === action);
+    assert.ok(item, `菜单必须包含 ${action}`);
+    item.listeners.get("click")(click);
+    assert.equal(nodes.has("menu"), false, "选择菜单项后必须收起菜单");
+    assert.equal(nodes.get("page"), page, "必须复用常驻页面");
+    assert.equal(sandbox.isPageActive(), true);
+    assert.equal(html.getAttribute("data-team-codex-open"), "true");
+    assert.equal(button.getAttribute("aria-current"), "page");
+    assert.equal(shownViews.at(-1), action);
+    body.setAttribute("data-team-codex-open", "true");
+    assert.equal(sandbox.closePage(), true);
+    assert.equal(sandbox.isPageActive(), false);
+    assert.equal(html.getAttribute("data-team-codex-open"), null);
+    assert.equal(body.getAttribute("data-team-codex-open"), null);
+    assert.equal(button.getAttribute("aria-current"), "false");
+    assert.equal(nativeThread.getAttribute("data-app-action-sidebar-thread-selected"), "true");
+  }
+  assert.equal(restoredHeader, 4, "每次离开 Team 都必须恢复原生标题栏");
 });
 
-test("17. windows/run-teamcodex.ps1 具备优雅退出与平滑接管防丢机制", () => {
-  const psCode = fs.readFileSync(path.join(ROOT, "windows/run-teamcodex.ps1"), "utf8");
-
-  // 17.1 必须定义并使用 Stop-ProcessGracefully
-  assert.match(psCode, /function Stop-ProcessGracefully/);
-  assert.match(psCode, /CloseMainWindow\(\)/, "必须通过发送 CloseMainWindow 优雅请求退出，保留草稿保存时间");
-
-  // 17.2 检测到运行中但无端口时自动接管，严禁静默忽略或报错
-  assert.match(psCode, /开始平滑接管：保存当前草稿并重启客户端/);
-  assert.match(psCode, /Stop-ProcessGracefully -Processes \$running/);
-
-  // 17.3 强制绑定 127.0.0.1 杜绝网络暴露
-  assert.match(psCode, /"--remote-debugging-address=127\.0\.0\.1"/);
+test("17. Windows 受控重启保留参数，后台不自动接管", () => {
+  const runtime = fs.readFileSync(path.join(ROOT, 'server/codex_runtime.mjs'), 'utf8');
+  const policy = fs.readFileSync(path.join(ROOT, 'server/codex_runtime_policy.mjs'), 'utf8');
+  const bootstrap = fs.readFileSync(path.join(ROOT, 'windows/run-teamcodex.ps1'), 'utf8');
+  assert.match(runtime, /CloseMainWindow\(\)/);
+  assert.match(runtime, /launchArguments\(target.args, port\)/);
+  assert.match(policy, /confirmToken/);
+  assert.match(policy, /fingerprint\(snapshot.target\)/);
+  assert.match(policy, /remote-debugging-address=127\.0\.0\.1/);
+  assert.doesNotMatch(bootstrap, /Stop-ProcessGracefully|Start-Process -FilePath \$codexExe/);
 });
 
 test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致矢量 SVG (inline-v71~v75)", () => {
@@ -554,25 +648,29 @@ test("20. 尊重侧栏默认展开状态、项目归属提取、扁平分组与�
   assert.match(uiCode, /t\.title\.toLowerCase\(\)\.includes\(q\) \|\| t\.project\.toLowerCase\(\)\.includes\(q\)/);
 });
 
-test("21. 对话选择列表纯展示容器规范、解绑整行点击与双击、空间常驻分享 (inline-v79)", () => {
+test("21. 对话选择列表纯展示容器规范、解绑整行点击与双击、空间常驻分享 (inline-v79)", async () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
+  const listStart = uiCode.indexOf("    const renderThreadSelectList = () => {");
+  const listEnd = uiCode.indexOf('    threadSelectSearch?.addEventListener("input", renderThreadSelectList);', listStart);
+  assert.ok(listStart >= 0 && listEnd > listStart, "应提取完整对话选择列表渲染函数");
+  const listSource = uiCode.slice(listStart, listEnd);
 
   // 21.1 样式：.thread-select-item 为 default 光标并允许文字选择，彻底移除整行 hover 变色与联动
   assert.match(uiCode, /\.thread-select-item\s*\{[\s\S]*?cursor:\s*default;[\s\S]*?user-select:\s*text;/);
   assert.doesNotMatch(uiCode, /\.thread-select-item:hover\s*\.thread-select-item-action/);
 
   // 21.2 DOM：条目容器由 button 重构为 div，整行绝无 click/dblclick 绑定
-  assert.match(uiCode, /const item = document\.createElement\("div"\);/);
-  assert.match(uiCode, /item\.className = `thread-select-item/);
-  assert.match(uiCode, /<button type="button" class="thread-select-item-action">/);
+  assert.match(listSource, /const item = document\.createElement\("div"\);/);
+  assert.match(listSource, /item\.className = `thread-select-item/);
+  assert.match(listSource, /<button type="button" class="thread-select-item-action">/);
 
   // 21.3 事件唯一绑定在 actionBtn 上，绝不在 item 容器上监听 click
-  assert.match(uiCode, /actionBtn\?\.addEventListener\("click"/);
-  assert.doesNotMatch(uiCode, /item\.addEventListener\("click"/);
-  assert.doesNotMatch(uiCode, /item\.addEventListener\("dblclick"/);
+  assert.match(listSource, /actionBtn\?\.addEventListener\("click"/);
+  assert.doesNotMatch(listSource, /item\.addEventListener\("click"/);
+  assert.doesNotMatch(listSource, /item\.addEventListener\("dblclick"/);
 
   // 21.4 分享模式下绝对不调用 closePage()，并在静默锁保护下完成空间内卡片上屏
-  const shareBranchMatch = uiCode.match(/if\s*\(isShare\)\s*\{([\s\S]*?return;\s*\n\s*\})/);
+  const shareBranchMatch = listSource.match(/if\s*\(isShare\)\s*\{([\s\S]*?return;\s*\n\s*\})/);
   assert.ok(shareBranchMatch, "必须具备 isShare 分支");
   const shareBranch = shareBranchMatch[1];
   assert.doesNotMatch(shareBranch, /closePage\(\)/);
@@ -582,6 +680,60 @@ test("21. 对话选择列表纯展示容器规范、解绑整行点击与双击�
   // 21.5 原生分享链接等待超时收敛至 3200ms 并具备剪贴板重试
   assert.match(uiCode, /while\s*\(Date\.now\(\)\s*-\s*start\s*<\s*3200\)/);
   assert.match(uiCode, /for\s*\(let retry = 0;\s*retry < 4;\s*retry\+\+\)/);
+
+  // 执行真实渲染函数：行点击无副作用，只有右侧按钮能分享/导入。
+  class ListElement {
+    constructor(tag) { this.tagName = tag; }
+    listeners = new Map();
+    children = [];
+    style = {};
+    addEventListener(type, callback) { this.listeners.set(type, callback); }
+    appendChild(child) { this.children.push(child); }
+    querySelector(selector) {
+      if (selector !== ".thread-select-item-action" || !this.innerHTML.includes('class="thread-select-item-action"')) return null;
+      this.action ||= new ListElement("button");
+      return this.action;
+    }
+    emit(type) {
+      const event = { preventDefault() {}, stopPropagation() {} };
+      this[`on${type}`]?.(event);
+      this.listeners.get(type)?.(event);
+    }
+  }
+  for (const mode of ["share", "import"]) {
+    const list = new ListElement("div");
+    const calls = { share: 0, import: 0, closePicker: 0, closePage: 0 };
+    const sandbox = {
+      document: { createElement: tag => new ListElement(tag) }, window: {},
+      threadSelectList: list, threadSelectSearch: { value: "" },
+      currentThreadSelectConfig: { mode, content: "fixture content" },
+      listSidebarThreadsDetailed: () => [{ id: "fixture", title: "Fixture", project: "Tests", selected: true }],
+      escapeHtml: value => value, shareInFlight: false, isImportingInProgress: false,
+      closeThreadSelectModal: () => calls.closePicker++,
+      closePage: () => calls.closePage++,
+      shareCurrentThreadToTeam: () => { calls.share++; return Promise.resolve(); },
+      importIntoCurrentThread: content => {
+        assert.equal(content, "fixture content");
+        calls.import++;
+        return Promise.resolve();
+      },
+    };
+    vm.runInNewContext(`${listSource}\nrenderThreadSelectList();`, sandbox);
+    const row = list.children.find(child => child.className?.startsWith("thread-select-item"));
+    assert.ok(row, "必须渲染对话行");
+    assert.equal(row.tagName, "div");
+    row.emit("click");
+    row.emit("dblclick");
+    assert.deepEqual(calls, { share: 0, import: 0, closePicker: 0, closePage: 0 });
+    assert.equal(row.action.tagName, "button");
+    row.action.emit("click");
+    assert.equal(calls[mode], 1, "操作按钮必须执行所选模式");
+    assert.equal(calls.closePicker, 1);
+    if (mode === "share") assert.equal(sandbox.window.__teamContextSilentSwitch, true);
+    await Promise.resolve();
+    assert.equal(calls.closePage, 0, "列表不得自行关闭 Team 页面");
+    if (mode === "share") assert.equal(sandbox.window.__teamContextSilentSwitch, false);
+  }
 });
 
 test("22. 外链专属隔离、DOM就绪等待防漏读、短提问语境结构化杜绝孤立小写 n (inline-v80)", () => {
@@ -898,9 +1050,9 @@ test("34. Mac 首次启动注入健壮性、白瓷姿态高清图标与主界面
 
   // 34.1 Mac 启动注入健壮性：open -n -a 独立实例、100次等待、Header 安全编码
   assert.match(attachCode, /open/);
-  assert.match(attachCode, /attempts = 100/);
+  assert.doesNotMatch(attachCode, /launchCodexWithCdp|kill -9|pkill/);
   assert.match(attachCode, /encodeURIComponent\(strVal\)/);
-  assert.match(launcherCode, /findActiveCdpPort/);
+  assert.match(launcherCode, /inspectRuntime/);
 
   // 34.2 协作主界面更新检测卡片与小圆点
   assert.match(uiCode, /btn-check-update/);
@@ -973,29 +1125,19 @@ test("36. 官方 Codex 插件体系整合、元数据规范、Hook 自动注入�
   }
 });
 
-test("37. 通用代理安全决策、热挂载优先与无端口防盲杀机制 (inline-v94)", () => {
-  const launcherCode = fs.readFileSync(path.join(ROOT, "server/launcher_host.mjs"), "utf8");
-  const panelCode = fs.readFileSync(path.join(ROOT, "ui/panel.html"), "utf8");
-  const runPs = fs.readFileSync(path.join(ROOT, "windows/run-teamcodex.ps1"), "utf8");
-
-  // 37.1 启动器必须包含通用进程检测与代理特征抽象，禁止写死特定厂商
-  assert.match(launcherCode, /function isCodexRunning/);
-  assert.match(launcherCode, /function hasCustomProxyConfig/);
-  assert.doesNotMatch(launcherCode, /isCockpitManaged/, "严禁将外部代理机制特化绑定到单一工具名");
-
-  // 37.2 启动器热挂载优先与受控优雅重启
-  assert.match(launcherCode, /mode:\s*"attached"/);
-  assert.match(launcherCode, /requires_restart_confirm/);
-  assert.match(launcherCode, /has_custom_proxy/);
-
-  // 37.3 前端 panel 界面具备受控确认与防丢失提示
-  assert.match(panelCode, /requires_restart_confirm/);
-  assert.match(panelCode, /confirm\(tip\)/);
-  assert.match(panelCode, /force:\s*true/);
-
-  // 37.4 Windows 脚本具备动态嗅探运行中实例 CDP 端口
-  assert.match(runPs, /detectedCdpPort/);
-  assert.match(runPs, /--remote-debugging-port=\(\\d\+\)/);
+test("37. 热挂载优先、一次性确认与受管实例保护", () => {
+  const launcher = fs.readFileSync(path.join(ROOT, 'server/launcher_host.mjs'), 'utf8');
+  const policy = fs.readFileSync(path.join(ROOT, 'server/codex_runtime_policy.mjs'), 'utf8');
+  const panel = fs.readFileSync(path.join(ROOT, 'ui/panel.html'), 'utf8');
+  const runtime = fs.readFileSync(path.join(ROOT, 'server/codex_runtime.mjs'), 'utf8');
+  assert.match(launcher, /createLaunchController/);
+  assert.match(policy, /snapshot.state === 'ready'/);
+  assert.match(policy, /snapshot.managed/);
+  assert.match(policy, /requires_restart_confirm/);
+  assert.match(panel, /launch-confirm-cancel/);
+  assert.match(panel, /JSON.stringify\(\{ confirmToken \}\)/);
+  assert.doesNotMatch(panel, /force:\s*true|isAwaitingRestartConfirm/);
+  assert.match(runtime, /portOwnedBy\(target.pid, port\)/);
 });
 
 test("38. 全平台自动化一键打包流水线可用性与四大分发包完整性", () => {
@@ -1071,9 +1213,6 @@ test("39. v1.1.5 Windows 托盘秒级先行 (Instant Tray)、单实例防抖互�
   assert.match(runPs, /\$script:appMutex\.ReleaseMutex\(\)/, "run-teamcodex.ps1 正常流程结束前必须主动释放 appMutex 避免 Windows 内核残留");
 
   // 39.8 托盘显式退出时清理后台 Node 进程端口
-  assert.match(trayPs, /@\(18765,\s*18767\)[\s\S]*?Get-NetTCPConnection/, "tray-teamcodex.ps1 退出时必须清理后台服务 Node 进程端口");
+  assert.match(trayPs, /\/api\/shutdown/, "退出只请求本安装的控制面停止，不扫描端口杀进程");
+  assert.doesNotMatch(trayPs, /Get-NetTCPConnection/);
 });
-
-
-
-
