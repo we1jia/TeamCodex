@@ -122,9 +122,9 @@ function isNewer(latest, current) {
 
 let updateCache = { at: 0, value: null };
 
-async function checkUpdate() {
+async function checkUpdate({ force = false } = {}) {
   const current = appVersion();
-  if (updateCache.value && Date.now() - updateCache.at < 30 * 60 * 1000) {
+  if (!force && updateCache.value && Date.now() - updateCache.at < 5 * 60 * 1000) {
     return { ...updateCache.value, current };
   }
   const empty = {
@@ -138,11 +138,10 @@ async function checkUpdate() {
   try {
     const { status, body } = await requestJson(
       `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-      5000,
+      6000,
     );
     if (status !== 200 || !body?.tag_name) {
-      updateCache = { at: Date.now(), value: empty };
-      return empty;
+      return { ...empty, check_failed: true, message: `GitHub API 响应异常 (${status || "无响应"})` };
     }
     const latest = String(body.tag_name).replace(/^v/i, "");
     const want = process.platform === "darwin" ? "TeamCodex-macOS.dmg" : "TeamCodex-Setup.exe";
@@ -159,8 +158,8 @@ async function checkUpdate() {
     };
     updateCache = { at: Date.now(), value };
     return value;
-  } catch {
-    return empty;
+  } catch (err) {
+    return { ...empty, check_failed: true, message: "无法连接 GitHub Releases (网络连接超时)" };
   }
 }
 
@@ -470,7 +469,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/api/update") {
-    sendJson(res, 200, await checkUpdate());
+    const force = url.searchParams.get("force") === "1" || url.searchParams.get("force") === "true";
+    sendJson(res, 200, await checkUpdate({ force }));
     return;
   }
 

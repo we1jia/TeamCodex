@@ -163,7 +163,10 @@
         <input id="hubInput" spellcheck="false" placeholder="http://192.168.1.8:18765" />
         <button id="hubBtn" type="button">保存</button>
       </div>
-      <button id="restartBtn" type="button">重启注入</button>
+      <div class="field" style="grid-template-columns: 1fr 1fr;">
+        <button id="restartBtn" type="button">重启注入</button>
+        <button id="checkUpdateBtn" type="button">检查更新</button>
+      </div>
     </div>
     <div class="update" id="updateBar">
       <span id="updateText">发现新版本</span>
@@ -283,6 +286,27 @@
       await api("/api/restart-inject", { method: "POST" });
       say("已重启注入");
       refresh();
+    };
+    $("checkUpdateBtn").onclick = async () => {
+      $("checkUpdateBtn").disabled = true;
+      say("正在连接 GitHub 检查更新...");
+      try {
+        const s = await api("/api/update?force=1");
+        if (s.has_update) {
+          $("updateBar").classList.add("show");
+          $("updateText").textContent = "发现新版本 v" + s.latest;
+          say("发现新版本 v" + s.latest + "，可点击下方立即更新");
+        } else if (s.check_failed) {
+          say(s.message || "检查更新超时，请稍后重试");
+        } else {
+          $("updateBar").classList.remove("show");
+          say("当前已是最新版本 (v" + s.current + ")");
+        }
+      } catch {
+        say("检查更新超时，请稍后重试");
+      } finally {
+        $("checkUpdateBtn").disabled = false;
+      }
     };
     $("tokenBtn").onclick = async () => {
       const data = await api("/api/token");

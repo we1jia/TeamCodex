@@ -323,17 +323,28 @@ function Show-TeamCodexTray {
   }
   $doUpdate = {
     try {
-      $s = Invoke-Launcher "/api/update"
+      $btnUpdate.Text = "正在检查更新..."
+      $s = Invoke-Launcher "/api/update?force=1"
       if ($s -and $s.has_update) {
-        Invoke-Launcher "/api/update/download" "POST" | Out-Null
-        $notify.ShowBalloonTip(3000, "TeamCodex 发现新版本", "正在打开新版本下载 (最新: $($s.latest))", [System.Windows.Forms.ToolTipIcon]::Info)
-        if ($s.url) { Start-Process $s.url }
+        $btnUpdate.Text = "发现新版本 $($s.latest) (点击升级)"
+        $btnUpdate.ForeColor = [System.Drawing.Color]::FromArgb(96, 165, 250)
+        $dlUrl = if ($s.asset -and $s.asset.url) { $s.asset.url } elseif ($s.url) { $s.url } else { "https://github.com/we1jia/TeamCodex/releases/latest" }
+        $notify.ShowBalloonTip(3500, "TeamCodex 发现新版本", "正在打开新版本下载 (最新: $($s.latest))", [System.Windows.Forms.ToolTipIcon]::Info)
+        Start-Process $dlUrl
+      } elseif ($s -and $s.check_failed) {
+        $btnUpdate.Text = "检查更新 (网络超时)"
+        $notify.ShowBalloonTip(3500, "TeamCodex 检查更新", "$($s.message)。请检查网络或访问 GitHub Releases。", [System.Windows.Forms.ToolTipIcon]::Warning)
       } else {
+        $btnUpdate.Text = "检查更新"
         Invoke-Launcher "/api/restart-inject" "POST" | Out-Null
-        $notify.ShowBalloonTip(3000, "TeamCodex 检查更新", "当前已是最新版本，已刷新免重装热更新！", [System.Windows.Forms.ToolTipIcon]::Info)
+        $curVer = if ($s -and $s.current) { "v$($s.current)" } else { "当前版本" }
+        $notify.ShowBalloonTip(3000, "TeamCodex 检查更新", "$curVer 已经是最新版本！已刷新免重装热更新。", [System.Windows.Forms.ToolTipIcon]::Info)
       }
       Refresh-Status
-    } catch {}
+    } catch {
+      $btnUpdate.Text = "检查更新"
+      $notify.ShowBalloonTip(3000, "TeamCodex", "检查更新请求异常", [System.Windows.Forms.ToolTipIcon]::Error)
+    }
   }
 
   # ==============================================================================
