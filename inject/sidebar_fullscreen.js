@@ -611,6 +611,64 @@
         color: var(--color-text-primary-ghost, #ffffff) !important;
       }
 
+      /* Team 下拉弹出菜单项高亮与选中效果 (像素级对齐原生探索弹窗) */
+      .team-menu-item {
+        position: relative;
+        cursor: pointer !important;
+        user-select: none;
+        transition: background-color 100ms ease, color 100ms ease;
+      }
+      .team-menu-item * {
+        cursor: pointer !important;
+      }
+
+      /* 浅色模式 Hover & Focus & Highlighted */
+      :root:not([data-theme="dark"]) .team-menu-item:hover,
+      html[data-theme="light"] .team-menu-item:hover,
+      :root:not([data-theme="dark"]) .team-menu-item:focus,
+      html[data-theme="light"] .team-menu-item:focus,
+      :root:not([data-theme="dark"]) .team-menu-item[data-highlighted="true"],
+      html[data-theme="light"] .team-menu-item[data-highlighted="true"] {
+        background-color: rgba(0, 0, 0, 0.06) !important;
+      }
+
+      /* 深色模式 Hover & Focus & Highlighted */
+      html[data-theme="dark"] .team-menu-item:hover,
+      :root[data-theme="dark"] .team-menu-item:hover,
+      html[data-theme="dark"] .team-menu-item:focus,
+      :root[data-theme="dark"] .team-menu-item:focus,
+      html[data-theme="dark"] .team-menu-item[data-highlighted="true"],
+      :root[data-theme="dark"] .team-menu-item[data-highlighted="true"] {
+        background-color: rgba(255, 255, 255, 0.08) !important;
+      }
+
+      /* Active 点击按下反馈 */
+      :root:not([data-theme="dark"]) .team-menu-item:active,
+      html[data-theme="light"] .team-menu-item:active {
+        background-color: rgba(0, 0, 0, 0.1) !important;
+      }
+      html[data-theme="dark"] .team-menu-item:active,
+      :root[data-theme="dark"] .team-menu-item:active {
+        background-color: rgba(255, 255, 255, 0.12) !important;
+      }
+
+      /* 图标与文字在 hover 时联动 */
+      .team-menu-item:hover svg,
+      .team-menu-item[data-highlighted="true"] svg {
+        opacity: 1 !important;
+        color: currentColor !important;
+      }
+
+      /* 当前激活项底色 (如当前处于 Team Codex 对话) */
+      :root:not([data-theme="dark"]) .team-menu-item[data-selected="true"],
+      html[data-theme="light"] .team-menu-item[data-selected="true"] {
+        background-color: rgba(0, 0, 0, 0.035);
+      }
+      html[data-theme="dark"] .team-menu-item[data-selected="true"],
+      :root[data-theme="dark"] .team-menu-item[data-selected="true"] {
+        background-color: rgba(255, 255, 255, 0.04);
+      }
+
       /* Toast 提示浮层 (原生 Sonner 风格) */
       #team-context-toast-notice {
         position: fixed !important;
@@ -7832,7 +7890,49 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     }, 2200);
   }
 
+  let teamMenuHoverTimer = null;
+  let teamMenuLeaveTimer = null;
+
+  function cancelTeamMenuTimers() {
+    if (teamMenuHoverTimer) {
+      clearTimeout(teamMenuHoverTimer);
+      teamMenuHoverTimer = null;
+    }
+    if (teamMenuLeaveTimer) {
+      clearTimeout(teamMenuLeaveTimer);
+      teamMenuLeaveTimer = null;
+    }
+  }
+
+  function scheduleOpenTeamMenu(delay = 50) {
+    if (document.getElementById(MENU_ID)) {
+      if (teamMenuLeaveTimer) {
+        clearTimeout(teamMenuLeaveTimer);
+        teamMenuLeaveTimer = null;
+      }
+      return;
+    }
+    if (teamMenuHoverTimer) return;
+    teamMenuHoverTimer = setTimeout(() => {
+      teamMenuHoverTimer = null;
+      openTeamMenu();
+    }, delay);
+  }
+
+  function scheduleCloseTeamMenu(delay = 220) {
+    if (teamMenuHoverTimer) {
+      clearTimeout(teamMenuHoverTimer);
+      teamMenuHoverTimer = null;
+    }
+    if (teamMenuLeaveTimer) clearTimeout(teamMenuLeaveTimer);
+    teamMenuLeaveTimer = setTimeout(() => {
+      teamMenuLeaveTimer = null;
+      closeTeamMenu("timer-delay-leave");
+    }, delay);
+  }
+
   function closeTeamMenu() {
+    cancelTeamMenuTimers();
     const menu = document.getElementById(MENU_ID);
     if (menu) {
       menu.remove();
@@ -7854,7 +7954,12 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
   }
 
   function openTeamMenu() {
-    closeTeamMenu();
+    cancelTeamMenuTimers();
+    const existingMenu = document.getElementById(MENU_ID);
+    if (existingMenu) {
+      existingMenu.remove();
+    }
+
     const wrapper = document.getElementById(TAB_ID);
     const btn = wrapper?.querySelector("button");
     if (!btn) return;
@@ -7875,6 +7980,20 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     menuWrapper.setAttribute("dir", "ltr");
     menuWrapper.style.cssText = `position: fixed; left: 0px; top: 0px; transform: translate(${x}px, ${y}px); min-width: max-content; z-index: 99999; will-change: transform;`;
 
+    // 鼠标移入下拉菜单本身 -> 保持打开，取消关闭计时
+    menuWrapper.addEventListener("mouseenter", () => {
+      cancelTeamMenuTimers();
+    });
+
+    // 鼠标移出下拉菜单本身 -> 启动延时关闭
+    menuWrapper.addEventListener("mouseleave", (e) => {
+      const toEl = e.relatedTarget instanceof Element ? e.relatedTarget : null;
+      if (toEl && (btn.contains(toEl) || wrapper.contains(toEl))) {
+        return;
+      }
+      scheduleCloseTeamMenu(220);
+    });
+
     const isChatActive = isPageActive();
 
     menuWrapper.innerHTML = `
@@ -7883,8 +8002,8 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
            tabindex="-1" data-orientation="vertical" style="outline: none;">
         
         <!-- 菜单项 1: 对话 (当前 Team Codex) -->
-        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
-             role="menuitem" tabindex="-1" data-orientation="vertical" data-action="chat">
+        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group cursor-interaction flex flex-col" 
+             role="menuitem" tabindex="-1" data-orientation="vertical" data-action="chat" ${isChatActive ? 'data-selected="true"' : ''}>
           <div class="flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
             <span class="_leadingIcon_1qhf5_2">
               <span class="inline-flex opacity-75 group-hover:opacity-100 group-focus:opacity-100">
@@ -7894,7 +8013,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
               </span>
             </span>
             <span class="flex-1 min-w-0 truncate">对话</span>
-            ${isChatActive ? '<span class="text-xs text-secondary opacity-60 shrink-0 font-medium">当前</span>' : ''}
+            ${isChatActive ? '<span class="text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 dark:bg-white/10 text-default opacity-60 shrink-0 font-medium">当前</span>' : ''}
           </div>
         </div>
 
@@ -7904,7 +8023,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         </div>
 
         <!-- 菜单项 2: 知识库 -->
-        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
+        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group cursor-interaction flex flex-col" 
              role="menuitem" tabindex="-1" data-orientation="vertical" data-action="knowledge">
           <div class="flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
             <span class="_leadingIcon_1qhf5_2">
@@ -7923,7 +8042,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         </div>
 
         <!-- 菜单项 3: 素材库 -->
-        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
+        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group cursor-interaction flex flex-col" 
              role="menuitem" tabindex="-1" data-orientation="vertical" data-action="materials">
           <div class="flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
             <span class="_leadingIcon_1qhf5_2">
@@ -7941,7 +8060,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         </div>
 
         <!-- 菜单项 4: 看板 -->
-        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group hover:bg-primary-ghost-hover focus:bg-primary-ghost-hover cursor-interaction flex flex-col" 
+        <div class="team-menu-item no-drag outline-hidden flex min-h-[var(--app-menu-item-height,0px)] shrink-0 items-center justify-center p-[var(--app-menu-item-padding,var(--padding-row-y)_var(--padding-row-x))] text-(length:--app-menu-item-font-size,var(--text-sm)) leading-(--app-menu-item-line-height,var(--text-sm--line-height)) rounded-xl text-default group cursor-interaction flex flex-col" 
              role="menuitem" tabindex="-1" data-orientation="vertical" data-action="kanban">
           <div class="flex w-full min-w-0 items-center gap-[var(--spacing-menu-item-content,calc(var(--spacing)*1.5))]">
             <span class="_leadingIcon_1qhf5_2">
@@ -7966,8 +8085,17 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     btn.setAttribute("aria-expanded", "true");
     btn.setAttribute("data-state", "open");
 
-    // 菜单项点击逻辑
+    // 菜单项 Hover 高亮与点击逻辑
     menuWrapper.querySelectorAll(".team-menu-item").forEach((item) => {
+      // 保证鼠标移动上去时赋予 data-highlighted
+      item.addEventListener("mouseenter", () => {
+        menuWrapper.querySelectorAll(".team-menu-item").forEach(other => other.removeAttribute("data-highlighted"));
+        item.setAttribute("data-highlighted", "true");
+      });
+      item.addEventListener("mouseleave", () => {
+        item.removeAttribute("data-highlighted");
+      });
+
       item.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -8042,6 +8170,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       if (target.closest(`#${TAB_ID}`) || target.closest(`#${PAGE_ID}`) || target.closest(`#${MENU_ID}`)) return;
       
       // 点击其他区域时收起 Team 下拉菜单
+      cancelTeamMenuTimers();
       closeTeamMenu();
 
       const sidebar = findSidebar();
@@ -8054,6 +8183,26 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         window.__teamContextClosePage?.();
       }
     };
+
+    // 侧栏悬停离开监听：当鼠标从 Team 划到侧栏其它项目时，立刻收起 Team 菜单 (对齐原生探索)
+    const sidebar = findSidebar();
+    if (sidebar && !sidebar.dataset.teamHoverWatched) {
+      sidebar.dataset.teamHoverWatched = "true";
+      sidebar.addEventListener("mouseover", (e) => {
+        const target = e.target instanceof Element ? e.target : e.target?.parentElement;
+        if (!target) return;
+        const wrapper = document.getElementById(TAB_ID);
+        const menu = document.getElementById(MENU_ID);
+        if (wrapper && wrapper.contains(target)) return;
+        if (menu && menu.contains(target)) return;
+
+        const otherItem = target.closest('button, a, [role="button"], [role="tab"], [data-app-action-sidebar-thread-id]');
+        if (otherItem) {
+          cancelTeamMenuTimers();
+          closeTeamMenu("sidebar-other-item-mouseover");
+        }
+      }, { passive: true });
+    }
     window.__teamContextKeyHandler = (event) => {
       if (event.key === "Escape") {
         const currentMenu = document.getElementById(MENU_ID);
@@ -8113,6 +8262,44 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     document.addEventListener("keydown", window.__teamContextKeyHandler, true);
   }
 
+  function bindTeamButton(button) {
+    if (!button) return;
+    button.dataset.teamBound = "true";
+    button.setAttribute("aria-haspopup", "menu");
+
+    if (!button.dataset.teamHoverBound) {
+      button.dataset.teamHoverBound = "true";
+
+      const onEnter = () => {
+        scheduleOpenTeamMenu(50);
+      };
+
+      const onLeave = (e) => {
+        const toEl = e.relatedTarget instanceof Element ? e.relatedTarget : null;
+        const menu = document.getElementById(MENU_ID);
+        const wrapper = document.getElementById(TAB_ID);
+        if (toEl && ((wrapper && wrapper.contains(toEl)) || (menu && menu.contains(toEl)))) {
+          return;
+        }
+        scheduleCloseTeamMenu(220);
+      };
+
+      button.addEventListener("mouseenter", onEnter);
+      button.addEventListener("pointerenter", onEnter);
+      button.addEventListener("mouseover", onEnter);
+
+      button.addEventListener("mouseleave", onLeave);
+      button.addEventListener("pointerleave", onLeave);
+    }
+
+    // 3. 单一受控点击绑定
+    button.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTeamMenu(e);
+    };
+  }
+
   function installTab() {
     const navigation = findNav();
     if (!navigation) return { installed: false, reason: "navigation-missing" };
@@ -8125,6 +8312,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     if (wrapper && wrapper.parentElement === parent && wrapper.dataset.ui === UI_VERSION) {
       const button = wrapper.querySelector("button");
       if (button && button.dataset.teamBound === "true") {
+        bindTeamButton(button);
         const isMenuOpen = Boolean(document.getElementById(MENU_ID));
         const targetState = isMenuOpen ? "open" : (isPageActive() ? "active" : "closed");
         if (button.getAttribute("data-state") !== targetState) {
@@ -8160,7 +8348,6 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       button.setAttribute("aria-haspopup", "menu");
       button.setAttribute("aria-expanded", "false");
       button.setAttribute("data-state", "closed");
-      button.dataset.teamBound = "true";
 
       const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
       const texts = [];
@@ -8178,12 +8365,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         svg.innerHTML = TEAM_ICON_PATHS;
       }
 
-      // 单一受控点击绑定，杜绝捕获/冒泡双触发引起的闪烁
-      button.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        toggleTeamMenu(e);
-      };
+      bindTeamButton(button);
 
       wrapper.appendChild(button);
       if (insertionButton?.nextSibling) parent.insertBefore(wrapper, insertionButton.nextSibling);
@@ -8191,13 +8373,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     } else {
       const button = wrapper.querySelector("button");
       if (button) {
-        button.dataset.teamBound = "true";
-        button.setAttribute("aria-haspopup", "menu");
-        button.onclick = (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          toggleTeamMenu(e);
-        };
+        bindTeamButton(button);
       }
     }
     installLeaveHandler();
