@@ -11,9 +11,9 @@ function Show-TeamCodexTray {
   } catch {}
 
   # ==============================================================================
-  # 1. 全局单实例互斥锁与旧进程强制清洗 (彻底消灭多重托盘图标)
+  # 1. 单实例互斥锁与旧进程清洗 (采用 Local 作用域杜绝普通权限下的 UnauthorizedAccessException)
   # ==============================================================================
-  $mutexName = "Global\TeamCodexTrayMutex"
+  $mutexName = "Local\TeamCodexTrayMutex"
   $createdNew = $false
   $script:trayMutex = $null
   try {
@@ -73,7 +73,7 @@ function Show-TeamCodexTray {
   $hubItem = $menu.Items.Add("切换中枢地址")
   $restartItem = $menu.Items.Add("重启注入")
   [void]$menu.Items.Add("-")
-  $updateItem = $menu.Items.Add("当前版本 1.1.1")
+  $updateItem = $menu.Items.Add("当前版本 1.1.2")
   $exitItem = $menu.Items.Add("退出")
   $notify.ContextMenuStrip = $menu
 
@@ -110,7 +110,7 @@ function Show-TeamCodexTray {
   $headerPanel.Controls.Add($titleLabel)
 
   $verLabel = New-Object System.Windows.Forms.Label
-  $verLabel.Text = "v1.1.1"
+  $verLabel.Text = "v1.1.2"
   $verLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9.0)
   $verLabel.AutoSize = $true
   $verLabel.Location = New-Object System.Drawing.Point(92, 6)

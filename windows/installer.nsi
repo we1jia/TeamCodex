@@ -24,7 +24,8 @@ InstallDirRegKey HKCU "Software\TeamCodex" "Install_Dir"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
-!define MUI_FINISHPAGE_RUN "$INSTDIR\windows\run-silent.vbs"
+!define MUI_FINISHPAGE_RUN "$SYSDIR\wscript.exe"
+!define MUI_FINISHPAGE_RUN_PARAMETERS '"$INSTDIR\windows\run-silent.vbs"'
 !define MUI_FINISHPAGE_RUN_TEXT "运行 TeamCodex"
 !insertmacro MUI_PAGE_FINISH
 
@@ -57,7 +58,7 @@ Section "TeamCodex Core" SecCore
   ; Register in Windows Add/Remove Programs
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "DisplayName" "TeamCodex"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "DisplayIcon" "$INSTDIR\windows\assets\TeamCodex.ico"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "DisplayVersion" "1.1.1"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "DisplayVersion" "1.1.2"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "Publisher" "we1jia"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "UninstallString" '"$INSTDIR\uninstall.exe"'
   WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\TeamCodex" "NoModify" 1
