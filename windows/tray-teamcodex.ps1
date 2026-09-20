@@ -19,11 +19,11 @@ function Show-TeamCodexTray {
   try {
     $script:trayMutex = New-Object System.Threading.Mutex($true, $mutexName, [ref]$createdNew)
     if (-not $createdNew) {
-      $oldProcs = Get-Process -Name "powershell" -ErrorAction SilentlyContinue | Where-Object {
-        $_.Id -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*" -or $_.CommandLine -like "*run-teamcodex*")
+      $oldProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Name -eq "powershell.exe" -and $_.ProcessId -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*" -or $_.CommandLine -like "*run-teamcodex*")
       }
       foreach ($p in $oldProcs) {
-        Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+        Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
       }
       Start-Sleep -Milliseconds 250
     }
@@ -49,8 +49,18 @@ function Show-TeamCodexTray {
 
   $notify = New-Object System.Windows.Forms.NotifyIcon
   $iconPath = Join-Path $PSScriptRoot "assets\TeamCodex.ico"
+  if (-not (Test-Path -LiteralPath $iconPath)) {
+    $iconPath = Join-Path (Split-Path -Parent $PSScriptRoot) "windows\assets\TeamCodex.ico"
+  }
+  if (-not (Test-Path -LiteralPath $iconPath)) {
+    $iconPath = Join-Path $env:LOCALAPPDATA "Programs\TeamCodex\windows\assets\TeamCodex.ico"
+  }
   if (Test-Path -LiteralPath $iconPath) {
-    $notify.Icon = New-Object System.Drawing.Icon($iconPath)
+    try {
+      $notify.Icon = New-Object System.Drawing.Icon($iconPath)
+    } catch {
+      $notify.Icon = [System.Drawing.SystemIcons]::Application
+    }
   } else {
     $notify.Icon = [System.Drawing.SystemIcons]::Application
   }
@@ -347,10 +357,13 @@ function Show-TeamCodexTray {
     }
   }
 
+  $script:appContext = New-Object System.Windows.Forms.ApplicationContext
+
   # ==============================================================================
   # 5. 彻底强力退出处理 (立即释放资源并强杀进程，绝不挂起)
   # ==============================================================================
   $doExit = {
+    try { if ($script:appContext) { $script:appContext.ExitThread() } } catch {}
     try { $timer.Stop() } catch {}
     try { $notify.Visible = $false } catch {}
     try { $notify.Dispose() } catch {}
@@ -400,7 +413,7 @@ function Show-TeamCodexTray {
 
   Refresh-Status
   try {
-    [System.Windows.Forms.Application]::Run()
+    [System.Windows.Forms.Application]::Run($script:appContext)
   } finally {
     & $doExit
   }

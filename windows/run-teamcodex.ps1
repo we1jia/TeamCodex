@@ -51,9 +51,11 @@ Stop-OrphanNodeProcessesOnPorts -Ports @(18766, 18767)
 
 # 清理已存在的旧托盘 powershell 实例，避免重复托盘图标
 try {
-  Get-Process -Name "powershell" -ErrorAction SilentlyContinue | Where-Object {
-    $_.Id -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*" -or $_.CommandLine -like "*run-teamcodex*")
-  } | Stop-Process -Force -ErrorAction SilentlyContinue
+  Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -eq "powershell.exe" -and $_.ProcessId -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*" -or $_.CommandLine -like "*run-teamcodex*")
+  } | ForEach-Object {
+    Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+  }
 } catch {}
 
 $discoveryFile = Join-Path $InstallRoot "data\hub_discovery.json"
