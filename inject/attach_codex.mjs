@@ -413,14 +413,23 @@ async function injectTarget(target, source, sessions) {
     if (probe?.result?.value !== true) {
       return { installed: false, reason: "not-codex-sidebar" };
     }
-    // 轻量探针检测：若已安装且侧栏 Tab 节点存在，跳过 328KB 脚本的重复 Evaluate，避免阻塞主渲染线程与触控板手势
-    const isInstalledProbe = await session.send("Runtime.evaluate", {
-      expression: `Boolean(window.__teamContextTabInstalled && document.getElementById('team-context-sidebar-tab'))`,
+    const targetUiVersionMatch = source.match(/UI_VERSION\s*=\s*["']([^"']+)["']/);
+    const targetUiVersion = targetUiVersionMatch ? targetUiVersionMatch[1] : "";
+
+    // 轻量探针检测：若已安装且版本一致且侧栏 Tab 节点存在，跳过重复 Evaluate；若版本过旧或节点不存在，自动热更新注入
+    const probeState = await session.send("Runtime.evaluate", {
+      expression: `(() => ({
+        installed: Boolean(window.__teamContextTabInstalled && document.getElementById('team-context-sidebar-tab')),
+        version: window.__teamContextUiVersion || ""
+      }))()`,
       returnByValue: true,
     }).catch(() => null);
 
+    const pageProbe = probeState?.result?.value;
+    const isUpToDate = Boolean(pageProbe?.installed && (!targetUiVersion || pageProbe?.version === targetUiVersion));
+
     let result = null;
-    if (isInstalledProbe?.result?.value !== true) {
+    if (!isUpToDate) {
       result = await session.send("Runtime.evaluate", {
         expression: source,
         returnByValue: true,

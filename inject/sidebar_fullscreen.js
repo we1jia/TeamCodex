@@ -1,7 +1,7 @@
 (() => {
   const TAB_ID = "team-context-sidebar-tab";
   const PAGE_ID = "team-context-fullscreen-page";
-  const UI_VERSION = "inline-v93";
+  const UI_VERSION = "inline-v94";
 
   function isPageActive() {
     const page = document.getElementById(PAGE_ID);
@@ -1933,17 +1933,41 @@
 
         /* 消息气泡中的图片展示 */
         .msg-image-wrap {
+          position: relative;
           margin-top: 6px;
           border-radius: 12px;
           overflow: hidden;
           max-width: min(280px, 100%);
           cursor: zoom-in;
           border: 1px solid rgba(128, 128, 128, 0.15);
+          background: rgba(128, 128, 128, 0.08);
           transition: transform 0.12s ease, box-shadow 0.12s ease;
+          min-height: 72px;
+          min-width: 100px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
         .msg-image-wrap:hover {
           transform: scale(1.015);
           box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+        }
+        .msg-image-wrap.is-loading .msg-image-spinner {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(0, 0, 0, 0.22);
+          color: rgba(255, 255, 255, 0.75);
+          pointer-events: none;
+        }
+        .msg-image-spinner .animate-spin {
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
         .msg-chat-image {
           display: block;
@@ -1951,6 +1975,7 @@
           height: auto;
           max-height: 260px;
           object-fit: cover;
+          transition: opacity 0.2s ease;
         }
 
         /* Lightbox 大图预览模态框 */
@@ -3647,6 +3672,11 @@
 
     let pendingImage = null; // { name, size, base64 }
 
+    // 全局图片内存乐观缓存（映射关系：url 或 path -> data:image/... base64），彻底免疫沙箱私有网络访问拦截与裂图
+    const imageLocalDataCache = new Map();
+    // 优雅占位图（暗色卡片微缩矢量图，体积仅 200 字节，暗色与亮色皆宜）
+    const PLACEHOLDER_IMAGE_DATA = "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='100' viewBox='0 0 160 100'%3E%3Crect width='160' height='100' fill='%231e2124' rx='8'/%3E%3Cpath d='M50 65l18-24 15 20 20-26 22 30H50z' fill='%23383d44' opacity='0.7'/%3E%3Ccircle cx='68' cy='36' r='7' fill='%23383d44' opacity='0.7'/%3E%3C/svg%3E";
+
     const formatFileSize = (bytes) => {
       if (!bytes || bytes <= 0) return "0 B";
       const k = 1024;
@@ -3712,13 +3742,18 @@
 
     const resolveImageUrl = (img) => {
       if (!img) return "";
+      const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "http://127.0.0.1:18765").replace(/\/+$/, "");
       if (typeof img === "string") {
-        if (img.startsWith("http://") || img.startsWith("https://") || img.startsWith("data:")) return img;
-        const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "http://127.0.0.1:18765").replace(/\/+$/, "");
+        if (img.startsWith("data:")) return img;
+        if (imageLocalDataCache.has(img)) return imageLocalDataCache.get(img);
+        if (img.startsWith("http://") || img.startsWith("https://")) return img;
         return `${hub}${img.startsWith("/") ? "" : "/"}${img}`;
       }
       if (img.dataUrl) return img.dataUrl;
-      const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "http://127.0.0.1:18765").replace(/\/+$/, "");
+      const rawPath = img.url || img.full_url || "";
+      if (rawPath && imageLocalDataCache.has(rawPath)) {
+        return imageLocalDataCache.get(rawPath);
+      }
       if (img.url && img.url.startsWith("/")) {
         return `${hub}${img.url}`;
       }
@@ -6385,59 +6420,86 @@
         });
      } else {
        const ref = message.linked_thread?.title ? `<div class="ref">来自对话：${escapeHtml(message.linked_thread.title)}</div>` : "";
-       let imagesHtml = "";
-       if (Array.isArray(message.metadata?.images) && message.metadata.images.length > 0) {
-         imagesHtml = message.metadata.images.map((img) => {
-           const resolvedSrc = resolveImageUrl(img);
-           const imgAlt = img.name || "图片";
-           const rawPath = img.url || "";
-           return `<div class="msg-image-wrap" data-img-src="${escapeHtml(resolvedSrc)}" data-img-path="${escapeHtml(rawPath)}" title="点击查看原图"><img class="msg-chat-image" src="${escapeHtml(resolvedSrc)}" alt="${escapeHtml(imgAlt)}" loading="lazy" /></div>`;
-         }).join("");
-       }
+        let imagesHtml = "";
+        if (Array.isArray(message.metadata?.images) && message.metadata.images.length > 0) {
+          imagesHtml = message.metadata.images.map((img) => {
+            const rawPath = img.url || img.full_url || "";
+            const cachedDataUrl = img.dataUrl || (rawPath ? (imageLocalDataCache.get(rawPath) || (img.url ? imageLocalDataCache.get(img.url) : null)) : null);
+            const initialSrc = cachedDataUrl || PLACEHOLDER_IMAGE_DATA;
+            const isLoaded = Boolean(cachedDataUrl);
+            const imgAlt = img.name || "图片";
+            return `<div class="msg-image-wrap" data-loaded="${isLoaded}" data-img-src="${escapeHtml(cachedDataUrl || "")}" data-img-path="${escapeHtml(rawPath)}" title="点击查看原图"><img class="msg-chat-image" src="${escapeHtml(initialSrc)}" alt="${escapeHtml(imgAlt)}" loading="lazy" />${!isLoaded ? '<div class="msg-image-spinner"><svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none" class="animate-spin"><circle cx="12" cy="12" r="10" stroke-width="3" stroke-dasharray="32" stroke-linecap="round"/></svg></div>' : ""}</div>`;
+          }).join("");
+        }
 
-       let textBody = "";
-       if (contentText && contentText !== "[图片]") {
-         textBody = `<div class="bubble">${escapeHtml(contentText)}${ref}</div>`;
-       } else if (!imagesHtml) {
-         textBody = `<div class="bubble">${escapeHtml(contentText || "")}${ref}</div>`;
-       } else if (ref) {
-         textBody = `<div class="bubble" style="padding:4px 8px;">${ref}</div>`;
-       }
+        let textBody = "";
+        if (contentText && contentText !== "[图片]") {
+          textBody = `<div class="bubble">${escapeHtml(contentText)}${ref}</div>`;
+        } else if (!imagesHtml) {
+          textBody = `<div class="bubble">${escapeHtml(contentText || "")}${ref}</div>`;
+        } else if (ref) {
+          textBody = `<div class="bubble" style="padding:4px 8px;">${ref}</div>`;
+        }
 
-       stack.innerHTML = `<div class="who">${escapeHtml(who)}</div>${textBody}${imagesHtml}`;
+        stack.innerHTML = `<div class="who">${escapeHtml(who)}</div>${textBody}${imagesHtml}`;
 
-       stack.querySelectorAll(".msg-image-wrap").forEach((wrap) => {
-         const imgEl = wrap.querySelector("img");
-         const rawPath = wrap.dataset.imgPath;
+        stack.querySelectorAll(".msg-image-wrap").forEach((wrap) => {
+          const isInitiallyLoaded = wrap.dataset.loaded === "true";
+          if (isInitiallyLoaded) {
+            wrap.classList.add("is-loaded");
+          } else {
+            wrap.classList.add("is-loading");
+          }
+          const imgEl = wrap.querySelector("img");
+          const spinnerEl = wrap.querySelector(".msg-image-spinner");
+          const rawPath = wrap.dataset.imgPath;
 
-         const loadSafeDataUrl = async () => {
-           if (!rawPath) return;
-           try {
-             const data = await api(`/api/image-data?path=${encodeURIComponent(rawPath)}`);
-             if (data?.ok && data.dataUrl) {
-               if (imgEl) imgEl.src = data.dataUrl;
-               wrap.dataset.imgSrc = data.dataUrl;
-             }
-           } catch (e) {
-             console.warn("[TeamContext] loadSafeDataUrl failed:", e);
-           }
-         };
+          const applyLoadedDataUrl = (dataUrl) => {
+            if (!dataUrl) return;
+            if (imgEl && imgEl.src !== dataUrl) imgEl.src = dataUrl;
+            wrap.dataset.imgSrc = dataUrl;
+            wrap.classList.remove("is-loading");
+            wrap.classList.add("is-loaded");
+            if (spinnerEl) spinnerEl.remove();
+          };
 
-         imgEl?.addEventListener("error", () => {
-           loadSafeDataUrl();
-         }, { once: true });
+          const loadSafeDataUrl = async () => {
+            if (!rawPath) return;
+            const existingCache = imageLocalDataCache.get(rawPath) || (wrap.dataset.imgPath ? imageLocalDataCache.get(wrap.dataset.imgPath) : null);
+            if (existingCache) {
+              applyLoadedDataUrl(existingCache);
+              return;
+            }
+            try {
+              const data = await api(`/api/image-data?path=${encodeURIComponent(rawPath)}`);
+              if (data?.ok && data.dataUrl) {
+                imageLocalDataCache.set(rawPath, data.dataUrl);
+                applyLoadedDataUrl(data.dataUrl);
+              } else {
+                wrap.classList.remove("is-loading");
+                if (spinnerEl) spinnerEl.remove();
+              }
+            } catch (e) {
+              console.warn("[TeamContext] loadSafeDataUrl failed:", e);
+              wrap.classList.remove("is-loading");
+              if (spinnerEl) spinnerEl.remove();
+            }
+          };
 
-         if (rawPath) {
-           loadSafeDataUrl();
-         }
+          // 仅当尚未加载完成且有 path 时执行安全请求
+          if (!wrap.classList.contains("is-loaded") && rawPath) {
+            loadSafeDataUrl();
+          }
 
-         wrap.addEventListener("click", (e) => {
-           if (isMultiSelectMode) return;
-           e.stopPropagation();
-           const src = wrap.dataset.imgSrc || imgEl?.src;
-           if (src) openImageLightbox(src);
-         });
-       });
+          wrap.addEventListener("click", (e) => {
+            if (isMultiSelectMode) return;
+            e.stopPropagation();
+            const src = wrap.dataset.imgSrc || (rawPath ? imageLocalDataCache.get(rawPath) : null) || imgEl?.src;
+            if (src && !src.startsWith("data:image/svg+xml")) {
+              openImageLightbox(src);
+            }
+          });
+        });
      }
 
      // 微信式复选圆圈：左侧消息（对方发来的）在左边外侧，右侧消息（我发出的）在右边外侧
@@ -7068,11 +7130,17 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
               }),
             });
             if (uploadRes?.ok && uploadRes.url) {
+              const finalDataUrl = currentPendingImg.base64;
+              if (finalDataUrl) {
+                imageLocalDataCache.set(uploadRes.url, finalDataUrl);
+                if (uploadRes.full_url) imageLocalDataCache.set(uploadRes.full_url, finalDataUrl);
+              }
               uploadedImages.push({
                 url: uploadRes.url,
                 full_url: uploadRes.full_url || uploadRes.url,
                 name: uploadRes.filename || currentPendingImg.name,
                 size: uploadRes.size || currentPendingImg.size,
+                dataUrl: finalDataUrl,
               });
             }
           } catch (uploadErr) {
