@@ -49,6 +49,9 @@ FILES_TO_PACK = [
     ('windows/mock-codex-host.html', 'TeamCodex-Windows/windows/mock-codex-host.html'),
     ('windows/assets/TeamCodex.ico', 'TeamCodex-Windows/windows/assets/TeamCodex.ico'),
     ('windows/assets/TeamContext.ico', 'TeamCodex-Windows/windows/assets/TeamContext.ico'),
+    ('windows/assets/TeamCodex.png', 'TeamCodex-Windows/windows/assets/TeamCodex.png'),
+    ('windows/assets/TeamCodex-32.png', 'TeamCodex-Windows/windows/assets/TeamCodex-32.png'),
+    ('assets/icon.png', 'TeamCodex-Windows/assets/icon.png'),
     ('data/hub_discovery.json', 'TeamCodex-Windows/data/hub_discovery.json'),
 ]
 

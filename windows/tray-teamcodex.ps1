@@ -47,23 +47,73 @@ function Show-TeamCodexTray {
     }
   }
 
-  $notify = New-Object System.Windows.Forms.NotifyIcon
-  $iconPath = Join-Path $PSScriptRoot "assets\TeamCodex.ico"
-  if (-not (Test-Path -LiteralPath $iconPath)) {
-    $iconPath = Join-Path (Split-Path -Parent $PSScriptRoot) "windows\assets\TeamCodex.ico"
-  }
-  if (-not (Test-Path -LiteralPath $iconPath)) {
-    $iconPath = Join-Path $env:LOCALAPPDATA "Programs\TeamCodex\windows\assets\TeamCodex.ico"
-  }
-  if (Test-Path -LiteralPath $iconPath) {
-    try {
-      $notify.Icon = New-Object System.Drawing.Icon($iconPath)
-    } catch {
-      $notify.Icon = [System.Drawing.SystemIcons]::Application
+  # ==============================================================================
+  # 稳健加载托盘图标 (彻底解决 Win10/Win11 任务栏通知区图标透明/隐形问题)
+  # ==============================================================================
+  function Get-TeamCodexIcon {
+    $searchDirs = @(
+      (Join-Path $PSScriptRoot "assets"),
+      $PSScriptRoot,
+      (Join-Path (Split-Path -Parent $PSScriptRoot) "windows\assets"),
+      (Join-Path (Split-Path -Parent $PSScriptRoot) "assets"),
+      (Join-Path $env:LOCALAPPDATA "Programs\TeamCodex\windows\assets"),
+      (Join-Path $env:LOCALAPPDATA "Programs\TeamCodex\assets"),
+      (Join-Path $env:LOCALAPPDATA "TeamCodex\windows\assets"),
+      (Join-Path $env:LOCALAPPDATA "TeamCodex\assets")
+    )
+
+    # 策略 1: 优先读取 PNG 资源并转为原生 Win32 32位 ARGB HICON (彻底规避旧 GDI+ 对 ICO 的透明度解码缺陷)
+    $pngNames = @("TeamCodex-32.png", "TeamCodex.png", "icon.png")
+    foreach ($dir in $searchDirs) {
+      foreach ($fn in $pngNames) {
+        $p = Join-Path $dir $fn
+        if (Test-Path -LiteralPath $p) {
+          try {
+            $bmp = [System.Drawing.Bitmap]::FromFile($p)
+            if ($bmp -and $bmp.Width -gt 0) {
+              $hIcon = $bmp.GetHicon()
+              if ($hIcon -ne [System.IntPtr]::Zero) {
+                $ico = [System.Drawing.Icon]::FromHandle($hIcon)
+                if ($ico) { return $ico }
+              }
+            }
+          } catch {}
+        }
+      }
     }
-  } else {
-    $notify.Icon = [System.Drawing.SystemIcons]::Application
+
+    # 策略 2: 兼容读取标准微软 32位 DIB 格式 ICO
+    $icoNames = @("TeamCodex.ico", "TeamContext.ico")
+    foreach ($dir in $searchDirs) {
+      foreach ($fn in $icoNames) {
+        $p = Join-Path $dir $fn
+        if (Test-Path -LiteralPath $p) {
+          try {
+            $ico = New-Object System.Drawing.Icon($p, 32, 32)
+            if ($ico) { return $ico }
+          } catch {}
+          try {
+            $ico = New-Object System.Drawing.Icon($p)
+            if ($ico) { return $ico }
+          } catch {}
+          try {
+            $bmp = [System.Drawing.Bitmap]::FromFile($p)
+            if ($bmp) {
+              $hIcon = $bmp.GetHicon()
+              if ($hIcon -ne [System.IntPtr]::Zero) {
+                return [System.Drawing.Icon]::FromHandle($hIcon)
+              }
+            }
+          } catch {}
+        }
+      }
+    }
+
+    return [System.Drawing.SystemIcons]::Application
   }
+
+  $notify = New-Object System.Windows.Forms.NotifyIcon
+  $notify.Icon = Get-TeamCodexIcon
   $notify.Text = "TeamCodex"
   $notify.Visible = $true
 
@@ -83,7 +133,7 @@ function Show-TeamCodexTray {
   $hubItem = $menu.Items.Add("切换中枢地址")
   $restartItem = $menu.Items.Add("重启注入")
   [void]$menu.Items.Add("-")
-  $updateItem = $menu.Items.Add("当前版本 1.1.3")
+  $updateItem = $menu.Items.Add("当前版本 1.1.4")
   $exitItem = $menu.Items.Add("退出")
   $notify.ContextMenuStrip = $menu
 
@@ -99,6 +149,7 @@ function Show-TeamCodexTray {
   $popup.BackColor = [System.Drawing.Color]::FromArgb(26, 28, 34)
   $popup.ForeColor = [System.Drawing.Color]::FromArgb(242, 244, 248)
   $popup.KeyPreview = $true
+  try { $popup.Icon = $notify.Icon } catch {}
 
   $cardPanel = New-Object System.Windows.Forms.Panel
   $cardPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
@@ -120,7 +171,7 @@ function Show-TeamCodexTray {
   $headerPanel.Controls.Add($titleLabel)
 
   $verLabel = New-Object System.Windows.Forms.Label
-  $verLabel.Text = "v1.1.3"
+  $verLabel.Text = "v1.1.4"
   $verLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9.0)
   $verLabel.AutoSize = $true
   $verLabel.Location = New-Object System.Drawing.Point(92, 6)

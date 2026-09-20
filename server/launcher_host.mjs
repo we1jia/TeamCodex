@@ -37,7 +37,7 @@ function writeJson(file, data) {
 
 function appVersion() {
   const v = readJson(VERSION_FILE, {});
-  return String(v.version || "1.1.3");
+  return String(v.version || "1.1.4");
 }
 
 function loadConfig() {
