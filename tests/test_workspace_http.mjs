@@ -14,20 +14,42 @@ test('工作区 HTTP 隔离、权限、持久化与注入打包', async t => {
   const port = 21000 + Math.floor(Math.random() * 8000);
   const base = `http://127.0.0.1:${port}`;
   const start = async () => {
-    const child = spawn(process.execPath, [path.join(root, 'server/dev_host.mjs')], { env: { ...process.env, TEAM_CONTEXT_BIND_HOST: '127.0.0.1', TEAM_CONTEXT_PORT: String(port), TEAM_CONTEXT_DATA_DIR: directory, TEAM_CONTEXT_DATA_FILE: path.join(directory, 'messages.json') }, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, ['--import', path.join(root, 'tests/fixtures/slow_hub_start.mjs'), path.join(root, 'server/dev_host.mjs')], { env: { ...process.env, TEAM_CONTEXT_BIND_HOST: '127.0.0.1', TEAM_CONTEXT_PORT: String(port), TEAM_CONTEXT_DATA_DIR: directory, TEAM_CONTEXT_DATA_FILE: path.join(directory, 'messages.json') }, stdio: ['ignore', 'pipe', 'pipe'] });
     let errors = '';
     child.stderr.on('data', chunk => errors += chunk.toString());
+    child.stdout.resume();
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { child.kill(); reject(new Error(`启动超时 ${errors}`)); }, 5000);
-      child.once('exit', code => { clearTimeout(timer); reject(new Error(`启动失败 ${code}: ${errors}`)); });
-      child.stdout.once('data', () => { clearTimeout(timer); resolve(); });
+      let settled = false;
+      let retry;
+      const finish = error => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer); clearTimeout(retry);
+        child.removeListener('error', failed); child.removeListener('exit', exited);
+        if (error) { child.kill(); reject(error); } else resolve();
+      };
+      const failed = error => finish(error);
+      const exited = code => finish(new Error(`启动失败 ${code}: ${errors}`));
+      const timer = setTimeout(() => finish(new Error(`启动超时 ${errors}`)), 5000);
+      child.once('error', failed); child.once('exit', exited);
+      const check = async () => {
+        try {
+          const response = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(300) });
+          const health = await response.json();
+          if (response.ok && health.ok && health.service === 'team-context-hub' && health.port === port) return finish();
+        } catch { /* 只重试无副作用探活，业务请求绝不自动重试。 */ }
+        if (!settled) retry = setTimeout(check, 25);
+      };
+      check();
     });
     return child;
   };
   let child = await start();
   t.after(() => { child.kill(); });
   const call = async (route, { method = 'GET', body, token, key = '123456', room = '1024' } = {}) => {
-    const response = await fetch(`${base}${route}?room=${room}`, { method, headers: { 'Content-Type': 'application/json', 'X-Room-Key': key, ...(token ? { 'X-Workspace-Token': token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const response = await fetch(`${base}${route}?room=${room}`, { method, headers: { 'Content-Type': 'application/json', 'X-Room-Key': key, ...(token ? { 'X-Workspace-Token': token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) }).catch(error => {
+      throw new Error(`${method} ${route} 连接失败: ${error.cause?.code || error.message}`, { cause: error });
+    });
     const data = response.headers.get('content-type')?.includes('json') ? await response.json() : await response.text();
     return { status: response.status, data };
   };
