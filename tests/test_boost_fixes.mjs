@@ -1061,6 +1061,17 @@ test("39. v1.1.5 Windows 托盘秒级先行 (Instant Tray)、单实例防抖互�
   // 39.5 网络嗅探快速失败：500ms 超时与 1 次重试
   assert.match(runPs, /Test-HubHealthFast[\s\S]*?TimeoutMs = 500/, "单次超时必须缩短至 500ms");
   assert.match(runPs, /\$retry\s*=\s*1;\s*\$retry\s*-le\s*1/, "探测重试次数必须缩短为 1 次，快速失败转入单机模式");
+
+  // 39.6 AbandonedMutexException 异常防御支持
+  assert.match(runPs, /catch\s*\[System\.Threading\.AbandonedMutexException\]/, "run-teamcodex.ps1 必须捕获 AbandonedMutexException 防御进程残留异常");
+  assert.match(trayPs, /catch\s*\[System\.Threading\.AbandonedMutexException\]/, "tray-teamcodex.ps1 必须捕获 AbandonedMutexException 防御托盘残留异常");
+
+  // 39.7 多重防抖与互斥体安全释放
+  assert.match(runPs, /OpenExisting\("Local\\TeamCodexTrayMutex"\)/, "run-teamcodex.ps1 启动时应探测 Local\\TeamCodexTrayMutex 实现微秒级互斥检测");
+  assert.match(runPs, /\$script:appMutex\.ReleaseMutex\(\)/, "run-teamcodex.ps1 正常流程结束前必须主动释放 appMutex 避免 Windows 内核残留");
+
+  // 39.8 托盘显式退出时清理后台 Node 进程端口
+  assert.match(trayPs, /@\(18765,\s*18767\)[\s\S]*?Get-NetTCPConnection/, "tray-teamcodex.ps1 退出时必须清理后台服务 Node 进程端口");
 });
 
 

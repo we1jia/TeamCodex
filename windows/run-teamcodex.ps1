@@ -21,14 +21,40 @@ $createdNew = $false
 $script:appMutex = $null
 try {
   $script:appMutex = New-Object System.Threading.Mutex($true, $appMutexName, [ref]$createdNew)
+} catch [System.Threading.AbandonedMutexException] {
+  # 前序进程异常退出遗留的 AbandonedMutex，当前进程已自动接管所有权
+  $createdNew = $true
 } catch {
   $createdNew = $false
 }
 
 $isAlreadyRunning = (-not $createdNew)
+
+# 辅助检测 1: 检查常驻托盘互斥体 Local\TeamCodexTrayMutex (微秒级无阻塞判定)
+if (-not $isAlreadyRunning) {
+  try {
+    $trayMutexCheck = [System.Threading.Mutex]::OpenExisting("Local\TeamCodexTrayMutex")
+    if ($trayMutexCheck) {
+      $isAlreadyRunning = $true
+      $trayMutexCheck.Dispose()
+    }
+  } catch {}
+}
+
+# 辅助检测 2: 检查本地控制面端口 18767 是否处于活跃响应状态
+if (-not $isAlreadyRunning) {
+  try {
+    $launcherStatus = Invoke-RestMethod -Uri "http://127.0.0.1:18767/api/status" -TimeoutSec 1 -ErrorAction SilentlyContinue
+    if ($launcherStatus -and $launcherStatus.app_version) {
+      $isAlreadyRunning = $true
+    }
+  } catch {}
+}
+
+# 辅助检测 3: 检查已有 powershell 托盘进程
 if (-not $isAlreadyRunning) {
   $existingTray = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-    $_.Name -eq "powershell.exe" -and $_.ProcessId -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*")
+    ($_.Name -like "*powershell*" -or $_.Name -like "*pwsh*") -and $_.ProcessId -ne $PID -and ($_.CommandLine -like "*tray-teamcodex*")
   }
   if ($existingTray) {
     $isAlreadyRunning = $true
@@ -59,34 +85,40 @@ if (Test-Path -LiteralPath $trayScript) {
 function Stop-OrphanNodeProcessesOnPorts {
   param([int[]]$Ports = @(18765, 18766, 18767, 19877))
   foreach ($p in $Ports) {
+    $foundPort = $false
     try {
       $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
-      foreach ($conn in $conns) {
-        $procId = $conn.OwningProcess
-        if ($procId -and $procId -gt 4) {
-          $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
-          if ($proc -and $proc.ProcessName -like "*node*") {
-            Write-Host "[TeamCodex] 清理占用端口 $p 的孤立 Node 进程 (PID $procId)..." -ForegroundColor Yellow
-            Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
-          }
-        }
-      }
-    } catch {}
-    try {
-      $lines = netstat -ano | Select-String ":$p\s+.*LISTENING\s+(\d+)"
-      foreach ($match in $lines) {
-        if ($match.Matches[0].Groups[1].Value) {
-          $netPid = [int]$match.Matches[0].Groups[1].Value
-          if ($netPid -gt 4) {
-            $proc = Get-Process -Id $netPid -ErrorAction SilentlyContinue
+      if ($conns) {
+        $foundPort = $true
+        foreach ($conn in $conns) {
+          $procId = $conn.OwningProcess
+          if ($procId -and $procId -gt 4) {
+            $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
             if ($proc -and $proc.ProcessName -like "*node*") {
-              Write-Host "[TeamCodex] 清理占用端口 $p 的孤立 Node 进程 (PID $netPid)..." -ForegroundColor Yellow
-              Stop-Process -Id $netPid -Force -ErrorAction SilentlyContinue
+              Write-Host "[TeamCodex] 清理占用端口 $p 的孤立 Node 进程 (PID $procId)..." -ForegroundColor Yellow
+              Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
             }
           }
         }
       }
     } catch {}
+    if (-not $foundPort) {
+      try {
+        $lines = netstat -ano | Select-String ":$p\s+.*LISTENING\s+(\d+)"
+        foreach ($match in $lines) {
+          if ($match.Matches[0].Groups[1].Value) {
+            $netPid = [int]$match.Matches[0].Groups[1].Value
+            if ($netPid -gt 4) {
+              $proc = Get-Process -Id $netPid -ErrorAction SilentlyContinue
+              if ($proc -and $proc.ProcessName -like "*node*") {
+                Write-Host "[TeamCodex] 清理占用端口 $p 的孤立 Node 进程 (PID $netPid)..." -ForegroundColor Yellow
+                Stop-Process -Id $netPid -Force -ErrorAction SilentlyContinue
+              }
+            }
+          }
+        }
+      } catch {}
+    }
   }
 }
 Stop-OrphanNodeProcessesOnPorts -Ports @(18765, 19877)
@@ -433,4 +465,10 @@ $trayStillRunning = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue 
 if (-not $trayStillRunning -and (Test-Path -LiteralPath $trayScript)) {
   Log-Message "托盘控制板未运行，执行保底启动"
   & $trayScript
+} else {
+  # 启动正常完成，释放启动脚本进程所持有的临时互斥体
+  if ($script:appMutex) {
+    try { $script:appMutex.ReleaseMutex() } catch {}
+    try { $script:appMutex.Dispose() } catch {}
+  }
 }

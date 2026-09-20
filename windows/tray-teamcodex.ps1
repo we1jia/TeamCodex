@@ -18,6 +18,9 @@ function Show-TeamCodexTray {
   $script:trayMutex = $null
   try {
     $script:trayMutex = New-Object System.Threading.Mutex($true, $mutexName, [ref]$createdNew)
+  } catch [System.Threading.AbandonedMutexException] {
+    # 前序进程异常退出遗留的 AbandonedMutex，当前线程已成功接管所有权
+    $createdNew = $true
   } catch {
     $createdNew = $false
   }
@@ -429,6 +432,24 @@ function Show-TeamCodexTray {
     try { $timer.Stop(); $timer.Dispose() } catch {}
     try { $notify.Visible = $false; $notify.Dispose() } catch {}
     try { $popup.Close(); $popup.Dispose() } catch {}
+    try {
+      # 显式退出时清理 TeamCodex 后台服务 Node 进程 (端口 18765, 18767)
+      $ports = @(18765, 18767)
+      foreach ($p in $ports) {
+        try {
+          $conns = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
+          foreach ($conn in $conns) {
+            $netPid = $conn.OwningProcess
+            if ($netPid -and $netPid -gt 4) {
+              $proc = Get-Process -Id $netPid -ErrorAction SilentlyContinue
+              if ($proc -and $proc.ProcessName -like "*node*") {
+                Stop-Process -Id $netPid -Force -ErrorAction SilentlyContinue
+              }
+            }
+          }
+        } catch {}
+      }
+    } catch {}
     try {
       if ($script:trayMutex) {
         $script:trayMutex.ReleaseMutex()
