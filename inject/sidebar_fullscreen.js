@@ -1343,14 +1343,15 @@
           display: flex;
           align-items: center;
           justify-content: space-between;
-          gap: 8px;
-          background: rgba(16, 163, 127, 0.12);
-          border: 1px solid rgba(16, 163, 127, 0.35);
-          border-radius: 12px;
-          padding: 7px 12px;
+          gap: 12px;
+          background: color-mix(in srgb, var(--accent-color) 7%, var(--bg-card));
+          border: 1px solid color-mix(in srgb, var(--accent-color) 25%, var(--border-subtle));
+          border-radius: 14px;
+          padding: 7px 12px 7px 10px;
           margin-bottom: 8px;
-          font-size: 12px;
+          font-size: 12.5px;
           color: var(--text-primary);
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
         }
         .collab-token-bar[hidden] {
           display: none !important;
@@ -1358,11 +1359,27 @@
         .collab-token-left {
           display: flex;
           align-items: center;
-          gap: 6px;
+          gap: 8px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          font-weight: 500;
+          font-weight: 450;
+          color: var(--text-secondary);
+        }
+        .collab-token-left strong {
+          color: var(--text-primary);
+          font-weight: 600;
+        }
+        .collab-token-icon-wrap {
+          width: 24px;
+          height: 24px;
+          border-radius: 7px;
+          background: color-mix(in srgb, var(--accent-color) 16%, transparent);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          color: var(--accent-color);
         }
         .collab-token-actions {
           display: flex;
@@ -1371,13 +1388,14 @@
           flex-shrink: 0;
         }
         .collab-token-btn {
-          border-radius: 6px;
-          padding: 4px 10px;
-          font-size: 11.5px;
-          font-weight: 600;
+          border-radius: 8px;
+          padding: 4.5px 12px;
+          font-size: 12px;
+          font-weight: 550;
           cursor: pointer;
           transition: all 0.15s ease;
           border: 1px solid transparent;
+          line-height: 16px;
         }
         .collab-token-btn.primary {
           background: var(--accent-color);
@@ -1385,6 +1403,9 @@
         }
         .collab-token-btn.primary:hover {
           opacity: 0.9;
+        }
+        .collab-token-btn.primary:active {
+          opacity: 0.8;
         }
         .collab-token-btn.ghost {
           background: transparent;
@@ -1394,6 +1415,7 @@
         .collab-token-btn.ghost:hover {
           background: var(--bg-card-hover);
           color: var(--text-primary);
+          border-color: var(--border-strong);
         }
         .room-history-item {
           display: flex;
@@ -3454,7 +3476,9 @@
             <!-- 空间邀请口令快捷加入提示横幅 -->
             <div class="collab-token-bar" id="collab-token-bar" hidden>
               <div class="collab-token-left">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.85;color:var(--accent-color);"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <span class="collab-token-icon-wrap">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                </span>
                 <span id="collab-token-text">检测到空间邀请口令</span>
               </div>
               <div class="collab-token-actions">
