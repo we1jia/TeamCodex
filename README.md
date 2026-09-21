@@ -98,20 +98,22 @@ TeamCodex 将 **AI 的动态多轮推理链路（Context Chain）** 转化为像
 ```bash
 curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deploy-hub.sh | bash
 ```
-脚本自动探测系统环境：优先通过 Docker Compose 启动容器；无 Docker 时自动注册 Systemd 或 PM2 守护进程，并自动执行健康自检。
+脚本智能探测系统环境与权限：优先通过 Docker 容器化启动；无 Docker 权限时自动降级采用原生 Node.js（零 npm 依赖，毫秒级启动），自动注册 Systemd、PM2 或 Crontab 开机自启守护，并执行接口自检。
 
 #### 选项 B：一键发给终端 AI Agent 的部署提示词
 使用 Claude Code、Codex、Cursor、OpenClaw 等终端 AI 运维服务器时，直接复制以下提示词发送：
 
 ```text
 请帮我在当前服务器部署 TeamCodex Hub 中枢服务：
-1. 检查服务器环境（需 Docker/Docker Compose 或 Node.js >= 18）；
-2. 克隆 https://github.com/we1jia/TeamCodex.git 至 /opt/TeamCodex（若存在则 git pull）；
-3. 优先执行 docker compose up -d，无 Docker 则创建 systemd 守护服务并设置开机自启；
-4. 开放 18765 端口并监听 0.0.0.0；
-5. 执行 curl http://127.0.0.1:18765/api/health 验证健康度；
-6. 若有 Nginx，请配置反代，注意必须包含 proxy_buffering off 以保证 SSE 流式推送正常；
-7. 输出本机的访问地址与测试 Smart Token。
+1. 检查服务器环境：需具备 Docker 或 Node.js >= 18（Hub 是纯原生 Node.js 实现，零 npm 依赖）；
+2. 准备代码目录：若是 root 用户克隆至 /opt/TeamCodex，若是普通用户克隆至 ~/TeamCodex（若已存在则 git pull）；
+3. 启动中枢服务：
+   - 若具备 Docker 守护进程权限，执行 docker compose up -d；
+   - 若无 Docker 权限，直接运行 node server/dev_host.mjs（可使用 pm2 或 nohup 守护，并配置开机自启）；
+4. 网络与端口：服务默认监听 0.0.0.0:18765；若是云服务器直连请确保安全组放行 18765 端口；
+5. 验证健康度：执行 curl http://127.0.0.1:18765/api/health 确保返回 {"ok":true}；
+6. 若有 Nginx 反代：代理至 http://127.0.0.1:18765，配置中必须包含 proxy_buffering off; 以保证 SSE 流式推送正常；
+7. 输出本机的访问地址（内网/Tailscale/公网）与系统默认空间口令（如 Hub: http://<IP>:18765 | Room: Media）。
 ```
 
 完整参数表、Docker 编排配置与 Nginx SSL 模板参见：**[中枢部署与网络接入全景指南 (docs/HUB_DEPLOYMENT.md)](docs/HUB_DEPLOYMENT.md)**。

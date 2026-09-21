@@ -32,7 +32,7 @@ TeamCodex Hub（`server/dev_host.mjs`）是整个协同体系的实时状态与�
 
 ### 3. 服务端部署方式
 
-#### 方式 A：Docker Compose 部署（推荐用于服务器）
+#### 方式 A：Docker Compose 部署（推荐用于具备 Docker 权限的服务器）
 
 在服务器任意目录克隆或放置文件，直接运行容器：
 
@@ -45,11 +45,13 @@ docker compose ps
 curl http://127.0.0.1:18765/api/health
 ```
 
+> **权限提示**：若以普通非 root 用户执行时报错 `permission denied ... docker.sock`，需先将当前用户加入 docker 组（`sudo usermod -aG docker $USER`）或使用 `sudo docker compose up -d`。
+
 服务将自动挂载本地 `./data` 目录用于持久化存储房间状态与快照。
 
 #### 方式 B：PM2 进程守护（适用于常开主机或 VPS）
 
-确保主机安装有 Node.js (>= 18)：
+确保主机安装有 Node.js (>= 18)（**无需安装任何第三方项目依赖，服务完全原生实现**）：
 
 ```bash
 # 1. 全局安装 pm2（如未安装）
@@ -63,9 +65,9 @@ pm2 startup
 pm2 save
 ```
 
-#### 方式 C：Linux Systemd 系统服务
+#### 方式 C：Linux Systemd 系统服务 / 用户守护
 
-创建服务描述文件 `/etc/systemd/system/teamcodex-hub.service`：
+若具备 root 权限，创建系统级服务描述文件 `/etc/systemd/system/teamcodex-hub.service`：
 
 ```ini
 [Unit]
@@ -93,6 +95,9 @@ WantedBy=multi-user.target
 sudo systemctl daemon-reload
 sudo systemctl enable --now teamcodex-hub
 ```
+
+> **普通用户提示**：若以普通非 root 用户部署，建议代码放置于 `~/TeamCodex`，可直接使用 crontab 注册开机自启：
+> `(crontab -l 2>/dev/null; echo "@reboot nohup node ~/TeamCodex/server/dev_host.mjs > ~/TeamCodex/data/hub.log 2>&1 &") | crontab -`
 
 ---
 
