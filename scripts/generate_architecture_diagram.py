@@ -160,16 +160,10 @@ def render(chrome, svg, png):
 
 
 def main():
-    chrome = chrome_binary()
-    ASSETS.mkdir(parents=True, exist_ok=True)
-    for lang in ("zh", "en"):
-        svg = diagram(lang == "zh")
-        (ASSETS / f"architecture_{lang}.svg").write_text(svg, encoding="utf-8")
-        png = ASSETS / f"architecture_{lang}.png"
-        render(chrome, svg, png)
-        print(f"Generated: {png}")
-    shutil.copyfile(ASSETS / "architecture_zh.png", ASSETS / "architecture.png")
+    import generate_architecture_members
+    generate_architecture_members.generate_all()
 
 
 if __name__ == "__main__":
     main()
+

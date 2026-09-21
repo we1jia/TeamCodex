@@ -40,39 +40,40 @@ TeamCodex 将 **AI 的动态多轮推理链路（Context Chain）** 转化为像
 - **一键脱敏快照**：随时将当前会话打包为自动过滤本地私密路径的协作快照；
 - **秒级上下文对齐**：协作者在自己电脑上一键点击【导入】，完整的多轮思考过程即刻注入当前活动对话，让全团队的 AI 始终运行在**完全统一的事实基准面（Single Source of Truth）**上，从根源上消灭传话误差。
 
-#### 架构概览：多个客户端，一个协作 Hub
+#### 架构概览：独立会话，共享房间，双向协作
 
-每位成员保留自己的 Codex / ChatGPT 桌面会话，通过 Team 工作区连接同一个 Hub。客户端通过 HTTP API 发起请求，Hub 通过 SSE 向同房间客户端推送更新。
+每位成员拥有完全独立的本地 AI 会话边界，在同端通过 CDP 挂载 Team 工作区连接同一个 Hub。成员通过同一个 Hub 交换已分享的会话快照与协作资产；每个人自主决定把哪些内容导入自己的 AI 会话中。
 
 <p align="center">
-  <img src="docs/assets/architecture_zh.png" alt="多个桌面客户端通过 HTTP API 与 TeamCodex Hub 通信，Hub 通过 SSE 推送更新并在所在机器持久化数据；Codex 插件可读取摘要" width="100%" />
+  <img src="docs/assets/architecture_zh.png" alt="TeamCodex 成员双向协作架构：独立会话、共享房间、HTTP 请求与 SSE 更新、Hub 持久化存储与可选插件入口" width="100%" />
 </p>
 
-**按一次接力来读图**：成员 A 分享所选会话 → Hub 保存快照并推送更新 → 成员 B 选择内容并导入自己的会话。实时推送不会自动把全部团队对话导入每位成员的 AI 会话。
+**按一次协作流转来读图**：成员 A 选择会话并分享 → Hub 保存快照并推送更新给同房间成员 → 成员 B 在 Team 工作区查看 → 成员 B 选择性导入自己的本地 AI 会话。实时推送绝不会自动把所有团队对话无差别强塞进每位成员的私有 AI 会话中。
 
-- **本机挂载**：伴侣程序与注入器通过 CDP 挂载 Team 工作区；CDP 不是跨机器协作通道。
-- **协作中枢**：Hub 负责房间访问控制、消息与快照、在线状态，以及看板、知识库、素材和日历数据。
-- **插件入口**：Codex 的 Skills / Hook 可读取 Hub 摘要并带入当前任务；插件与可见侧栏是不同入口。
-- **数据落点**：消息与工作区 JSON、上传文件保存在 Hub 所在机器；本机、局域网和 VPS 是三种部署位置，不是三套系统。
+- **对等双向协作**：每位成员既能分享也能导入，A 与 B 是平等的协作者，不直接合并本地底层私密会话；
+- **严格私有边界**：未分享的会话严格保留在本机，绝不因为加入团队房间而产生隐式同步或泄露；
+- **协作中枢 Hub**：承载同房间口令与成员权限、消息与快照、在线状态感知，以及任务看板、知识库、素材库和工作日历；
+- **持久化与插件入口**：Hub 统一在所在机器持久化存储消息、快照与上传文件；可选的 Codex 插件（Skills / Hook）可按需读取 Hub 摘要注入当前任务；
+- **本机伴侣挂载**：伴侣程序与注入器通过 CDP 挂载 Team 工作区；CDP 不是跨机器协作通道，跨机通信统一由轻量级 HTTP API + SSE 协议承载。
 
 [查看矢量原图](docs/assets/architecture_zh.svg) · [部署说明](docs/HUB_DEPLOYMENT.md)
 
-维护图片：运行 `python3 scripts/generate_architecture_diagram.py`，使用 Chrome / Chromium 生成中英文 SVG 和 3200 × 2240 PNG；可通过 `CHROME_BIN` 指定浏览器路径。
+维护图片：运行 `python3 scripts/generate_architecture_members.py`（或 `python3 scripts/generate_architecture_diagram.py`），使用 Chrome / Chromium 自动生成中英文矢量 SVG 和 3200 × 2240 高清 PNG；可通过 `CHROME_BIN` 指定浏览器路径。
 
 ---
 
-### 实机演示：Mac 与 Windows 跨端实时协同 (Live Demo)
+### 实机演示：全新全景协同实机演示 (Live Demo)
 
-以下为真实环境下 **Mac 宿主机** 与 **Windows 11 协同端** 的跨平台实时协同录屏（已提速并配有字幕说明，完整解说视频参见 [docs/assets/teamcodex_demo.mp4](docs/assets/teamcodex_demo.mp4)）：
+以下为真实环境下 **Mac 宿主机** 与 **Windows 11 协同端** 的全新全景双语实机演示（全长 80 秒，涵盖新版看板/素材库/权限流转及跨端秒级上下文注入，已提速并配有完整双语字幕解说，高清完整视频参见 [docs/assets/teamcodex_demo.mp4](docs/assets/teamcodex_demo.mp4)）：
 
 <p align="center">
-  <img src="docs/assets/teamcodex_demo.gif" alt="TeamCodex 跨端实时协同与上下文一键注入实机演示" width="100%" />
+  <img src="docs/assets/teamcodex_demo.gif" alt="TeamCodex 跨端实时协同、全景看板、素材流转与上下文一键注入实机演示" width="100%" />
 </p>
 
-- 🚀 **1. Mac 端一键脱敏分享**：在 Codex 客户端侧边栏点击【分享对话】，选择任意排查或攻坚会话，一键生成脱敏快照并广播；
-- ⚡ **2. Windows 端毫秒级感知**：虚拟机/远程协同端零延迟自动上屏新卡片，实现全团队思维链秒级对齐；
-- 🧩 **3. 跨机多选与结构化注入**：协作者可勾选多条讨论卡片，一键【选择对话导入】，选定上下文瞬时注入新会话 Prompt，接续推进研发；
-- 🔍 **4. 决策证据穿透**：点击详情可完整回溯模型推理、报错依据与关键决策细节，根除二次传话误差。
+- 📋 **1. 任务看板与权限流转**：任务卡片多状态（待处理、进行中、已完成）拖拽流转，房间口令与角色权限即时鉴权，全员状态毫秒级实时同步；
+- 📁 **2. 素材库与多格式附件导入**：支持代码、文档、图片与文件夹快速拖拽上传与即时分发，构建团队统一研发物料池；
+- 🚀 **3. Mac 端一键脱敏分享**：在 Codex 客户端侧边栏点击【分享对话】，选择任意排查或攻坚会话，一键生成脱敏快照并广播；
+- ⚡ **4. Windows 端毫秒级感知与无损接力**：虚拟机/远程协同端零延迟自动上屏新卡片，协作者一键【选择对话导入】，选定思维链与上下文瞬时注入新会话，根除二次传话误差与模型幻觉。
 
 ---
 
@@ -311,39 +312,40 @@ TeamCodex turns **AI conversation state into a first-class collaborative asset**
 - **One-Click Sanitized Snapshots**: Instantly package active conversation threads with automatic scrubbing of local private paths;
 - **Sub-Second Context Relay**: Peers click to import the full reasoning trajectory into their own active sessions, ensuring the entire team operates on a **single, verified source of truth**.
 
-#### Architecture: multiple clients, one collaboration Hub
+#### Architecture: Separate Sessions, Shared Room, Two-Way Collaboration
 
-Each member keeps their own Codex / ChatGPT desktop session and connects the Team workspace to the same Hub. Clients make HTTP API requests; the Hub pushes room updates over SSE.
+Each member maintains a strictly isolated local AI session boundary while mounting the Team workspace via CDP on the same device to connect to the common Hub. Members exchange explicitly shared snapshots and collaborative assets through the Hub; each person decides what to import into their own AI session.
 
 <p align="center">
-  <img src="docs/assets/architecture_en.png" alt="Desktop clients communicate with the TeamCodex Hub over HTTP API and SSE; data persists on the Hub host, while the optional Codex plugin reads summaries" width="100%" />
+  <img src="docs/assets/architecture_en.png" alt="TeamCodex Architecture: Separate Sessions, Shared Room, Two-Way Collaboration, Hub Persistence, and Optional Plugin Entry" width="100%" />
 </p>
 
-**Follow one handoff**: member A shares a selected session → the Hub stores the snapshot and pushes an update → member B selects content and imports it into their own session. Live updates do not automatically import all team conversations into every AI session.
+**Follow one collaboration flow**: Member A selects a chat and shares → Hub stores the snapshot and broadcasts updates to room peers → Member B inspects the thread in Team Workspace → Member B selectively imports it into their local AI session. Real-time broadcast never unconditionally pushes unverified conversations into any member's private AI session.
 
-- **Local mounting**: the companion and injector mount the Team workspace through CDP. CDP is not the cross-machine collaboration channel.
-- **Collaboration Hub**: room access, messages, snapshots, presence, and workspace data for the board, knowledge base, assets, and calendar.
-- **Plugin entry point**: Codex Skills / Hook can bring a Hub summary into the current task. The plugin and visible sidebar are separate entry points.
-- **Persistence**: JSON data and uploaded files live on the Hub host. Local, LAN, and VPS are deployment locations for the same architecture.
+- **Peer-to-Peer Two-Way Collaboration**: Every member can both share and import; A and B are equal collaborators rather than fixed senders or receivers, never directly merging local private chat sessions;
+- **Strict Privacy Boundary**: Unshared conversations remain strictly local on personal devices and are never synced or leaked just by joining a room;
+- **Collaboration Hub**: Centralizes room authentication, member permissions, messages, snapshots, real-time presence, task boards, knowledge base, asset libraries, and calendars;
+- **Persistence & Plugin Entry**: The Hub persists messages, snapshots, and uploaded files on its host machine; the optional Codex plugin (Skills / Hook) can query Hub summaries and inject them into active tasks;
+- **Local Companion Mounting**: The companion app mounts the Team workspace via CDP; CDP operates solely on localhost, while cross-machine communication is handled seamlessly via HTTP API + SSE.
 
 [Editable vector diagram](docs/assets/architecture_en.svg) · [Deployment guide](docs/HUB_DEPLOYMENT.md)
 
-To regenerate both languages as SVG and 3200 × 2240 PNG, run `python3 scripts/generate_architecture_diagram.py` with Chrome / Chromium installed. Set `CHROME_BIN` to override the browser path.
+To regenerate both languages as SVG and 3200 × 2240 PNG, run `python3 scripts/generate_architecture_members.py` (or `python3 scripts/generate_architecture_diagram.py`) with Chrome / Chromium installed. Set `CHROME_BIN` to override the browser path.
 
 ---
 
-### Live Demo: Cross-Platform Real-Time Sync & Context Relay (Mac & Windows)
+### Live Demo: Cross-Platform Real-Time Sync & Full-Feature Overview (Mac & Windows)
 
-The screencast below demonstrates real-time collaboration between a **macOS host** and a **Windows 11 peer** (accelerated with synchronized commentary; see [docs/assets/teamcodex_demo.mp4](docs/assets/teamcodex_demo.mp4) for the high-definition narrated video):
+The screencast below demonstrates full-featured real-time collaboration between a **macOS host** and a **Windows 11 peer** (80-second comprehensive demonstration covering task boards, asset management, role-based access, and sub-second context relay with synchronized bilingual commentary; see [docs/assets/teamcodex_demo.mp4](docs/assets/teamcodex_demo.mp4) for the high-definition video):
 
 <p align="center">
-  <img src="docs/assets/teamcodex_demo.gif" alt="TeamCodex Live Cross-Platform Demo" width="100%" />
+  <img src="docs/assets/teamcodex_demo.gif" alt="TeamCodex Live Cross-Platform Demo: Task Board, Asset Distribution, and Instant Context Relay" width="100%" />
 </p>
 
-- 🚀 **1. One-Click Sanitized Share (macOS)**: Click "Share Conversation" in the Codex sidebar, select any active troubleshooting session, and broadcast a privacy-scrubbed snapshot;
-- ⚡ **2. Sub-Second Presence & Sync (Windows)**: The peer client automatically renders incoming thread cards with zero latency, aligning the team's reasoning chains instantly;
-- 🧩 **3. Multi-Select & Structured Injection**: Select multiple context cards and click "Import Selected Dialogues" to inject verified historical context directly into the new conversation prompt;
-- 🔍 **4. Traceable Decision Evidence**: Expand card details to review the underlying model inferences, error evidence, and reasoning trajectory.
+- 📋 **1. Task Board & Workflow Transitions**: Drag-and-drop workflow status (To-Do, In Progress, Done) with instant permission checks and millisecond-level status synchronization;
+- 📁 **2. Asset Library & Multi-Format Ingestion**: Instant drag-and-drop ingestion for code files, documentation, images, and folders, creating a unified asset pool;
+- 🚀 **3. One-Click Sanitized Share (macOS)**: Click "Share Conversation" in the Codex sidebar, select any active troubleshooting session, and broadcast a privacy-scrubbed snapshot;
+- ⚡ **4. Sub-Second Presence & Context Relay (Windows)**: The peer client automatically renders incoming thread cards with zero latency; engineers click "Import Selected Dialogues" to inject verified historical reasoning directly into new prompts, eradicating second-hand communication distortion.
 
 ---
 

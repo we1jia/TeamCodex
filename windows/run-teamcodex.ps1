@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
 
@@ -287,7 +287,7 @@ if ($discoveredHost) {
   if (-not $existingHealth -or -not ($existingHealth.ok -and $existingHealth.service -eq "team-context-hub") -or ($existingHealth.version -ne "3.2.0")) {
     if ($existingHealth -and ($existingHealth.version -ne "3.2.0")) {
       Log-Message "检测到旧版本 TeamCodex 服务 ($($existingHealth.version))，正在重启至 3.2.0..."
-      Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*dev_host.mjs*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+      Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*dev_host.mjs*" } | Stop-Process -ErrorAction SilentlyContinue
       Start-Sleep -Milliseconds 500
     }
     Log-Message "正在启动 TeamCodex 本地服务..."

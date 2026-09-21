@@ -34,7 +34,7 @@ function Show-TeamCodexTray {
 
   $launcherPort = if ($env:TEAM_CODEX_LAUNCHER_PORT) { $env:TEAM_CODEX_LAUNCHER_PORT } else { "18767" }
   $base = "http://127.0.0.1:$launcherPort"
-  $installedVersion = "1.2.4"
+  $installedVersion = "1.2.5"
   try {
     $versionFile = Join-Path (Split-Path -Parent $PSScriptRoot) "version.json"
     $manifest = Get-Content -LiteralPath $versionFile -Raw -Encoding utf8 | ConvertFrom-Json

@@ -52,7 +52,7 @@ let lastWakeTimestamp = 0;
 
 function appVersion() {
   const v = readJson(VERSION_FILE, {});
-  return String(v.version || "1.2.4");
+  return String(v.version || "1.2.5");
 }
 
 function loadConfig() {
