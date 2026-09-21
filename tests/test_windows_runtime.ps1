@@ -16,7 +16,9 @@ try {
   function Find-InstalledNode { return $newNode }
   $selected = Ensure-TeamCodexRuntime -TargetDir $fixture
   if ($selected -ne $newNode) { throw 'A compatible system runtime should be reused without download' }
-  $child = Start-Process -FilePath powershell.exe -ArgumentList '-NoProfile -NonInteractive -Command "Start-Sleep -Seconds 30"' -WorkingDirectory $fixture -UseNewEnvironment -WindowStyle Hidden -PassThru
+  # A native loopback-only process also works with a clean machine environment;
+  # Windows PowerShell itself needs user cryptography/profile state to start.
+  $child = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\PING.EXE') -ArgumentList '-n 30 127.0.0.1' -WorkingDirectory $fixture -UseNewEnvironment -WindowStyle Hidden -PassThru
   try {
     $reader = Join-Path $PSScriptRoot '..\windows\read-process-context.ps1'
     $snapshot = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $reader -TargetPid $child.Id | ConvertFrom-Json
