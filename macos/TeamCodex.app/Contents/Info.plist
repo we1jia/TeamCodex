@@ -9,9 +9,9 @@
   <key>CFBundleIdentifier</key>
   <string>local.media.team-codex</string>
   <key>CFBundleVersion</key>
-  <string>1.2.1</string>
+  <string>1.2.2</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.2.1</string>
+  <string>1.2.2</string>
   <key>CFBundleExecutable</key>
   <string>TeamCodex</string>
   <key>CFBundlePackageType</key>
