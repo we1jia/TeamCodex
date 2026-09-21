@@ -40,9 +40,24 @@ TeamCodex 将 **AI 的动态多轮推理链路（Context Chain）** 转化为像
 - **一键脱敏快照**：随时将当前会话打包为自动过滤本地私密路径的协作快照；
 - **秒级上下文对齐**：协作者在自己电脑上一键点击【导入】，完整的多轮思考过程即刻注入当前活动对话，让全团队的 AI 始终运行在**完全统一的事实基准面（Single Source of Truth）**上，从根源上消灭传话误差。
 
+#### 架构概览：多个客户端，一个协作 Hub
+
+每位成员保留自己的 Codex / ChatGPT 桌面会话，通过 Team 工作区连接同一个 Hub。客户端通过 HTTP API 发起请求，Hub 通过 SSE 向同房间客户端推送更新。
+
 <p align="center">
-  <img src="docs/assets/architecture_zh.png" alt="TeamCodex 系统架构全景" width="100%" />
+  <img src="docs/assets/architecture_zh.png" alt="多个桌面客户端通过 HTTP API 与 TeamCodex Hub 通信，Hub 通过 SSE 推送更新并在所在机器持久化数据；Codex 插件可读取摘要" width="100%" />
 </p>
+
+**按一次接力来读图**：成员 A 分享所选会话 → Hub 保存快照并推送更新 → 成员 B 选择内容并导入自己的会话。实时推送不会自动把全部团队对话导入每位成员的 AI 会话。
+
+- **本机挂载**：伴侣程序与注入器通过 CDP 挂载 Team 工作区；CDP 不是跨机器协作通道。
+- **协作中枢**：Hub 负责房间访问控制、消息与快照、在线状态，以及看板、知识库、素材和日历数据。
+- **插件入口**：Codex 的 Skills / Hook 可读取 Hub 摘要并带入当前任务；插件与可见侧栏是不同入口。
+- **数据落点**：消息与工作区 JSON、上传文件保存在 Hub 所在机器；本机、局域网和 VPS 是三种部署位置，不是三套系统。
+
+[查看矢量原图](docs/assets/architecture_zh.svg) · [部署说明](docs/HUB_DEPLOYMENT.md)
+
+维护图片：运行 `python3 scripts/generate_architecture_diagram.py`，使用 Chrome / Chromium 生成中英文 SVG 和 3200 × 2240 PNG；可通过 `CHROME_BIN` 指定浏览器路径。
 
 ---
 
@@ -296,9 +311,24 @@ TeamCodex turns **AI conversation state into a first-class collaborative asset**
 - **One-Click Sanitized Snapshots**: Instantly package active conversation threads with automatic scrubbing of local private paths;
 - **Sub-Second Context Relay**: Peers click to import the full reasoning trajectory into their own active sessions, ensuring the entire team operates on a **single, verified source of truth**.
 
+#### Architecture: multiple clients, one collaboration Hub
+
+Each member keeps their own Codex / ChatGPT desktop session and connects the Team workspace to the same Hub. Clients make HTTP API requests; the Hub pushes room updates over SSE.
+
 <p align="center">
-  <img src="docs/assets/architecture_en.png" alt="TeamCodex System Architecture" width="100%" />
+  <img src="docs/assets/architecture_en.png" alt="Desktop clients communicate with the TeamCodex Hub over HTTP API and SSE; data persists on the Hub host, while the optional Codex plugin reads summaries" width="100%" />
 </p>
+
+**Follow one handoff**: member A shares a selected session → the Hub stores the snapshot and pushes an update → member B selects content and imports it into their own session. Live updates do not automatically import all team conversations into every AI session.
+
+- **Local mounting**: the companion and injector mount the Team workspace through CDP. CDP is not the cross-machine collaboration channel.
+- **Collaboration Hub**: room access, messages, snapshots, presence, and workspace data for the board, knowledge base, assets, and calendar.
+- **Plugin entry point**: Codex Skills / Hook can bring a Hub summary into the current task. The plugin and visible sidebar are separate entry points.
+- **Persistence**: JSON data and uploaded files live on the Hub host. Local, LAN, and VPS are deployment locations for the same architecture.
+
+[Editable vector diagram](docs/assets/architecture_en.svg) · [Deployment guide](docs/HUB_DEPLOYMENT.md)
+
+To regenerate both languages as SVG and 3200 × 2240 PNG, run `python3 scripts/generate_architecture_diagram.py` with Chrome / Chromium installed. Set `CHROME_BIN` to override the browser path.
 
 ---
 

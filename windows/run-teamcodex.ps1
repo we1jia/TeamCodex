@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
 
@@ -284,7 +284,12 @@ if ($discoveredHost) {
   Log-Message "未检测到宿主机协同中枢，准备启动或复用本地单机 Hub..."
   $existingHealth = $null
   try { $existingHealth = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/health" -TimeoutSec 1 } catch {}
-  if (-not $existingHealth -or -not ($existingHealth.ok -and $existingHealth.service -eq "team-context-hub")) {
+  if (-not $existingHealth -or -not ($existingHealth.ok -and $existingHealth.service -eq "team-context-hub") -or ($existingHealth.version -ne "3.2.0")) {
+    if ($existingHealth -and ($existingHealth.version -ne "3.2.0")) {
+      Log-Message "检测到旧版本 TeamCodex 服务 ($($existingHealth.version))，正在重启至 3.2.0..."
+      Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*dev_host.mjs*" } | Stop-Process -Force -ErrorAction SilentlyContinue
+      Start-Sleep -Milliseconds 500
+    }
     Log-Message "正在启动 TeamCodex 本地服务..."
     Start-Process -FilePath $nodePath -ArgumentList @($ServerPath) -WorkingDirectory $InstallRoot -WindowStyle Hidden
     $ready = Wait-Endpoint -Url "http://127.0.0.1:$Port/api/health"
@@ -294,7 +299,7 @@ if ($discoveredHost) {
     }
     Log-Message "TeamCodex 服务就绪 (http://127.0.0.1:$Port)"
   } else {
-    Log-Message "复用已有 TeamCodex 服务 (http://127.0.0.1:$Port)"
+    Log-Message "复用已有 TeamCodex 服务 (http://127.0.0.1:$Port · v$($existingHealth.version))"
   }
 }
 

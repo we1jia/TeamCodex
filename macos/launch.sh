@@ -71,13 +71,33 @@ unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy NO_PROXY
 {
   echo "$(date '+%Y-%m-%d %H:%M:%S') start root=$root url=$URL"
   current="$(health)"
+  expected_ver="3.2.0"
   if [[ "$current" == *'"isolated":true'* || "$current" == *'"team-context-hub"'* ]]; then
-    echo "reuse existing isolated host"
-  else
+    if [[ "$current" == *"\"version\":\"$expected_ver\""* ]]; then
+      echo "reuse existing isolated host ($expected_ver)"
+    else
+      echo "detected outdated hub host, upgrading to $expected_ver..."
+      pkill -f "$root/server/dev_host.mjs" 2>/dev/null || pkill -f "server/dev_host.mjs" 2>/dev/null || true
+      sleep 0.5
+      current=""
+    fi
+  fi
+  if [[ -z "$current" || ( "$current" != *'"isolated":true'* && "$current" != *'"team-context-hub"'* ) ]]; then
     if [[ -n "$current" ]]; then
       fail "端口 ${PORT} 已被其他服务占用，拒绝启动，以免影响现有代理。"
     fi
-    nohup "$node_bin" "$root/server/dev_host.mjs" >>"$log_file" 2>&1 &
+    "$node_bin" -e '
+import { spawn } from "node:child_process";
+import fs from "node:fs";
+const log = fs.openSync(process.argv[2], "a");
+const child = spawn(process.execPath, [process.argv[1]], {
+  cwd: process.cwd(),
+  env: process.env,
+  detached: true,
+  stdio: ["ignore", log, log]
+});
+child.unref();
+' "$root/server/dev_host.mjs" "$log_file"
     for _ in 1 2 3 4 5 6 7 8 9 10; do
       current="$(health)"
       [[ "$current" == *'"isolated":true'* || "$current" == *'"team-context-hub"'* ]] && break

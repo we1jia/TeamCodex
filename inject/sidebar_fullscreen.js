@@ -3,7 +3,7 @@
   const PAGE_ID = "team-context-fullscreen-page";
   const MENU_ID = "team-context-dropdown-menu";
   const TOAST_ID = "team-context-toast-notice";
-  const UI_VERSION = "inline-v101";
+  const UI_VERSION = "inline-v103";
 
   // 旧 UI 保留草稿与监听器，但“曾安装”不代表 React 重建后的入口仍在。
   if (window.__teamContextTabInstalled && (!window.TeamWorkspace || window.__teamContextUiVersion !== UI_VERSION)) {
@@ -7707,7 +7707,11 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
             }
           } catch (uploadErr) {
             console.error("附件上传失败:", uploadErr);
-            showToast(`附件上传失败: ${uploadErr.message || "请求异常"}`);
+            const errMsg = String(uploadErr?.message || "请求异常");
+            const friendlyMsg = errMsg.includes("404")
+              ? "协作服务未就绪或未重启(404)，请重启TeamCodex服务"
+              : errMsg;
+            showToast(`附件上传失败: ${friendlyMsg}`);
             // 恢复输入框内容
             if (input && !input.value) {
               input.value = rawContent;
@@ -7938,8 +7942,12 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
 
     // 点击页面其他区域自动收起上传菜单
     root.addEventListener("click", (e) => {
-      if (composerUploadMenu && !composerUploadMenu.hidden && !e.target.closest(".composer-upload-dropdown")) {
-        composerUploadMenu.hidden = true;
+      if (composerUploadMenu && !composerUploadMenu.hidden) {
+        const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+        const inside = path.some(el => el?.classList?.contains?.("composer-upload-dropdown")) || e.target?.closest?.(".composer-upload-dropdown");
+        if (!inside) {
+          composerUploadMenu.hidden = true;
+        }
       }
     });
 

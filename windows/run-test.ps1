@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 
 
@@ -9,7 +9,7 @@ $AttachPath = Join-Path $InstallRoot "inject\attach_codex.mjs"
 $SeedPath = Join-Path $InstallRoot "inject\seed_native_fixture.mjs"
 $Port = if ($env:TEAM_CODEX_TEST_PORT) { [int]$env:TEAM_CODEX_TEST_PORT } else { 19877 }
 $CdpPort = if ($env:TEAM_CODEX_TEST_CDP_PORT) { [int]$env:TEAM_CODEX_TEST_CDP_PORT } else { 19878 }
-$ExpectedHubVersion = "3.1.0"
+$ExpectedHubVersion = "3.2.0"
 $DataRoot = Join-Path $env:TEMP "team-codex-test-data"
 $ProfileRoot = Join-Path $InstallRoot "codex-profile"
 $DataFile = Join-Path $DataRoot "messages.json"

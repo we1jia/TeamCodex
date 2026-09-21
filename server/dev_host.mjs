@@ -821,7 +821,7 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       service: "team-context-hub",
       isolated: true,
-      version: "3.1.0",
+      version: "3.2.0",
       host: HOST,
       port: PORT,
       primaryIp,
