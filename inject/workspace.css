@@ -4,8 +4,8 @@
   --ws-panel: var(--color-surface-secondary, var(--bg-card, #f7f7f8));
   --ws-hover: var(--color-background-primary-ghost-hover, var(--bg-card-hover, #ededf0));
   --ws-selected: var(--app-color-background-button-secondary, var(--bg-card-hover, #ededf0));
-  --ws-primary-bg: var(--app-color-background-button-primary, var(--ws-fg));
-  --ws-primary-fg: var(--app-color-text-button-primary, var(--ws-bg));
+  --ws-primary-bg: var(--ws-fg);
+  --ws-primary-fg: var(--ws-bg);
   --ws-backdrop: var(--color-background-overlay, #0005);
   --ws-fg: var(--color-text-primary, var(--text-primary, #1a1c1f));
   --ws-muted: var(--app-color-text-foreground-secondary, var(--text-secondary, #646a73));
@@ -51,6 +51,8 @@
 .tw-workspace .tw-nav .tw-btn { border-color: transparent; background: transparent; padding-inline: 10px; color: var(--ws-muted); }
 .tw-workspace .tw-btn:hover { background: var(--ws-hover); }
 .tw-workspace .tw-btn.tw-primary { background: var(--ws-primary-bg); color: var(--ws-primary-fg); border-color: var(--ws-primary-bg); }
+.tw-workspace .tw-btn.tw-primary:hover { opacity: .9; }
+.tw-workspace .tw-btn.tw-primary:active { opacity: .8; }
 .tw-workspace .tw-btn.tw-quiet { border-color: transparent; background: transparent; }
 .tw-workspace .tw-btn[aria-pressed=true] { background: var(--ws-selected); color: var(--ws-fg); }
 .tw-workspace .tw-titlebar { padding: 20px 20px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; flex: none; }
