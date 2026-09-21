@@ -6,7 +6,7 @@
 !include "FileFunc.nsh"
 
 ; General Configuration
-!define APP_VERSION "1.2.2"
+!define APP_VERSION "1.2.3"
 Name "TeamCodex"
 OutFile "..\TeamCodex-Setup.exe"
 Unicode True
