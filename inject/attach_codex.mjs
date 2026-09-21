@@ -9,6 +9,7 @@ import { CdpWebSocket } from "./cdp_websocket.mjs";
 import { inspectRuntime } from '../server/codex_runtime.mjs';
 import { fingerprint, hotUpdateDecision } from '../server/codex_runtime_policy.mjs';
 const consumedUpdates = new Set();
+let stopping = false;
 import {
   assertSafeCodexUiTarget,
   parsePort,
@@ -22,7 +23,23 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const INJECT_FILE = path.join(ROOT, "inject", "sidebar_fullscreen.js");
 const HOST_URL = process.env.TEAM_CONTEXT_HOST || "http://127.0.0.1:18765";
 const DEFAULT_ROOM = process.env.TEAM_CONTEXT_DEFAULT_ROOM || "1024";
-const DEFAULT_ROOM_KEY = process.env.TEAM_CONTEXT_DEFAULT_ROOM_KEY || "123456";
+const DEFAULT_ROOM_KEY = process.env.TEAM_CONTEXT_DEFAULT_ROOM_KEY ?? "";
+
+function resolveRoomContext(config = {}) {
+  const room = config.roomId || DEFAULT_ROOM;
+  const savedKey = config.roomKey ?? config.roomKeys?.[room];
+  const key = savedKey ?? (room === DEFAULT_ROOM ? DEFAULT_ROOM_KEY : '');
+  return { room, key: String(key) };
+}
+
+async function applyComposerAppearance(session) {
+  const file = path.join(ROOT, 'inject/composer_appearance.js');
+  if (!fs.existsSync(file)) return;
+  const source = fs.readFileSync(file, 'utf8');
+  if (session.composerAppearanceSource === source) return;
+  await session.send('Runtime.evaluate', { expression: source });
+  session.composerAppearanceSource = source;
+}
 
 function getJson(url) {
   return new Promise((resolve, reject) => {
@@ -180,8 +197,10 @@ ${script}`;
 
 
 function connect(webSocketDebuggerUrl) {
-  const WebSocketImpl = globalThis.WebSocket || CdpWebSocket;
-  const ws = new WebSocketImpl(webSocketDebuggerUrl);
+  if (stopping) throw new Error('injector stopping');
+  // Use the owned transport so shutdown can deterministically release its socket.
+  const ws = new CdpWebSocket(webSocketDebuggerUrl);
+  let closed = false;
   let nextId = 1;
   const pending = new Map();
 
@@ -195,7 +214,7 @@ function connect(webSocketDebuggerUrl) {
 
   const ready = new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
-      try { ws.close(); } catch {}
+      try { ws.terminate(); } catch {}
       reject(new Error("cdp websocket connect timeout"));
     }, 4000);
     ws.addEventListener("open", () => {
@@ -215,6 +234,7 @@ function connect(webSocketDebuggerUrl) {
   const eventListeners = new Set();
 
   ws.addEventListener("message", (event) => {
+    if (closed || stopping) return;
     try {
       const message = JSON.parse(event.data.toString());
       if (message.method) {
@@ -247,7 +267,7 @@ function connect(webSocketDebuggerUrl) {
       return () => eventListeners.delete(fn);
     },
     send(method, params = {}, timeoutMs = 4000) {
-      if (ws.readyState !== 1) {
+      if (closed || stopping || ws.readyState !== 1) {
         return Promise.reject(new Error("cdp websocket not open"));
       }
       const id = nextId++;
@@ -267,9 +287,10 @@ function connect(webSocketDebuggerUrl) {
       });
     },
     close() {
-      try {
-        ws.close();
-      } catch {}
+      if (closed) return;
+      closed = true;
+      eventListeners.clear();
+      ws.terminate();
       rejectAllPending(new Error("cdp session closed"));
     },
   };
@@ -350,12 +371,15 @@ function performNativeRpc(reqPayload) {
 }
 
 async function injectTarget(target, source, sessions) {
+  if (stopping) return { installed: false, reason: 'stopping' };
   let session = sessions.get(target.id);
   if (!session || session.ws.readyState !== 1) {
     session?.close();
     session = connect(target.webSocketDebuggerUrl);
+    sessions.set(target.id, session);
     try {
       await session.ready;
+      if (stopping) throw new Error('injector stopping');
       await session.send("Page.enable");
       await session.send("Runtime.enable");
       await session.send("Runtime.addBinding", { name: "__teamContextNativeCall" }).catch(() => {});
@@ -379,7 +403,6 @@ async function injectTarget(target, source, sessions) {
         }
       });
 
-      sessions.set(target.id, session);
     } catch (err) {
       session?.close();
       sessions.delete(target.id);
@@ -395,6 +418,7 @@ async function injectTarget(target, source, sessions) {
     if (probe?.result?.value !== true) {
       return { installed: false, reason: "not-codex-sidebar" };
     }
+    await applyComposerAppearance(session);
     const targetUiVersionMatch = source.match(/UI_VERSION\s*=\s*["']([^"']+)["']/);
     const targetUiVersion = targetUiVersionMatch ? targetUiVersionMatch[1] : "";
 
@@ -421,8 +445,7 @@ async function injectTarget(target, source, sessions) {
     });
     const state = pageState?.result?.value || {};
     const payload = state.pending;
-    const currentRoom = state.config?.roomId || DEFAULT_ROOM || "1024";
-    const currentKey = state.config?.roomKey || DEFAULT_ROOM_KEY || "123456";
+    const { room: currentRoom, key: currentKey } = resolveRoomContext(state.config);
 
     // 轮询队列兜底处理挂起的 RPC 调用
     if (Array.isArray(state.pendingCalls) && state.pendingCalls.length > 0) {
@@ -527,12 +550,19 @@ async function main() {
   const sessions = new Map();
   let previousTarget = '';
   let stopped = false;
-  const close = () => { stopped = true; for (const session of sessions.values()) session.close(); sessions.clear(); };
+  let wake = null;
+  const close = () => {
+    stopped = stopping = true;
+    wake?.();
+    for (const session of sessions.values()) session.close();
+    sessions.clear();
+  };
   process.on('SIGTERM', close);
   process.on('SIGINT', close);
   while (!stopped) {
     try {
       const runtime = await inspectRuntime({ resolveInstalled: false });
+      if (stopped) break;
       const identity = runtime.target ? fingerprint(runtime.target) : '';
       if (runtime.state !== 'ready' || identity !== previousTarget) {
         for (const session of sessions.values()) session.close();
@@ -546,7 +576,9 @@ async function main() {
         const safety = assertSafeCodexUiTarget({ cdpUrl: 'http://127.0.0.1:' + port, listenPorts: listListenPorts() });
         if (!safety.ok) throw new Error(safety.reason);
         const source = injectSource(await resolveInjectScript());
+        if (stopped) break;
         const targets = await getJson('http://127.0.0.1:' + port + '/json/list');
+        if (stopped) break;
         const pages = targets.filter(isCodexPage);
         const activeIds = new Set(pages.map(page => page.id));
         for (const [id, session] of sessions) if (!activeIds.has(id)) { session.close(); sessions.delete(id); }
@@ -554,21 +586,31 @@ async function main() {
         for (const target of pages) {
           // 调试连接期间发生切号时，丢弃旧结果，不能向旧目标继续注入。
           const latest = await inspectRuntime({ resolveInstalled: false });
+          if (stopped) break;
           if (latest.state !== 'ready' || fingerprint(latest.target) !== identity || latest.port !== port) throw new Error('目标实例已变化，等待重新绑定');
           const value = await injectTarget(target, source, sessions);
           installed ||= value?.installed === true;
           pendingUpdate ||= value?.pendingUpdate === true;
           if (value?.ui) uiVersion = value.ui;
         }
-        writeAttachState({ installed, pendingUpdate, uiVersion, state: installed ? 'attached' : 'waiting_page', targetPid: runtime.target.pid, port });
+        if (!stopped) writeAttachState({ installed, pendingUpdate, uiVersion, state: installed ? 'attached' : 'waiting_page', targetPid: runtime.target.pid, port });
       }
     } catch (error) {
       for (const session of sessions.values()) session.close();
       sessions.clear();
-      writeAttachState({ installed: false, state: 'waiting', message: String(error.message).slice(0, 250) });
+      if (!stopped) writeAttachState({ installed: false, state: 'waiting', message: String(error.message).slice(0, 250) });
     }
-    if (!stopped) await new Promise(resolve => setTimeout(resolve, 2500));
+    if (!stopped) await new Promise(resolve => {
+      const timer = setTimeout(resolve, 2500);
+      wake = () => { clearTimeout(timer); resolve(); };
+    });
+    wake = null;
   }
+  close();
+  // Finish already-submitted team requests before releasing HTTP keep-alive sockets.
+  await Promise.allSettled([...nativeRpcRequests.values()]);
+  http.globalAgent.destroy();
+  https.globalAgent.destroy();
   writeAttachState({ installed: false, state: 'stopped' });
 }
 

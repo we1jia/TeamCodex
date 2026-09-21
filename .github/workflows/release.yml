@@ -77,6 +77,13 @@ jobs:
           node --test tests/test_workspace.mjs tests/test_workspace_bridge.mjs tests/test_workspace_http.mjs
           node --test tests/test_safety.mjs tests/test_runtime_policy.mjs tests/test_runtime_integration.mjs tests/test_runtime_adapters.mjs tests/test_mount_recovery.mjs
           node --test tests/test_workspace_typography.mjs tests/test_host_layout.mjs tests/test_workspace_dialog.mjs
+          node --test tests/test_team_navigation.mjs
+          node --test tests/test_attach_shutdown.mjs
+          node --test tests/test_launch_recovery.mjs
+          node --test tests/test_room_rpc.mjs
+          node --test tests/test_composer_appearance.mjs
+          node --test tests/test_launcher_lifecycle.mjs
+          node --test tests/test_discussion_appearance.mjs
           node --test tests/test_boost_fixes.mjs
           node --test tests/test_rooms_and_auth.mjs
 

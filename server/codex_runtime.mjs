@@ -5,6 +5,7 @@ import net from 'node:net';
 import { execFileSync, spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isCodexDesktop, debugPort, launchArguments, chooseRuntime, fingerprint } from './codex_runtime_policy.mjs';
+import { prepareLaunchContext, configurationStamp, nativeHelper } from './launch_context.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const run = (file, args) => execFileSync(file, args, { encoding: 'utf8', timeout: 5000, windowsHide: true });
@@ -36,15 +37,15 @@ export function splitArguments(command, windows = process.platform === 'win32') 
 
 export function processInventory() {
   if (process.platform === 'win32') {
-    const raw = powershell("@(Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('Codex.exe','ChatGPT.exe','node.exe','cockpit-tools.exe','Cockpit Tools.exe') } | ForEach-Object { @{pid=$_.ProcessId; name=$_.Name; path=$_.ExecutablePath; command=$_.CommandLine; startedAt=([string]$_.CreationDate)} }) | ConvertTo-Json -Compress");
+    const raw = powershell("@(Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('Codex.exe','ChatGPT.exe','node.exe') } | ForEach-Object { @{pid=$_.ProcessId; name=$_.Name; path=$_.ExecutablePath; command=$_.CommandLine; startedAt=([string]$_.CreationDate)} }) | ConvertTo-Json -Compress");
     const parsed = raw.trim() ? JSON.parse(raw) : [];
     const items = Array.isArray(parsed) ? parsed : [parsed];
-    if (items.some(item => /^(?:Codex|ChatGPT|cockpit-tools|Cockpit Tools)\.exe$/i.test(item.name) && (!item.path || !item.command))) throw new Error('部分客户端路径不可读，无法安全确认目标；请检查权限');
+    if (items.some(item => /^(?:Codex|ChatGPT)\.exe$/i.test(item.name) && (!item.path || !item.command))) throw new Error('部分客户端路径不可读，无法安全确认目标；请检查权限');
     return items.filter(item => item.path && item.command).map(item => ({ ...item, args: splitArguments(item.command, true).slice(1) }));
   }
   return run('/bin/ps', ['-ww', '-axo', 'pid=,comm=']).split('\n').flatMap(line => {
     const match = line.match(/^\s*(\d+)\s+(.+)$/);
-    if (!match || !/(?:\/MacOS\/(?:ChatGPT|Codex|cockpit-tools)|\/node)$/.test(match[2])) return [];
+    if (!match || !/(?:\/MacOS\/(?:ChatGPT|Codex)|\/node)$/.test(match[2])) return [];
     try {
       const details = run('/bin/ps', ['-ww', '-p', match[1], '-o', 'lstart=', '-o', 'args=']).trim();
       const info = details.match(/^(\w+\s+\w+\s+\d+\s+[\d:]+\s+\d{4})\s+(.+)$/);
@@ -55,19 +56,6 @@ export function processInventory() {
 }
 export const codexProcesses = () => processInventory().filter(item => isCodexDesktop(item.path, item.args));
 export const ownNodeWorkers = script => processInventory().filter(item => /[\\/]node(?:\.exe)?$/i.test(item.path) && item.args.some(arg => path.isAbsolute(arg) && path.resolve(arg) === path.resolve(script)));
-
-export function managedRuntime(inventory = processInventory()) {
-  if (inventory.some(item => /[\\/](?:cockpit-tools|Cockpit Tools)(?:\.exe)?$/i.test(item.path))) return true;
-  const codexDirectory = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
-  const config = path.join(codexDirectory, 'config.toml');
-  try {
-    const content = fs.readFileSync(config, 'utf8');
-    return /^model_provider\s*=\s*["'](?:codex_local_access|cockpit[^"']*)["']/m.test(content);
-  } catch (error) {
-    if (error.code === 'ENOENT') return false;
-    return true; // 不能确认管理状态时不接管。
-  }
-}
 
 function portOwnedBy(pid, port) {
   try {
@@ -101,13 +89,20 @@ function installedPath() {
   }
   return candidates.find(candidate => candidate && isCodexDesktop(candidate) && fs.existsSync(candidate)) || null;
 }
+let connectingIdentity = '', connectingSince = 0;
 export async function inspectRuntime({ resolveInstalled = true } = {}) {
   const inventory = processInventory();
   const processes = inventory.filter(item => isCodexDesktop(item.path, item.args));
   const port = processes.length === 1 ? await readyPort(processes[0]) : null;
   const target = processes[0];
   const argsReliable = process.platform === 'win32' || !target || target.args.every(arg => /^--[\w-]+(?:=[^\s'"]+)?$/.test(arg));
-  return { ...chooseRuntime(processes, port), argsReliable, managed: managedRuntime(inventory), availablePath: processes.length === 1 ? target.path : resolveInstalled ? installedPath() : null };
+  const snapshot = chooseRuntime(processes, port);
+  if (snapshot.state === 'connecting') {
+    const identity = fingerprint(target);
+    if (identity !== connectingIdentity) { connectingIdentity = identity; connectingSince = Date.now(); }
+    if (Date.now() - connectingSince >= 15000) snapshot.state = 'connection_failed';
+  } else { connectingIdentity = ''; connectingSince = 0; }
+  return { ...snapshot, argsReliable, availablePath: processes.length === 1 ? target.path : resolveInstalled ? installedPath() : null };
 }
 
 export async function gracefulClose(target) {
@@ -118,7 +113,7 @@ export async function gracefulClose(target) {
     const closed = powershell(`$p=Get-Process -Id ${target.pid} -ErrorAction Stop; $p.CloseMainWindow()`);
     if (!/True/i.test(closed)) throw new Error('无法请求客户端优雅退出，请手动保存并退出后重试');
   } else {
-    run('/usr/bin/osascript', ['-e', `tell application "System Events" to tell (first application process whose unix id is ${target.pid}) to set frontmost to true`, '-e', `tell application "System Events" to tell (first application process whose unix id is ${target.pid}) to click menu item "Quit" of menu 1 of menu bar item 1 of menu bar 1`]);
+    run(nativeHelper(), ['--quit-process', String(target.pid)]);
   }
   for (let attempt = 0; attempt < 30; attempt++) {
     if (!codexProcesses().some(item => item.pid === target.pid)) return;
@@ -130,20 +125,17 @@ const reservePort = () => new Promise((resolve, reject) => {
   const server = net.createServer(); server.on('error', reject);
   server.listen(0, '127.0.0.1', () => { const port = server.address().port; server.close(() => resolve(port)); });
 });
-export async function launchDesktop(target) {
-  if (codexProcesses().length || managedRuntime()) throw new Error('发现新的运行实例或外部管理环境，已取消启动');
+export async function launchDesktop(target, context = prepareLaunchContext({ availablePath: target.path })) {
+  if (codexProcesses().length) throw new Error('发现新的运行实例，已取消重复启动');
+  if (configurationStamp(context.env) !== context.configStamp) throw new Error('账号或网络配置已变化，已取消启动，请重新确认');
   if (!isCodexDesktop(target.path) || !fs.existsSync(target.path)) throw new Error('客户端路径无法验证');
   const port = await reservePort();
-  const args = launchArguments(target.args, port);
-  if (process.platform === 'win32') {
+  const args = launchArguments(context.args || target.args, port);
+  if (codexProcesses().length) throw new Error('发现新的运行实例，已取消重复启动');
     await new Promise((resolve, reject) => {
-      const child = spawn(target.path, args, { detached: true, stdio: 'ignore', cwd: path.dirname(target.path), windowsHide: false });
+      const child = spawn(target.path, args, { detached: true, stdio: 'ignore', cwd: context.cwd, env: context.env, windowsHide: false });
       child.once('error', reject); child.once('spawn', () => { child.unref(); resolve(); });
     });
-  } else {
-    const app = target.path.slice(0, target.path.indexOf('.app/') + 4);
-    run('/usr/bin/open', ['-n', '-a', app, '--args', ...args]);
-  }
   for (let attempt = 0; attempt < 30; attempt++) {
     const current = codexProcesses();
     if (current.length === 1 && current[0].path === target.path && await readyPort(current[0]) === port) return;
@@ -151,5 +143,9 @@ export async function launchDesktop(target) {
   }
   throw new Error('客户端启动请求已发送，但尚未验证调试通道；没有自动重试，请查看状态');
 }
-export async function restartDesktop(target) { await gracefulClose(target); await launchDesktop(target); }
+export async function restartDesktop(target, context = prepareLaunchContext({ target })) {
+  if (configurationStamp(context.env) !== context.configStamp) throw new Error('配置已变化，已取消重启');
+  await gracefulClose(target);
+  await launchDesktop(target, context);
+}
 export const runtimeRoot = root;

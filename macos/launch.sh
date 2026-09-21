@@ -85,13 +85,11 @@ unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy NO_PROXY
     done
     [[ "$current" == *'"isolated":true'* || "$current" == *'"team-context-hub"'* ]] || fail "协作服务启动失败，详见 data/launcher.log"
   fi
-  notify "正在把「TeamCodex」加到 Codex 左栏，不改 Cockpit 代理。"
+  notify "正在连接 Codex；需要重新打开时会先请求确认。"
 } >>"$log_file" 2>&1
 
 LAUNCHER_PORT="${TEAM_CODEX_LAUNCHER_PORT:-18767}"
-if ! curl --noproxy '*' -fsS --max-time 2 "http://127.0.0.1:${LAUNCHER_PORT}/panel.html" >/dev/null 2>&1; then
-  nohup "$node_bin" "$root/server/launcher_host.mjs" >>"$log_file" 2>&1 &
-fi
+"$node_bin" "$root/server/bootstrap_launcher.mjs" >>"$log_file" 2>&1 || fail "TeamCodex 控制后台未就绪，请查看诊断日志。"
 
 # 启动器负责唯一的本目录注入器；引导脚本不杀 Codex、其他安装实例或系统监听器。
 echo "$(date '+%Y-%m-%d %H:%M:%S') TeamCodex launcher ready; waiting for current Codex" >>"$log_file"

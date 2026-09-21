@@ -154,7 +154,7 @@ function Show-TeamCodexTray {
   $startItem = $menu.Items.Add("启动并挂载 Codex")
   $tokenItem = $menu.Items.Add("复制协同口令")
   $hubItem = $menu.Items.Add("切换中枢地址")
-  $restartItem = $menu.Items.Add("重启注入")
+  $restartItem = $menu.Items.Add("重新挂载")
   [void]$menu.Items.Add("-")
   $updateItem = $menu.Items.Add("当前版本 $installedVersion")
   $exitItem = $menu.Items.Add("退出")
@@ -280,7 +280,7 @@ function Show-TeamCodexTray {
   $btnStart = New-ActionButton "启动并挂载 Codex" 158
   $btnToken = New-ActionButton "复制协同口令" 196
   $btnHub = New-ActionButton "切换中枢地址" 234
-  $btnRestart = New-ActionButton "重启注入" 272
+  $btnRestart = New-ActionButton "重新挂载" 272
   $btnUpdate = New-ActionButton "检查更新" 310
 
   $tipLabel = New-Object System.Windows.Forms.Label
@@ -308,6 +308,11 @@ function Show-TeamCodexTray {
     try {
       $s = Invoke-Launcher "/api/status"
       if (-not $s) { return }
+      $actionLabel = if ($s.codex.injected) { "检查挂载状态" } elseif ($s.codex.state -eq "ready") { "立即挂载" } elseif ($s.codex.state -in @("restart_required", "connection_failed")) { "重启并挂载" } elseif ($s.codex.state -eq "not_running") { "启动并挂载 Codex" } else { "重新检查" }
+      $startItem.Text = $actionLabel
+      $btnStart.Text = $actionLabel
+      $restartItem.Enabled = $s.codex.state -eq "ready"
+      $btnRestart.Enabled = $s.codex.state -eq "ready"
 
       # 右键菜单纯净同步
       $statusCodex.Text = if ($s.codex.injected) { "Codex: 已挂载" } elseif ($s.codex.running) { "Codex: 已打开" } else { "Codex: 未连接" }
@@ -335,7 +340,7 @@ function Show-TeamCodexTray {
         $rowCodex.Val.Text = "已挂载"
       } elseif ($s.codex.running) {
         $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(234, 179, 8)
-        $rowCodex.Val.Text = "已打开"
+        $rowCodex.Val.Text = if ($s.codex.message) { [string]$s.codex.message } else { "已打开，等待挂载确认" }
       } else {
         $rowCodex.Dot.ForeColor = [System.Drawing.Color]::FromArgb(239, 68, 68)
         $rowCodex.Val.Text = "未连接"
@@ -429,11 +434,15 @@ function Show-TeamCodexTray {
     } catch {}
   }
   $doRestart = {
+    if ($script:isLaunching) { return }
+    $script:isLaunching = $true
+    $btnRestart.Enabled = $false
+    $restartItem.Enabled = $false
     try {
       $result = Invoke-Launcher "/api/restart-inject" "POST" "{}"
       $notify.ShowBalloonTip(2000, "TeamCodex", [string]$result.message, [System.Windows.Forms.ToolTipIcon]::Info)
       Refresh-Status
-    } catch {}
+    } catch {} finally { $script:isLaunching = $false; Refresh-Status }
   }
   $doUpdate = {
     try {
@@ -466,12 +475,28 @@ function Show-TeamCodexTray {
   # 5. 彻底退出处理 (仅在用户显式点击菜单【退出】时执行，释放资源并清理)
   # ==============================================================================
   $doExit = {
+    # 先确认后台实际退出，再销毁托盘；失败时保留恢复入口。
+    try {
+      $result = Invoke-Launcher "/api/shutdown" "POST" "{}"
+      if (-not $result.ok) { throw "shutdown failed" }
+      $closed = $false
+      for ($i = 0; $i -lt 80; $i++) {
+        Start-Sleep -Milliseconds 250
+        try { Invoke-RestMethod -Uri "$base/api/runtime" -TimeoutSec 1 -ErrorAction Stop | Out-Null }
+        catch {
+          if ($_.Exception.InnerException -is [System.Net.Sockets.SocketException] -or $_.Exception.Status -eq [System.Net.WebExceptionStatus]::ConnectFailure) { $closed = $true; break }
+        }
+      }
+      if (-not $closed) { throw "shutdown timeout" }
+    } catch {
+      $notify.ShowBalloonTip(3000, "TeamCodex", "后台尚未退出，已保留托盘，请稍后重试。Codex 和协作服务保持运行。", [System.Windows.Forms.ToolTipIcon]::Warning)
+      return
+    }
     try { if ($script:appContext) { $script:appContext.ExitThread() } } catch {}
     try { $timer.Stop(); $timer.Dispose() } catch {}
     try { $notify.Visible = $false; $notify.Dispose() } catch {}
     try { $popup.Close(); $popup.Dispose() } catch {}
     # 只退出此安装的控制面/注入器，保留共享 Hub，不按端口结束其他程序。
-    try { Invoke-Launcher "/api/shutdown" "POST" "{}" | Out-Null } catch {}
     try {
       if ($script:trayMutex) {
         $script:trayMutex.ReleaseMutex()

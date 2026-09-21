@@ -3,7 +3,7 @@
   const PAGE_ID = "team-context-fullscreen-page";
   const MENU_ID = "team-context-dropdown-menu";
   const TOAST_ID = "team-context-toast-notice";
-  const UI_VERSION = "inline-v98";
+  const UI_VERSION = "inline-v100";
 
   // 旧 UI 保留草稿与监听器，但“曾安装”不代表 React 重建后的入口仍在。
   if (window.__teamContextTabInstalled && (!window.TeamWorkspace || window.__teamContextUiVersion !== UI_VERSION)) {
@@ -192,178 +192,64 @@
     return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
   }
 
-  function parseRgb(colorStr) {
-    if (!colorStr) return null;
-    const m = colorStr.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-    if (m) return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]) };
-    return null;
+  function readableTextOnSurface(background, foreground, surface) {
+    const blend = (over, under) => over.slice(0, 3).map((value, i) => value * over[3] / 255 + under[i] * (1 - over[3] / 255));
+    const luminance = rgb => rgb.map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4).reduce((sum, value, i) => sum + value * [.2126, .7152, .0722][i], 0);
+    const bg = blend(background, surface);
+    const light = luminance(bg), text = luminance(blend(foreground, bg));
+    if ((Math.max(light, text) + .05) / (Math.min(light, text) + .05) >= 4.5) return null;
+    return 1.05 / (light + .05) >= (light + .05) / .05 ? '#ffffff' : '#000000';
   }
 
   function readHostThemeTokens() {
     const isLight = isCodexLight();
-    
-    let probe = document.getElementById("team-context-theme-prober");
-    if (!probe) {
-      probe = document.createElement("div");
-      probe.id = "team-context-theme-prober";
-      probe.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:0;height:0;visibility:hidden;pointer-events:none;";
-      document.documentElement.appendChild(probe);
-    }
-
-    function probeStyle(className, prop = "backgroundColor") {
-      probe.className = className;
-      const val = window.getComputedStyle(probe)[prop];
-      return (val && val !== "rgba(0, 0, 0, 0)" && val !== "transparent") ? val : null;
-    }
-
-    const realBodyBg = typeof window !== "undefined" ? window.getComputedStyle(document.body).backgroundColor : null;
-    const validBodyBg = (realBodyBg && realBodyBg !== "rgba(0, 0, 0, 0)" && realBodyBg !== "transparent") ? realBodyBg : null;
-    const hostBg = probeStyle("bg-token-main-surface-primary") ||
-                   probeStyle("bg-surface") ||
-                   validBodyBg ||
-                   (isLight ? "rgb(246, 246, 246)" : "rgb(24, 24, 24)");
-    const realBodyColor = typeof window !== "undefined" ? window.getComputedStyle(document.body).color : null;
-    const validBodyColor = (realBodyColor && realBodyColor !== "rgba(0, 0, 0, 0)" && realBodyColor !== "transparent") ? realBodyColor : null;
-    const hostColor = probeStyle("text-token-text-primary", "color") ||
-                      probeStyle("text-primary", "color") ||
-                      validBodyColor ||
-                      (isLight ? "rgb(26, 28, 31)" : "rgb(255, 255, 255)");
-
-    let probedInfoBg = probeStyle("bg-info-solid");
-    let probedSendBg = probeStyle("bg-composer-primary");
-    let probedBubbleBg = probeStyle("bg-user-message");
-    let probedBubbleText = probeStyle("text-user-message", "color");
-
-    const nativeBubble = document.querySelector("[data-user-message-bubble]") || document.querySelector(".bg-user-message");
-    if (nativeBubble) {
-      const cs = window.getComputedStyle(nativeBubble);
-      if (cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)") probedBubbleBg = cs.backgroundColor;
-      if (cs.color) probedBubbleText = cs.color;
-    }
-
-    const nativeSend = document.querySelector("button.bg-composer-primary, button[data-testid*='send'], button[aria-label*='发送'], button[aria-label*='Send']");
-    if (nativeSend) {
-      const cs = window.getComputedStyle(nativeSend);
-      if (cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)") probedSendBg = cs.backgroundColor;
-    }
-
-    let detectedFamily = "blue";
-    const asideDots = Array.from(document.querySelectorAll("aside span.bg-info-solid, aside [class*=\"bg-info\"], aside [class*=\"bg-composer\"]"));
-    let foundDotFamily = null;
-    for (const dot of asideDots) {
-      const cs = window.getComputedStyle(dot).backgroundColor;
-      const rgb = parseRgb(cs);
-      if (rgb && (rgb.r > 20 || rgb.g > 20 || rgb.b > 20)) {
-        if ((rgb.r > 100 && rgb.b > 140 && rgb.g < 170) || (Math.abs(rgb.r - rgb.b) < 85 && rgb.r > rgb.g && rgb.b > rgb.g)) {
-          foundDotFamily = "purple";
-          break;
-        } else if (rgb.g > rgb.r && rgb.g > rgb.b && (rgb.g - Math.max(rgb.r, rgb.b) >= 10)) {
-          foundDotFamily = "green";
-          break;
-        } else if (rgb.b > rgb.r && rgb.b > rgb.g && (rgb.b - Math.max(rgb.r, rgb.g) >= 10)) {
-          foundDotFamily = "blue";
-          break;
-        }
+    const styles = [window.getComputedStyle(document.body), window.getComputedStyle(document.documentElement)];
+    const variable = names => {
+      for (const name of names) for (const style of styles) {
+        const value = style.getPropertyValue(name).trim();
+        if (value && CSS.supports('color', value)) return value;
       }
+      return null;
+    };
+    const computed = (selector, property) => {
+      const element = document.querySelector(selector);
+      if (!element) return null;
+      const value = window.getComputedStyle(element)[property];
+      return value && value !== 'transparent' && value !== 'rgba(0, 0, 0, 0)' ? value : null;
+    };
+    const hostBg = variable(['--color-token-main-surface-primary', '--color-background-primary']) || computed('body', 'backgroundColor') || (isLight ? '#ffffff' : '#181818');
+    const hostColor = variable(['--color-text-primary', '--color-token-text-primary']) || computed('body', 'color') || (isLight ? '#1a1c1f' : '#ececec');
+    const bgCard = variable(['--color-surface-elevated-secondary']) || (isLight ? '#f7f7f8' : '#262626');
+    const bubbleBg = variable(['--color-background-user-message']) || computed('[data-user-message-bubble], .bg-user-message', 'backgroundColor') || bgCard;
+    let bubbleText = variable(['--color-text-user-message']) || computed('[data-user-message-bubble], .bg-user-message', 'color') || hostColor;
+    const accentColor = variable(['--app-color-text-accent', '--color-text-info']) || hostColor;
+    const composerSendBg = computed("button.bg-composer-primary, button[data-testid*='send'], button[aria-label='发送'], button[aria-label='Send']", 'backgroundColor') || accentColor;
+    let composerSendText = computed('button.bg-composer-primary', 'color') || '#ffffff';
+    let secondaryText = variable(['--app-color-text-foreground-secondary', '--color-text-secondary']) || (isLight ? '#646a73' : '#a1a1aa');
+    // 浏览器解析包括 oklch / color() / 透明度的颜色，不按蓝绿紫分类猜测主题。
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    const rgba = value => {
+      context.clearRect(0, 0, 1, 1); context.fillStyle = value; context.fillRect(0, 0, 1, 1);
+      return Array.from(context.getImageData(0, 0, 1, 1).data);
+    };
+    if (context) {
+      const surface = rgba(hostBg);
+      bubbleText = readableTextOnSurface(rgba(bubbleBg), rgba(bubbleText), surface) || bubbleText;
+      secondaryText = readableTextOnSurface(surface, rgba(secondaryText), surface) || secondaryText;
+      composerSendText = readableTextOnSurface(rgba(composerSendBg), rgba(composerSendText), surface) || composerSendText;
     }
-
-    if (foundDotFamily) {
-      detectedFamily = foundDotFamily;
-    } else {
-      const colorSamples = [probedSendBg, probedInfoBg, probedBubbleBg].map(parseRgb).filter(Boolean);
-      let purpleVotes = 0;
-      let greenVotes = 0;
-      let blueVotes = 0;
-      for (const c of colorSamples) {
-        if ((c.r > 100 && c.b > 140 && c.g < 170) || (Math.abs(c.r - c.b) < 85 && c.r > c.g && c.b > c.g)) {
-          purpleVotes++;
-        } else if (c.g > c.r && c.g > c.b && (c.g - Math.max(c.r, c.b) >= 8)) {
-          greenVotes++;
-        } else if (c.b > c.r && c.b > c.g && (c.b - Math.max(c.r, c.g) >= 8)) {
-          blueVotes++;
-        }
-      }
-      if (purpleVotes >= greenVotes && purpleVotes >= blueVotes && purpleVotes > 0) detectedFamily = "purple";
-      else if (greenVotes > blueVotes) detectedFamily = "green";
-      else if (blueVotes > greenVotes) detectedFamily = "blue";
-    }
-
-    let bubbleBg = null;
-    let bubbleText = null;
-    let accentColor = null;
-    let composerSendBg = null;
-
-    if (detectedFamily === "purple") {
-      accentColor = probedSendBg || (isLight ? "rgb(137, 82, 238)" : "rgb(166, 125, 242)");
-      composerSendBg = probedSendBg || (isLight ? "rgb(137, 82, 238)" : "rgb(147, 51, 234)");
-      if (isLight) {
-        bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("232, 243, 254") && !probedBubbleBg.includes("222, 243, 229")) ? probedBubbleBg : "rgb(243, 238, 253)";
-        bubbleText = (probedBubbleText && !probedBubbleText.includes("12, 39, 74") && !probedBubbleText.includes("20, 54, 26")) ? probedBubbleText : "rgb(38, 20, 60)";
-      } else {
-        bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("23, 62, 118") && !probedBubbleBg.includes("44, 103, 50")) ? probedBubbleBg : "rgb(74, 43, 124)";
-        bubbleText = (probedBubbleText && !probedBubbleText.includes("246, 250, 254") && !probedBubbleText.includes("239, 250, 243")) ? probedBubbleText : "rgb(250, 246, 255)";
-      }
-    } else if (detectedFamily === "green") {
-      if (isLight) {
-        bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("232, 243, 254") && !probedBubbleBg.includes("23, 62, 118")) ? probedBubbleBg : "rgb(222, 243, 229)";
-        bubbleText = (probedBubbleText && !probedBubbleText.includes("12, 39, 74") && !probedBubbleText.includes("246, 250, 254")) ? probedBubbleText : "rgb(20, 54, 26)";
-        accentColor = (probedSendBg && !probedSendBg.includes("58, 131, 247")) ? probedSendBg : (probedInfoBg || "rgb(83, 181, 89)");
-        composerSendBg = (probedSendBg && !probedSendBg.includes("58, 131, 247")) ? probedSendBg : "rgb(83, 181, 89)";
-      } else {
-        bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("232, 243, 254") && !probedBubbleBg.includes("23, 62, 118")) ? probedBubbleBg : "rgb(44, 103, 50)";
-        bubbleText = (probedBubbleText && !probedBubbleText.includes("12, 39, 74") && !probedBubbleText.includes("246, 250, 254")) ? probedBubbleText : "rgb(239, 250, 243)";
-        accentColor = (probedSendBg && !probedSendBg.includes("58, 131, 247")) ? probedSendBg : (probedInfoBg || "rgb(83, 181, 89)");
-        composerSendBg = (probedSendBg && !probedSendBg.includes("58, 131, 247")) ? probedSendBg : "rgb(72, 160, 76)";
-      }
-    } else {
-      if (isLight) {
-        bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("222, 243, 229") && !probedBubbleBg.includes("44, 103, 50")) ? probedBubbleBg : "rgb(232, 243, 254)";
-        bubbleText = (probedBubbleText && !probedBubbleText.includes("20, 54, 26") && !probedBubbleText.includes("239, 250, 243")) ? probedBubbleText : "rgb(12, 39, 74)";
-        accentColor = (probedSendBg && !probedSendBg.includes("83, 181, 89") && !probedSendBg.includes("72, 160, 76")) ? probedSendBg : (probedInfoBg || "rgb(58, 131, 247)");
-        composerSendBg = (probedSendBg && !probedSendBg.includes("83, 181, 89") && !probedSendBg.includes("72, 160, 76")) ? probedSendBg : "rgb(58, 131, 247)";
-      } else {
-        bubbleBg = (probedBubbleBg && !probedBubbleBg.includes("222, 243, 229") && !probedBubbleBg.includes("44, 103, 50")) ? probedBubbleBg : "rgb(23, 62, 118)";
-        bubbleText = (probedBubbleText && !probedBubbleText.includes("20, 54, 26") && !probedBubbleText.includes("239, 250, 243")) ? probedBubbleText : "rgb(246, 250, 254)";
-        accentColor = (probedSendBg && !probedSendBg.includes("83, 181, 89") && !probedSendBg.includes("72, 160, 76")) ? probedSendBg : (probedInfoBg || "rgb(58, 131, 247)");
-        composerSendBg = (probedSendBg && !probedSendBg.includes("83, 181, 89") && !probedSendBg.includes("72, 160, 76")) ? probedSendBg : "rgb(44, 103, 197)";
-      }
-    }
-
-    let composerBg = isLight ? "rgb(255, 255, 255)" : "oklab(0.297161 0.0000135154 0.00000594556 / 0.864706)";
-    let composerBorder = isLight ? "1px solid rgba(0, 0, 0, 0.12)" : "none";
-    let composerShadow = isLight ? "0 2px 14px rgba(0, 0, 0, 0.05)" : "rgba(255, 255, 255, 0.2) 0px 0px 1px 0px inset";
-
-    const bgCard = isLight ? "#f7f7f8" : "rgba(255, 255, 255, 0.06)";
-    const bgCardHover = isLight ? "#ededf0" : "rgba(255, 255, 255, 0.1)";
-    const bgChip = isLight ? "rgba(0, 0, 0, 0.05)" : "rgba(255, 255, 255, 0.08)";
-    const chipText = isLight ? "#26282b" : "#e5e5e5";
-    const borderSubtle = isLight ? "rgba(0, 0, 0, 0.08)" : "rgba(255, 255, 255, 0.08)";
-    const borderStrong = isLight ? "rgba(0, 0, 0, 0.14)" : "rgba(255, 255, 255, 0.16)";
-    const railMarker = isLight ? "rgba(26, 28, 31, 0.494)" : "rgba(255, 255, 255, 0.498)";
-    const railMarkerActive = isLight ? "#1a1c1f" : "#ffffff";
-    const previewBg = isLight ? "rgba(255, 255, 255, 0.96)" : "rgba(36, 36, 36, 0.95)";
-
     return {
-      isLight,
-      detectedFamily,
-      hostBg,
-      hostColor,
-      bubbleBg,
-      bubbleText,
-      accentColor,
-      composerSendBg,
-      composerBg,
-      composerBorder,
-      composerShadow,
-      bgCard,
-      bgCardHover,
-      bgChip,
-      chipText,
-      borderSubtle,
-      borderStrong,
-      railMarker,
-      railMarkerActive,
-      previewBg,
+      isLight, detectedFamily: 'native', hostBg, hostColor, bubbleBg, bubbleText, secondaryText, accentColor, composerSendBg, composerSendText,
+      composerBg: variable(['--color-background-composer']) || bgCard,
+      composerBorder: '1px solid ' + (variable(['--color-border-primary-outline']) || (isLight ? '#00000014' : '#ffffff14')),
+      composerShadow: 'none', bgCard,
+      bgCardHover: variable(['--color-background-primary-ghost-hover']) || (isLight ? '#ededf0' : '#333333'),
+      bgChip: variable(['--color-background-primary-ghost-hover']) || (isLight ? '#0000000d' : '#ffffff14'),
+      chipText: hostColor,
+      borderSubtle: variable(['--color-border-primary-outline']) || (isLight ? '#00000014' : '#ffffff14'),
+      borderStrong: isLight ? '#00000024' : '#ffffff29',
+      railMarker: secondaryText, railMarkerActive: hostColor, previewBg: bgCard,
     };
   }
 
@@ -380,6 +266,35 @@
     };
   }
 
+  function readDiscussionTypography() {
+    const native = document.querySelector('[data-message-author-role="assistant"] [data-markdown-text-style], [data-user-message-bubble]');
+    const style = window.getComputedStyle(native || document.body);
+    const size = Number.parseFloat(style.fontSize);
+    const code = document.querySelector('pre code, code');
+    return {
+      fontFamily: style.fontFamily || 'system-ui',
+      fontSize: Number.isFinite(size) && size > 0 ? style.fontSize : '14px',
+      lineHeight: style.lineHeight && style.lineHeight !== 'normal' ? style.lineHeight : '1.6',
+      letterSpacing: style.letterSpacing || 'normal',
+      codeFont: (code && window.getComputedStyle(code).fontFamily) || style.getPropertyValue?.('--font-mono')?.trim() || 'ui-monospace, SFMono-Regular, Consolas, monospace',
+    };
+  }
+
+  function discussionMessageMarkup(content, thread, imagesHtml) {
+    const text = content && content !== '[图片]' ? `<div class="bubble">${escapeHtml(content)}</div>` : '';
+    const title = thread?.title ? escapeHtml(thread.title) : '';
+    const reference = title ? `<details class="message-reference"${imagesHtml && !text ? ' data-image-caption="true"' : ''}><summary title="${title}"><span class="reference-title">关联：${title}</span><span aria-hidden="true">⌄</span></summary><div class="reference-detail"><span>${title}</span><button type="button" class="ref">打开原生对话 ↗</button></div></details>` : '';
+    return `${text}${imagesHtml}${reference}`;
+  }
+
+  function isDiscussionContinuation(previous, current) {
+    if (!previous?.actor_id || previous.actor_id !== current.actor_id || previous.room_id !== current.room_id) return false;
+    if (previous.metadata?.kind === 'codex_context_snapshot' || current.metadata?.kind === 'codex_context_snapshot') return false;
+    if ((previous.linked_thread?.id || '') !== (current.linked_thread?.id || '')) return false;
+    const elapsed = Date.parse(current.created_at) - Date.parse(previous.created_at);
+    return Number.isFinite(elapsed) && elapsed >= 0 && elapsed <= 300000;
+  }
+
   function applyCodexTheme(page) {
     if (!page) return;
     const tokens = readHostThemeTokens();
@@ -393,18 +308,25 @@
     page.style.setProperty('--ws-font', hostFont.fontFamily);
     page.style.setProperty('--ws-font-size', hostFont.fontSize);
     page.style.setProperty('--team-native-control-font-size', hostFont.fontSize);
+    const discussionFont = readDiscussionTypography();
+    page.style.setProperty('--team-chat-font', discussionFont.fontFamily);
+    page.style.setProperty('--team-chat-font-size', discussionFont.fontSize);
+    page.style.setProperty('--team-chat-line-height', discussionFont.lineHeight);
+    page.style.setProperty('--team-chat-letter-spacing', discussionFont.letterSpacing);
+    page.style.setProperty('--team-code-font', discussionFont.codeFont);
 
     const setVars = (el) => {
       if (!el) return;
       el.style.setProperty("--bg-page", tokens.hostBg);
       el.style.setProperty("--text-primary", tokens.hostColor);
-      el.style.setProperty("--text-secondary", tokens.isLight ? "#646a73" : "#a1a1aa");
-      el.style.setProperty("--text-muted", tokens.isLight ? "#8f959e" : "#71717a");
+      el.style.setProperty("--text-secondary", tokens.secondaryText);
+      el.style.setProperty("--text-muted", tokens.secondaryText);
       el.style.setProperty("--human-bubble-bg", tokens.bubbleBg);
       el.style.setProperty("--human-bubble-text", tokens.bubbleText);
       el.style.setProperty("--ai-bubble-text", tokens.hostColor);
       el.style.setProperty("--accent-color", tokens.accentColor);
       el.style.setProperty("--composer-send-bg", tokens.composerSendBg);
+      el.style.setProperty("--composer-send-text", tokens.composerSendText);
       el.style.setProperty("--composer-bg", tokens.composerBg);
       el.style.setProperty("--composer-border", tokens.composerBorder);
       el.style.setProperty("--composer-shadow", tokens.composerShadow);
@@ -629,6 +551,15 @@
         position: fixed !important;
         transform: none !important;
         will-change: auto;
+      }
+      /* 仅在菜单左边缘补足鼠标通道，不覆盖宿主或其它侧栏条目。 */
+      .team-codex-menu-wrapper::before {
+        content: "";
+        position: absolute;
+        left: -8px;
+        top: 0;
+        width: 8px;
+        height: 100%;
       }
 
       /* 内层容器承载原生毛玻璃微动效（局部相对变换，绝不破坏外层包装器的物理定位） */
@@ -1084,13 +1015,15 @@
 
         * { box-sizing: border-box; }
         .wrap {
+          container: team-chat / inline-size;
           height: 100%;
           display: grid;
           grid-template-rows: auto 1fr auto;
           background: var(--bg-page);
           color: var(--text-primary);
           overflow: hidden;
-          font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", "Segoe UI", sans-serif;
+          font: var(--team-chat-font-size, 14px)/var(--team-chat-line-height, 1.6) var(--team-chat-font, system-ui);
+          letter-spacing: var(--team-chat-letter-spacing, normal);
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
           text-rendering: optimizeLegibility;
@@ -1111,7 +1044,8 @@
         .scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 99px; }
         
         .top {
-          display: flex;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
           align-items: center;
           justify-content: space-between;
           gap: 12px;
@@ -1136,6 +1070,39 @@
           flex-shrink: 0 !important;
           -webkit-app-region: no-drag !important;
           pointer-events: auto !important;
+        }
+        .top-left { min-width: 0; }
+        .top-left > div { min-width: 0; flex-shrink: 1 !important; }
+        .top .room-status-pill { min-width: 0; max-width: 100%; flex-shrink: 1 !important; }
+        .top .pill-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1 !important; }
+        .top-actions { justify-self: end; }
+        .team-section-nav { display: flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; }
+        .team-section-nav button {
+          font: inherit;
+          font-size: var(--team-native-control-font-size, 13px);
+          line-height: 18px;
+          min-height: 28px;
+          padding: 4px 10px;
+          border: 1px solid transparent;
+          border-radius: 6px;
+          background: transparent;
+          color: var(--text-secondary);
+          cursor: pointer;
+        }
+        .team-section-nav button:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+        .team-section-nav button[aria-pressed="true"] { background: var(--bg-chip); color: var(--text-primary); }
+        .team-section-nav button:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+        @container team-chat (max-width: 920px) {
+          .top { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding-block: 8px; gap: 6px 10px; }
+          .team-section-nav { grid-row: 2; grid-column: 1 / -1; }
+          .top-actions { grid-row: 1; grid-column: 2; }
+        }
+        @container team-chat (max-width: 520px) {
+          .top { padding-inline: 10px; }
+          .top-actions .top-action-btn span, .top-actions .exit-btn span, .top-actions .kbd-badge { display: none; }
+          .top-actions .top-action-btn, .top-actions .exit-btn { width: 28px; height: 28px; padding: 6px; justify-content: center; }
+          .room-status-pill .pill-text { max-width: 100px; overflow: hidden; text-overflow: ellipsis; }
+          .team-section-nav button { padding-inline: 8px; }
         }
         .sidebar-toggle-btn {
           display: none;
@@ -1791,7 +1758,7 @@
           to { opacity: 1; transform: translate(-50%, 0); }
         }
         .messages {
-          min-height: 0; padding: 8px 0 40px; display: flex; flex-direction: column; gap: 14px;
+          min-height: 0; padding: 12px 0 24px; display: flex; flex-direction: column; gap: 0;
           scroll-behavior: smooth; scrollbar-width: none;
         }
         .messages::-webkit-scrollbar { display: none; }
@@ -1800,8 +1767,8 @@
           align-items: center;
           width: 100%;
           position: relative;
-          padding: 6px 10px;
-          margin: 0;
+          padding: 0 10px;
+          margin: 18px 0 0;
           border-radius: 12px;
           box-sizing: border-box;
           transition: background-color 0.12s ease, box-shadow 0.12s ease;
@@ -1809,15 +1776,20 @@
         /* 左右对称系统：本地我发送的靠右，团队成员发来的靠左 */
         .row.is-me, .row.outgoing { justify-content: flex-end; }
         .row.is-peer, .row.incoming { justify-content: flex-start; }
-        .stack { display: flex; flex-direction: column; max-width: 80%; }
+        .row:first-child { margin-top: 0; }
+        .row[data-continuation="true"] { margin-top: 7px; }
+        .row.is-peer[data-continuation="true"]:not(:first-child) .who { display: none; }
+        .row.is-peer:first-child .who { display: block; }
+        .stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; max-width: 80%; }
         .row.is-me .stack, .row.outgoing .stack { align-items: flex-end; }
         .row.is-peer .stack, .row.incoming .stack { align-items: flex-start; }
         .bubble {
-          padding: 10px 16px;
-          border-radius: 20px;
-          font-size: 14px;
+          padding: 10px 14px;
+          border-radius: 16px;
+          font-size: var(--team-chat-font-size, 14px);
           overflow-wrap: anywhere;
-          line-height: 1.55;
+          white-space: pre-wrap;
+          line-height: var(--team-chat-line-height, 1.6);
           transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
                       border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
                       box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1825,22 +1797,22 @@
         .row.is-me .bubble, .row.outgoing .bubble {
           background: var(--human-bubble-bg);
           color: var(--human-bubble-text);
-          box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.15);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          box-shadow: none;
+          border: 1px solid transparent;
         }
         .row.is-peer .bubble, .row.incoming .bubble {
           background: var(--bg-card);
           color: var(--text-primary);
           border: 1px solid var(--border-subtle);
-          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+          box-shadow: none;
         }
         :host([data-theme="dark"]) .row.is-peer .bubble,
         .wrap.theme-dark .row.is-peer .bubble,
         :host([data-theme="dark"]) .row.incoming .bubble,
         .wrap.theme-dark .row.incoming .bubble {
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.05);
-          box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.28);
+          background: var(--bg-card);
+          border: 1px solid var(--border-subtle);
+          box-shadow: none;
         }
         /* 快照卡片在左右两侧的自适应 */
         .row.is-me.context-snapshot-card .stack { align-items: flex-end; }
@@ -1854,13 +1826,22 @@
         .row.is-me .who, .row.outgoing .who { display: none; }
         .row.is-peer .who, .row.incoming .who {
           display: block;
-          font-size: 11.5px;
+          font-size: var(--team-native-control-font-size, 13px);
           color: var(--text-muted);
-          margin-bottom: 5px;
+          margin-bottom: -2px;
           font-weight: 500;
           padding-left: 2px;
         }
-        .ref { margin-top: 6px; font-size: 12px; color: var(--accent-color); cursor: pointer; }
+        .message-reference { max-width: min(360px, 100%); min-width: 0; color: var(--text-secondary); font-size: var(--team-native-control-font-size, 13px); line-height: 1.5; }
+        .message-reference[data-image-caption="true"] { max-width: min(280px, 100%); }
+        .message-reference summary { display: flex; gap: 6px; align-items: center; max-width: 100%; cursor: pointer; list-style: none; border-radius: 4px; }
+        .message-reference summary::-webkit-details-marker { display: none; }
+        .reference-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .message-reference summary > span:last-child { flex: none; }
+        .reference-detail { display: grid; justify-items: start; gap: 6px; padding: 8px 0 2px; overflow-wrap: anywhere; }
+        .ref { padding: 0; border: 0; background: transparent; font: inherit; color: var(--text-primary); cursor: pointer; }
+        .message-reference :focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+        .wrap pre, .wrap code { font-family: var(--team-code-font, ui-monospace, monospace); }
         .ref:hover { text-decoration: underline; }
         .dock { padding: 8px 0 20px; }
         .dock .column { position: relative; }
@@ -2103,7 +2084,7 @@
         /* 消息气泡中的图片展示 */
         .msg-image-wrap {
           position: relative;
-          margin-top: 6px;
+          margin-top: 0;
           border-radius: 12px;
           overflow: hidden;
           max-width: min(280px, 100%);
@@ -2210,7 +2191,7 @@
         .image-lightbox-toolbar a:hover { opacity: 1; }
         textarea {
           width: 100%; min-height: 44px; max-height: 160px; border: 0; outline: none;
-          background: transparent; color: var(--composer-text); font: 14px/1.5 inherit; resize: none; padding: 2px 0 6px;
+          background: transparent; color: var(--composer-text); font: var(--team-composer-font-size, 14px)/1.5 var(--team-composer-font, var(--team-chat-font, system-ui)); resize: none; padding: 2px 0 6px;
         }
         textarea::placeholder { color: var(--text-muted); }
         .composer-toolbar {
@@ -2224,7 +2205,7 @@
         .composer-right { display: flex; align-items: center; }
         .send {
           width: 32px; height: 32px; border: 0; border-radius: 99px;
-          background: var(--composer-send-bg, var(--accent-color)); color: #ffffff; cursor: pointer;
+          background: var(--composer-send-bg, var(--accent-color)); color: var(--composer-send-text, #ffffff); cursor: pointer;
           display: grid; place-items: center; transition: opacity 0.15s ease, transform 0.1s ease;
         }
         .send:hover { opacity: 0.88; }
@@ -3413,16 +3394,22 @@
             </div>
           </div>
 
+          <nav class="team-section-nav" aria-label="工作区导航">
+            <button type="button" data-team-section="chat" aria-pressed="true">讨论</button>
+            <button type="button" data-team-section="knowledge" aria-pressed="false">知识库</button>
+            <button type="button" data-team-section="materials" aria-pressed="false">素材库</button>
+            <button type="button" data-team-section="kanban" aria-pressed="false">看板</button>
+          </nav>
           <div class="top-actions" style="display:flex;gap:6px;align-items:center;">
-            <button class="top-action-btn" id="btn-header-config" type="button" title="服务连接与房间详细配置">
+            <button class="top-action-btn" id="btn-header-config" type="button" aria-label="连接设置" title="服务连接与房间详细配置">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" class="header-icon"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               <span>连接设置</span>
             </button>
-            <button class="top-action-btn" id="btn-share-hook" type="button" title="将当前对话生成快照分享给团队或在浏览器查看">
+            <button class="top-action-btn" id="btn-share-hook" type="button" aria-label="分享对话" title="将当前对话生成快照分享给团队或在浏览器查看">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" class="header-icon"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
               <span>分享对话</span>
             </button>
-            <button class="exit-btn" id="back" type="button" title="退出协作，返回刚才的对话 (快捷键: Esc)">
+            <button class="exit-btn" id="back" type="button" aria-label="退出协作" title="退出协作，返回刚才的对话 (快捷键: Esc)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
               <span>退出协作</span>
               <kbd class="kbd-badge">Esc</kbd>
@@ -3489,7 +3476,7 @@
                   </button>
                 </div>
               </div>
-              <textarea id="input" placeholder="随心输入，或按 Cmd+V 粘贴截图、输入 @ 关联对话..."></textarea>
+              <textarea id="input" aria-label="输入团队消息" placeholder="输入消息，@ 关联任务"></textarea>
               <div class="composer-toolbar">
                 <div class="composer-left">
                   <button class="tool-btn" id="btn-upload-image" type="button" title="上传或粘贴图片 (支持剪贴板 Cmd+V)">
@@ -4219,6 +4206,9 @@
       if (workspace.open(section) === false) return false;
       if (chatWrap) chatWrap.style.display = 'none';
     };
+    root.querySelectorAll('[data-team-section]').forEach(button => {
+      button.addEventListener('click', () => page.__showWorkspace(button.dataset.teamSection));
+    });
 
     const openExternalUrl = async (targetUrl) => {
       if (!targetUrl) return;
@@ -6134,7 +6124,7 @@
         const initial = (member.name || "?").slice(0, 1).toUpperCase();
 
         if (isMac) {
-          avatarBtn.innerHTML = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
+          avatarBtn.innerHTML = `<svg data-device-icon="mac" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M17.05 20.28C16.07 21.23 15 21.08 13.97 20.63C12.88 20.17 11.88 20.15 10.73 20.63C9.29 21.25 8.53 21.07 7.67 20.28C2.79 15.25 3.51 7.59 9.05 7.31C10.4 7.38 11.34 8.08 12.13 8.14C13.31 7.9 14.44 7.18 15.7 7.27C17.21 7.39 18.35 7.99 19.1 9.07C15.98 10.94 16.72 15.05 19.58 16.2C19.01 17.7 18.27 19.19 17.05 20.28ZM12.03 7.25C11.88 5.02 13.69 3.18 15.77 3C16.06 5.58 13.43 7.5 12.03 7.25Z"/></svg>`;
         } else if (isWin) {
           avatarBtn.innerHTML = `<svg viewBox="0 0 24 24" width="10.5" height="10.5" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>`;
         } else {
@@ -6625,7 +6615,6 @@
           }
         });
      } else {
-       const ref = message.linked_thread?.title ? `<div class="ref">来自对话：${escapeHtml(message.linked_thread.title)}</div>` : "";
         let imagesHtml = "";
         if (Array.isArray(message.metadata?.images) && message.metadata.images.length > 0) {
           imagesHtml = message.metadata.images.map((img) => {
@@ -6638,16 +6627,14 @@
           }).join("");
         }
 
-        let textBody = "";
-        if (contentText && contentText !== "[图片]") {
-          textBody = `<div class="bubble">${escapeHtml(contentText)}${ref}</div>`;
-        } else if (!imagesHtml) {
-          textBody = `<div class="bubble">${escapeHtml(contentText || "")}${ref}</div>`;
-        } else if (ref) {
-          textBody = `<div class="bubble" style="padding:4px 8px;">${ref}</div>`;
-        }
-
-        stack.innerHTML = `<div class="who">${escapeHtml(who)}</div>${textBody}${imagesHtml}`;
+        stack.innerHTML = `<div class="who">${escapeHtml(who)}</div>${discussionMessageMarkup(contentText, message.linked_thread, imagesHtml)}`;
+        stack.querySelector('.ref')?.addEventListener('click', event => {
+          event.stopPropagation();
+          if (isMultiSelectMode) return;
+          const thread = listSidebarThreads().find(item => item.id === message.linked_thread?.id);
+          if (thread) openCodexThread(thread);
+          else showToast('此对话不在本机可见列表中，请展开所属项目后重试');
+        });
 
         stack.querySelectorAll(".msg-image-wrap").forEach((wrap) => {
           const isInitiallyLoaded = wrap.dataset.loaded === "true";
@@ -6729,14 +6716,14 @@
      // 单击消息行：在多选模式下切换勾选状态
      row.addEventListener("click", (e) => {
        if (!isMultiSelectMode) return;
-       if (e.target.closest(".snapshot-open-link, .ref")) return;
+       if (e.target.closest(".snapshot-open-link, .ref, .message-reference")) return;
        toggleMessageSelection(message.id);
      });
 
      // 拖拽多选范围
      row.addEventListener("pointerdown", (e) => {
        if (e.button !== 0) return;
-       if (e.target.closest(".snapshot-open-link, .ref")) return;
+       if (e.target.closest(".snapshot-open-link, .ref, .message-reference")) return;
        const rows = getMessageRows();
        const myIdx = rows.indexOf(row);
        if (myIdx === -1) return;
@@ -6756,6 +6743,9 @@
        applyRowRange(dragAnchorIndex, myIdx, dragTargetValue);
      });
 
+     const previous = messagesEl.lastElementChild?.__discussionMessage;
+     row.dataset.continuation = String(isDiscussionContinuation(previous, message));
+     row.__discussionMessage = { actor_id: message.actor_id, room_id: message.room_id, created_at: message.created_at, linked_thread: message.linked_thread, metadata: { kind: message.metadata?.kind } };
      messagesEl.appendChild(row);
      messagesEl.scrollTop = messagesEl.scrollHeight;
      if (Number(message.seq || 0) > Number(lastSnapshot?.seq || 0)) {
@@ -8015,7 +8005,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     }, delay);
   }
 
-  function scheduleCloseTeamMenu(delay = 220) {
+  function scheduleCloseTeamMenu(delay = 350) {
     if (teamMenuHoverTimer) {
       clearTimeout(teamMenuHoverTimer);
       teamMenuHoverTimer = null;
@@ -8023,6 +8013,9 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     if (teamMenuLeaveTimer) clearTimeout(teamMenuLeaveTimer);
     teamMenuLeaveTimer = setTimeout(() => {
       teamMenuLeaveTimer = null;
+      const menu = document.getElementById(MENU_ID);
+      const wrapper = document.getElementById(TAB_ID);
+      if (menu?.matches(':hover, :focus-within') || wrapper?.matches(':hover')) return;
       closeTeamMenu("timer-delay-leave");
     }, delay);
   }
@@ -8049,6 +8042,15 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     }
   }
 
+  function teamMenuPosition(rect) {
+    // 保留原生菜单外侧4px间距；透明连接区负责跨缝悬停，不靠覆盖按钮防失焦。
+    const right = rect.right >= 60 ? rect.right : (findSidebar()?.getBoundingClientRect().right || 260);
+    const x = Math.max(12, Math.min(Math.round(right + 4), window.innerWidth - 252));
+    const top = rect.top >= 40 ? Math.round(rect.top) : 120;
+    const y = Math.max(12, Math.min(top, window.innerHeight - 232));
+    return { x, y };
+  }
+
   function openTeamMenu() {
     cancelTeamMenuTimers();
     const existingMenu = document.getElementById(MENU_ID);
@@ -8060,24 +8062,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     const btn = wrapper?.querySelector("button");
     if (!btn) return;
 
-    const rect = btn.getBoundingClientRect();
-    let x = Math.round(rect.right + 6);
-    let y = Math.round(rect.top);
-
-    // 严防左上角 (0, 0) 闪烁：若测得坐标异常，安全回退至侧栏右侧
-    if (!x || x < 60) {
-      const sidebar = findSidebar();
-      const sidebarRect = sidebar?.getBoundingClientRect();
-      x = Math.round((sidebarRect?.right || 260) + 6);
-    }
-    if (!y || y < 40) {
-      y = 120;
-    }
-
-    const estimatedHeight = 220;
-    if (y + estimatedHeight > window.innerHeight - 12) {
-      y = Math.max(12, window.innerHeight - estimatedHeight - 12);
-    }
+    const { x, y } = teamMenuPosition(btn.getBoundingClientRect());
 
     const menuWrapper = document.createElement("div");
     menuWrapper.id = MENU_ID;
@@ -8097,8 +8082,10 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       if (toEl && (btn.contains(toEl) || wrapper.contains(toEl))) {
         return;
       }
-      scheduleCloseTeamMenu(220);
+      scheduleCloseTeamMenu();
     });
+    menuWrapper.addEventListener("focusin", cancelTeamMenuTimers);
+    menuWrapper.addEventListener("focusout", () => scheduleCloseTeamMenu());
 
     const isChatActive = isPageActive();
 
@@ -8118,7 +8105,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
                 </svg>
               </span>
             </span>
-            <span class="flex-1 min-w-0 truncate">对话</span>
+            <span class="flex-1 min-w-0 truncate">讨论</span>
             ${isChatActive ? '<span class="text-[11px] px-1.5 py-0.5 rounded-md bg-white/10 dark:bg-white/10 text-default opacity-60 shrink-0 font-medium">当前</span>' : ''}
           </div>
         </div>
@@ -8386,7 +8373,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         if (toEl && ((wrapper && wrapper.contains(toEl)) || (menu && menu.contains(toEl)))) {
           return;
         }
-        (window.__teamContextScheduleCloseMenu || scheduleCloseTeamMenu)(220);
+        (window.__teamContextScheduleCloseMenu || scheduleCloseTeamMenu)(350);
       };
 
       button.addEventListener("mouseenter", onEnter);
@@ -8523,10 +8510,14 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       if (page) applyCodexTheme(page);
     };
     window.__teamContextThemeObserver = new MutationObserver(updateThemeState);
-    window.__teamContextThemeObserver.observe(document.documentElement, {
+      window.__teamContextThemeObserver.observe(document.documentElement, {
       attributes: true,
-      attributeFilter: ["data-theme", "theme", "class", "style"],
-    });
+        attributeFilter: ["data-theme", "theme", "class", "style"],
+      });
+      if (document.body) window.__teamContextThemeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["data-theme", "theme", "class", "style"],
+      });
 
     if (window.matchMedia) {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");

@@ -198,4 +198,10 @@ export class CdpWebSocket {
     this.writeFrame(0x8, Buffer.alloc(0));
     this.socket.end();
   }
+
+  terminate() {
+    if (this.readyState === CLOSED) return;
+    this.readyState = CLOSED;
+    this.socket.destroy();
+  }
 }

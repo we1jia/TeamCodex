@@ -44,7 +44,7 @@ test('确认绑定 PID/启动时间/参数；切号后旧确认失效；受管�
   await assert.rejects(controller.request({ confirmToken: pending.confirmToken }), /变化/);
   assert.equal(writes, 0);
   state = { ...state, managed: true };
-  assert.equal((await controller.request({ force: true })).mode, 'managed');
+  assert.equal((await controller.request({ force: true })).requires_restart_confirm, true);
   assert.equal(writes, 0);
 });
 test('优雅关闭失败不继续启动，控制面明确失败而不是假报成功', async () => {

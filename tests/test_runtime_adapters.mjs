@@ -12,6 +12,8 @@ function windowsFixture({ refusesClose = false, switchDuringClose = false } = {}
   const context = vm.createContext({
     process: { platform: 'win32', env: {} }, path: path.win32, os: { homedir: () => 'C:\\Users\\test' },
     isCodexDesktop, debugPort, launchArguments, chooseRuntime, fingerprint,
+    prepareLaunchContext: snapshot => ({ env: { FIXTURE: 'preserved' }, cwd: 'C:\\Program Files\\Codex', args: snapshot.target?.args || [], configStamp: 'fixture' }),
+    configurationStamp: () => 'fixture', nativeHelper: () => '/unused',
     fs: { existsSync: () => true, readFileSync: () => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }); } },
     execFileSync: (file, args) => {
       const script = args.at(-1);

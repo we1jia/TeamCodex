@@ -7,6 +7,8 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createLaunchController } from './codex_runtime_policy.mjs';
 import { inspectRuntime, restartDesktop, launchDesktop, ownNodeWorkers } from './codex_runtime.mjs';
+import { prepareLaunchContext } from './launch_context.mjs';
+import { installationId, runtimeRevision } from './runtime_identity.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.TEAM_CODEX_LAUNCHER_PORT || 18767);
@@ -17,7 +19,15 @@ const DISCOVERY_FILE = path.join(DATA_DIR, "hub_discovery.json");
 const VERSION_FILE = path.join(ROOT, "version.json");
 const LOG_FILE = path.join(DATA_DIR, "launcher.log");
 const GITHUB_REPO = process.env.TEAM_CODEX_RELEASES_REPO || "we1jia/TeamCodex";
-const BUILD_ID = 'release-1.2.0-20260921';
+const BUILD_ID = 'startupfix-20260921-3';
+const RUNTIME_REVISION = runtimeRevision(ROOT);
+let shuttingDown = false;
+let controlBusy = false;
+async function runControl(operation) {
+  if (controlBusy || shuttingDown) throw new Error('已有操作正在进行，请等待完成');
+  controlBusy = true;
+  try { return await operation(); } finally { controlBusy = false; }
+}
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -62,7 +72,7 @@ function loadConfig() {
 }
 
 function saveConfig(partial) {
-  const next = { ...loadConfig(), ...partial, updated_at: nowIso() };
+  const next = { ...loadConfig(), ...Object.fromEntries(Object.entries(partial).filter(([, value]) => value !== undefined)), updated_at: nowIso() };
   writeJson(CONFIG_FILE, next);
   const discovery = readJson(DISCOVERY_FILE, {});
   discovery.hub_url = next.hub_url;
@@ -178,14 +188,28 @@ async function stopAttach() {
     const fresh = ownNodeWorkers(path.join(ROOT, 'inject/attach_codex.mjs')).find(item => item.pid === worker.pid && item.startedAt === worker.startedAt);
     if (fresh) { try { process.kill(fresh.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; } }
   }
-  for (let attempt = 0; attempt < 50; attempt++) {
+  for (let attempt = 0; attempt < 120; attempt++) {
     if (!isAttachRunning()) return;
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   throw new Error('本安装目录的注入器尚未退出，停止重复启动');
 }
 
-async function startAttach({ allowUiUpdate = false } = {}) {
+let attachOperation = Promise.resolve();
+function queueAttachOperation(operation) {
+  const result = attachOperation.then(operation);
+  attachOperation = result.catch(() => {});
+  return result;
+}
+
+function startAttach(options = {}) {
+  return queueAttachOperation(() => {
+    if (shuttingDown) throw new Error('TeamCodex 正在退出，请稍后重新打开');
+    return restartAttach(options);
+  });
+}
+
+async function restartAttach({ allowUiUpdate = false } = {}) {
   const cfg = loadConfig();
   await stopAttach();
   const attachLogPath = path.join(DATA_DIR, "attach.log");
@@ -217,6 +241,7 @@ const launchController = createLaunchController({
   restart: restartDesktop,
   launch: launchDesktop,
   attach: () => startAttach(),
+  prepare: prepareLaunchContext,
 });
 
 async function hubHealth(hubUrl) {
@@ -224,15 +249,6 @@ async function hubHealth(hubUrl) {
     const { status, body } = await requestJson(`${hubUrl.replace(/\/$/, "")}/api/health`, 1500);
     if (status === 200 && body?.ok) return body;
   } catch {}
-  if (!hubUrl.includes("127.0.0.1") && !hubUrl.includes("localhost")) {
-    try {
-      const { status, body } = await requestJson("http://127.0.0.1:18765/api/health", 1000);
-      if (status === 200 && body?.ok) {
-        saveConfig({ hub_url: "http://127.0.0.1:18765" });
-        return body;
-      }
-    } catch {}
-  }
   return null;
 }
 
@@ -242,10 +258,10 @@ async function codexStatus() {
   const fresh = Date.now() - Number(receipt.updatedAt || 0) < 12000;
   const sameTarget = runtime.target && runtime.target.pid === receipt.targetPid && runtime.port === receipt.port;
   return {
-    running: runtime.state === 'unknown' ? null : runtime.state !== 'not_running', state: runtime.state, managed: runtime.managed,
+    running: runtime.state === 'unknown' ? null : runtime.state !== 'not_running', state: runtime.state,
     injected: runtime.state === 'ready' && fresh && sameTarget && receipt.installed === true,
     ui_version: sameTarget ? receipt.uiVersion || '' : '', pending_update: sameTarget && receipt.pendingUpdate === true,
-    message: runtime.message || (runtime.state === 'restart_required' ? '未开启调试通道，请检查启动方式' : runtime.state === 'ambiguous' ? '多个实例，等待选择目标' : receipt.message || ''),
+    message: runtime.message || (runtime.state === 'restart_required' ? '需要重新打开 Codex 才能挂载' : runtime.state === 'connection_failed' ? '连接超时，可确认重启后恢复挂载' : runtime.state === 'connecting' ? '正在连接 Codex，请稍候' : runtime.state === 'ambiguous' ? '检测到多个 Codex，请保留一个目标实例后重试' : receipt.message || ''),
   };
 }
 
@@ -263,6 +279,7 @@ function sendJson(res, status, body) {
     ...cors(),
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
+    ...(shuttingDown ? { Connection: 'close' } : {}),
     "Content-Length": Buffer.byteLength(data),
   });
   res.end(data);
@@ -299,6 +316,11 @@ const server = http.createServer(async (req, res) => {
     const origin = req.headers.origin;
     const trustedOrigins = ['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT];
     if (origin && !trustedOrigins.includes(origin)) return sendJson(res, 403, { ok: false, message: '仅允许本机控制面发起操作' });
+    if (shuttingDown) return sendJson(res, 409, { ok: false, message: 'TeamCodex 正在退出，请稍后重新打开' });
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/runtime') {
+    return sendJson(res, 200, { service: 'teamcodex-launcher', installation: installationId(ROOT), revision: RUNTIME_REVISION, pid: process.pid, shutting_down: shuttingDown });
   }
 
   if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/panel.html")) {
@@ -321,6 +343,7 @@ const server = http.createServer(async (req, res) => {
       ok: true,
       app_version: appVersion(),
       build_id: BUILD_ID,
+      busy: controlBusy || shuttingDown,
       hub: {
         ok: Boolean(hub),
         url: cfg.hub_url,
@@ -367,34 +390,46 @@ const server = http.createServer(async (req, res) => {
     if (!/^https?:\/\//i.test(hubUrl)) {
       return sendJson(res, 400, { ok: false, error: "invalid_hub_url", message: "中枢地址需要 http 或 https" });
     }
-    const cfg = saveConfig({
+    try {
+      const cfg = await runControl(async () => {
+        const saved = saveConfig({
       hub_url: hubUrl,
       room: body.room ? String(body.room) : undefined,
       room_key: body.room_key != null ? String(body.room_key) : undefined,
-    });
-    await startAttach();
-    sendJson(res, 200, { ok: true, ...cfg });
+        });
+        await startAttach();
+        return saved;
+      });
+      sendJson(res, 200, { ok: true, ...cfg });
+    } catch { sendJson(res, 409, { ok: false, message: '设置操作未完成，请检查状态后重试' }); }
     return;
   }
 
   if (req.method === "POST" && url.pathname === "/api/restart-inject") {
     try {
+      const runtime = await inspectRuntime();
+      if (runtime.state !== 'ready') return sendJson(res, 409, { ok: false, message: '当前 Codex 暂时无法挂载，请使用上方启动按钮检查并确认恢复；重新挂载不会重启 Codex。' });
       const body = JSON.parse((await readBody(req)) || '{}');
-      await startAttach({ allowUiUpdate: body.allowUiUpdate === true });
+      await runControl(() => startAttach({ allowUiUpdate: body.allowUiUpdate === true }));
       sendJson(res, 200, { ok: true, message: '注入器已启动；只等待当前实例，不会重启 Codex' });
     } catch (error) { sendJson(res, 409, { ok: false, message: error.message }); }
     return;
   }
 
   if (req.method === 'POST' && url.pathname === '/api/shutdown') {
+    if (controlBusy) return sendJson(res, 409, { ok: false, message: '操作尚未结束，请完成后再退出 TeamCodex' });
+    shuttingDown = true;
     sendJson(res, 202, { ok: true, message: '正在退出本安装控制面和注入器；共享 Hub 与 Codex 保留' });
-    stopAttach().then(() => server.close(() => process.exit(0))).catch(error => console.error('[shutdown]', error.message));
+    queueAttachOperation(stopAttach).then(() => {
+      server.close(() => process.exit(0));
+      server.closeIdleConnections();
+    }).catch(error => { shuttingDown = false; console.error('[shutdown]', error.message); });
     return;
   }
   if (req.method === 'POST' && url.pathname === '/api/start-codex') {
     try {
       const body = JSON.parse((await readBody(req)) || '{}');
-      const result = await launchController.request(body);
+      const result = await runControl(() => launchController.request(body));
       sendJson(res, 200, result);
     } catch (error) {
       sendJson(res, error.status || 500, { ok: false, message: error.message });

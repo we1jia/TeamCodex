@@ -488,7 +488,7 @@ test("16. isPageActive 活性判据与切回原生对话高亮无损互斥", () 
   let restoredHeader = 0;
   const sandbox = {
     TAB_ID: "tab", PAGE_ID: "page", MENU_ID: "menu", UI_VERSION: page.dataset.ui,
-    window: { innerHeight: 800 }, Element: FixtureElement,
+    window: { innerHeight: 800, innerWidth: 1280 }, Element: FixtureElement,
     document: {
       documentElement: html, body,
       getElementById: id => nodes.get(id) || null,
@@ -502,7 +502,7 @@ test("16. isPageActive 活性判据与切回原生对话高亮无损互斥", () 
   vm.createContext(sandbox);
   vm.runInContext([
     "isPageActive", "setTabActive", "closePage", "openPage", "closeTeamMenu",
-    "openTeamMenu", "toggleTeamMenu", "bindTeamButton",
+    "teamMenuPosition", "openTeamMenu", "toggleTeamMenu", "bindTeamButton",
   ].map(functionSource).join("\n"), sandbox);
   sandbox.window.__teamContextOpenPage = sandbox.openPage;
   const click = { preventDefault() {}, stopPropagation() {}, button: 0 };
@@ -541,7 +541,8 @@ test("17. Windows 受控重启保留参数，后台不自动接管", () => {
   const policy = fs.readFileSync(path.join(ROOT, 'server/codex_runtime_policy.mjs'), 'utf8');
   const bootstrap = fs.readFileSync(path.join(ROOT, 'windows/run-teamcodex.ps1'), 'utf8');
   assert.match(runtime, /CloseMainWindow\(\)/);
-  assert.match(runtime, /launchArguments\(target.args, port\)/);
+  assert.match(runtime, /launchArguments\(context.args \|\| target.args, port\)/);
+  assert.match(runtime, /env: context.env/);
   assert.match(policy, /confirmToken/);
   assert.match(policy, /fingerprint\(snapshot.target\)/);
   assert.match(policy, /remote-debugging-address=127\.0\.0\.1/);
@@ -552,7 +553,7 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 18.1 版本标识升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v(?:8[5-9]|9\d)";/);
+  assert.ok(Number(uiCode.match(/const UI_VERSION = "inline-v(\d+)";/)[1]) >= 85);
 
   // 18.2 彻底根除代码模板与动态文本中的低质彩色 emoji 与全角特殊符号
   // 移除注释后检查有效代码
@@ -783,8 +784,8 @@ test("23. 快照卡片底部操作按钮尺寸统一与微胶囊规范 (inline-v
 test("24. 全量主题变量重构、紫色主题家族适配与弹窗/微胶囊无硬编码 (inline-v82)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
-  // 24.1 readHostThemeTokens 支持 purple 色彩家族识别，优先嗅探原生发送按钮
-  assert.match(uiCode, /detectedFamily === "purple"/);
+  // 24.1 任意原生主题优先，语义颜色与文字对比度独立验证。
+  assert.ok(uiCode.includes("detectedFamily: 'native'"));
   assert.match(uiCode, /button\.bg-composer-primary/);
 
   // 24.2 对话选择模态框 (#thread-select-modal) 彻底接入主题变量
@@ -837,7 +838,7 @@ test("26. 严格提纯发送消息 payload，彻底根除 DOM 元素循环引用
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 26.1 版本标识升级至 inline-v84+
-  assert.match(uiCode, /const UI_VERSION = "inline-v(?:8[4-9]|9\d)";/);
+  assert.ok(Number(uiCode.match(/const UI_VERSION = "inline-v(\d+)";/)[1]) >= 84);
 
   // 26.2 listSidebarThreadsDetailed 彻底移除 element: el，仅返回纯数据
   assert.match(uiCode, /return\s*\{\s*id,\s*title,\s*selected,\s*project\s*\};/);
@@ -858,7 +859,7 @@ test("27. 成员头像栏全量接入背景色切割环、双重留白光环与�
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 27.1 版本标识升级至 inline-v85+
-  assert.match(uiCode, /const UI_VERSION = "inline-v(?:8[5-9]|9\d)";/);
+  assert.ok(Number(uiCode.match(/const UI_VERSION = "inline-v(\d+)";/)[1]) >= 85);
 
   // 27.2 彻底消灭 --bg-body 与 #18181b 纯黑硬编码描边，全量使用 var(--bg-page)
   assert.doesNotMatch(uiCode, /var\(--bg-body/);
@@ -869,7 +870,7 @@ test("27. 成员头像栏全量接入背景色切割环、双重留白光环与�
   assert.match(uiCode, /\.stack-avatar\.is-active\s*\{[\s\S]*?box-shadow:\s*0\s+0\s+0\s+1\.5px\s+var\(--bg-page\),\s*0\s+0\s+0\s+3px\s+var\(--accent-color\);/);
 
   // 27.4 设备节点支持精致微矢量 SVG 渲染
-  assert.match(uiCode, /if \(isMac\) \{\s*avatarBtn\.innerHTML\s*=\s*`<svg viewBox="0 0 24 24"/);
+  assert.match(uiCode, /if \(isMac\) \{\s*avatarBtn\.innerHTML\s*=\s*`<svg data-device-icon="mac" aria-hidden="true" viewBox="0 0 24 24"/);
   assert.match(uiCode, /else if \(isWin\) \{\s*avatarBtn\.innerHTML\s*=\s*`<svg viewBox="0 0 24 24"/);
 
   // 27.5 邀请加号按钮升级为微胶囊并具备平滑 hover
@@ -882,7 +883,7 @@ test("28. Windows→Mac 实时接收不得只依赖跨域 EventSource message �
   const attachCode = fs.readFileSync(path.join(ROOT, "inject/attach_codex.mjs"), "utf8");
 
   // 28.1 版本升级
-  assert.match(uiCode, /const UI_VERSION = "inline-v(?:8[89]|9\d)";/);
+  assert.ok(Number(uiCode.match(/const UI_VERSION = "inline-v(\d+)";/)[1]) >= 88);
 
   // 28.2 发送走 Node RPC，接收必须有同通道快照轮询兜底，避免 Mac EventSource 静默丢包
   assert.match(uiCode, /const startSnapshotPoll = /);
@@ -932,7 +933,7 @@ test("28. Windows→Mac 实时接收不得只依赖跨域 EventSource message �
 test("29. 历史空间标签允许移除 Media，删除图标跟随主题色而非硬编码红 (inline-v89)", () => {
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
-  assert.match(uiCode, /const UI_VERSION = "inline-v(?:89|9\d)";/);
+  assert.ok(Number(uiCode.match(/const UI_VERSION = "inline-v(\d+)";/)[1]) >= 89);
 
   // 29.1 本地历史记录允许移除 Media，不再把系统空间排除在标签删除之外
   assert.doesNotMatch(uiCode, /if \(!cleanRoom \|\| cleanRoom === "Media"\) return false;/);
@@ -954,7 +955,7 @@ test("30. 邀请口令进房必须登记在线心跳，快速切换能解析口�
   const hostCode = fs.readFileSync(path.join(ROOT, "server/dev_host.mjs"), "utf8");
   const attachCode = fs.readFileSync(path.join(ROOT, "inject/attach_codex.mjs"), "utf8");
 
-  assert.match(uiCode, /const UI_VERSION = "inline-v9[0-9]";/);
+  assert.ok(Number(uiCode.match(/const UI_VERSION = "inline-v(\d+)";/)[1]) >= 90);
 
   // 30.1 快照请求携带 member_id / client_id，服务端按心跳统计在线
   assert.match(uiCode, /member_id=\$\{encodeURIComponent/);
@@ -980,7 +981,7 @@ test("31. 房间弹层底部操作改为纵向菜单，在线人数按 memberId 
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
   const hostCode = fs.readFileSync(path.join(ROOT, "server/dev_host.mjs"), "utf8");
 
-  assert.match(uiCode, /const UI_VERSION = "inline-v9[1-9]";/);
+  assert.ok(Number(uiCode.match(/const UI_VERSION = "inline-v(\d+)";/)[1]) >= 91);
 
   // 31.1 底部三个操作不得挤在一行 space-between，改为纵向全宽菜单
   assert.match(uiCode, /\.popover-footer\s*\{[\s\S]*?flex-direction:\s*column/);
@@ -1013,9 +1014,9 @@ test("32. 托盘控制面、Hub 热更新注入与安装包更新检查", () => 
   assert.match(panel, /启动并挂载 Codex/);
   assert.match(panel, /复制协同口令/);
   assert.match(panel, /立即更新/);
-  assert.match(launchSh, /launcher_host\.mjs/);
+  assert.match(launchSh, /bootstrap_launcher\.mjs/);
   assert.match(runPs, /tray-teamcodex\.ps1/);
-  assert.match(runPs, /launcher_host\.mjs/);
+  assert.match(runPs, /bootstrap_launcher\.mjs/);
   assert.match(swift, /NSStatusItem/);
   assert.match(swift, /127\.0\.0\.1:18767\/panel\.html/);
 
@@ -1032,7 +1033,7 @@ test("33. 侧栏 Tab 按钮与全屏顶部 Brand 全量升级为简称 Team (inl
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 33.1 UI_VERSION 升级至 inline-v92+
-  assert.match(uiCode, /const UI_VERSION = "inline-v9[2-9]";/);
+  assert.ok(Number(uiCode.match(/const UI_VERSION = "inline-v(\d+)";/)[1]) >= 92);
 
   // 33.2 侧边栏 Tab 按钮文本与 aria-label 简化为 Team
   assert.match(uiCode, /button\.setAttribute\("aria-label",\s*"Team"\);/);
@@ -1132,7 +1133,7 @@ test("37. 热挂载优先、一次性确认与受管实例保护", () => {
   const runtime = fs.readFileSync(path.join(ROOT, 'server/codex_runtime.mjs'), 'utf8');
   assert.match(launcher, /createLaunchController/);
   assert.match(policy, /snapshot.state === 'ready'/);
-  assert.match(policy, /snapshot.managed/);
+  assert.match(policy, /context.stamp !== ticket.stamp/);
   assert.match(policy, /requires_restart_confirm/);
   assert.match(panel, /launch-confirm-cancel/);
   assert.match(panel, /JSON.stringify\(\{ confirmToken \}\)/);

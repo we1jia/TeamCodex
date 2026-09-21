@@ -74,7 +74,7 @@ export function assertSafeCodexUiTarget({
   if (refused.has(parsed.port)) {
     return {
       ok: false,
-      reason: `拒绝连接端口 ${parsed.port}：该端口属于 Cockpit/代理，不会为了注入去碰它。`,
+      reason: `拒绝连接端口 ${parsed.port}：无法将该端口用作 Codex 挂载通道，请重新检查启动状态。`,
     };
   }
   return {

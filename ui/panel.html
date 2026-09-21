@@ -42,7 +42,8 @@
       font: 13px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
       user-select: none;
       -webkit-user-select: none;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
     body { width: 100%; min-width: 310px; }
     .sheet {
@@ -60,6 +61,8 @@
     }
     .brand { font-weight: 620; letter-spacing: -0.02em; font-size: 14px; }
     .ver {
+      white-space: nowrap;
+      margin-left: 10px;
       color: var(--muted);
       font-variant-numeric: tabular-nums;
       font-size: 12px;
@@ -166,7 +169,7 @@
         <button id="hubBtn" type="button">保存</button>
       </div>
       <div class="field" style="grid-template-columns: 1fr 1fr;">
-        <button id="restartBtn" type="button">重启注入</button>
+        <button id="restartBtn" type="button" title="只重新挂载，不重启 Codex">重新挂载</button>
         <button id="checkUpdateBtn" type="button">检查更新</button>
       </div>
     </div>
@@ -175,6 +178,7 @@
       <button class="primary" id="updateBtn" type="button">立即更新</button>
     </div>
     <div class="msg" id="msg"></div>
+    <details style="margin-top:6px;font-size:11px;color:var(--muted)"><summary>诊断信息</summary><div id="diagnostics" style="overflow-wrap:anywhere;user-select:text"></div></details>
   </div>
   <script>
     const api = (path, opt) => fetch(path, opt).then((r) => r.json());
@@ -183,12 +187,26 @@
       $(id).className = "dot " + (ok ? "ok" : "bad");
     }
     function say(text) { $("msg").textContent = text || ""; }
+    let actionBusy = false;
+    let lastCodexState = null;
+    let serviceBusy = false;
+    const setBusy = busy => {
+      actionBusy = busy;
+      $('startBtn').disabled = busy || serviceBusy;
+      $('restartBtn').disabled = busy || serviceBusy || lastCodexState !== 'ready';
+      $('hubBtn').disabled = busy || serviceBusy;
+    };
 
     async function refresh() {
       try {
         const s = await api("/api/status");
-        $("ver").textContent = "v" + (s.app_version || "") + (s.build_id ? " · " + s.build_id : "");
+        $("ver").textContent = "v" + (s.app_version || "");
         $("ver").title = '服务构建：' + (s.build_id || '旧版') + '；实际界面：' + (s.codex?.ui_version || '未验证');
+        $('diagnostics').textContent = $('ver').title;
+        lastCodexState = s.codex?.state;
+        serviceBusy = Boolean(s.busy);
+        $('startBtn').textContent = s.codex?.injected ? '检查挂载状态' : lastCodexState === 'ready' ? '立即挂载' : ['restart_required', 'connection_failed'].includes(lastCodexState) ? '重启并挂载' : lastCodexState === 'not_running' ? '启动并挂载 Codex' : '重新检查';
+        setBusy(actionBusy);
         setDot("codexDot", s.codex?.injected || s.codex?.running);
         $("codexText").textContent = s.codex?.injected ? (s.codex?.pending_update ? "已挂载；新版界面在下次正常重开 Codex 后生效" : "已挂载（已验证）") : s.codex?.message || (s.codex?.running ? "已打开，等待挂载确认" : "未打开");
         $("codexDot").className = "dot " + (s.codex?.injected ? "ok" : s.codex?.running ? "wait" : "bad");
@@ -222,13 +240,14 @@
       pendingLaunch = null;
       clearTimeout(confirmExpiry);
       confirmation.hidden = true;
-      $('startBtn').disabled = false;
+      setBusy(false);
     };
     $('launch-confirm-cancel').onclick = () => { cancelLaunch(); say('已取消，不会重启或挂载'); };
     window.addEventListener('pagehide', cancelLaunch);
     $('startBtn').onclick = async () => {
+      if (actionBusy) return;
       cancelLaunch();
-      $('startBtn').disabled = true;
+      setBusy(true);
       try {
         const response = await api('/api/start-codex', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
         say(response.message || '检查完成');
@@ -239,24 +258,28 @@
           confirmExpiry = setTimeout(() => { cancelLaunch(); say('确认已过期，请重新检查状态'); }, 60000);
         }
       } catch (error) { say('检查失败：' + error.message); }
-      finally { if (!pendingLaunch) $('startBtn').disabled = false; }
+      finally { if (!pendingLaunch) setBusy(false); }
     };
     $('launch-confirm-accept').onclick = async () => {
       if (!pendingLaunch) return;
       const confirmToken = pendingLaunch;
       cancelLaunch();
-      $('startBtn').disabled = true;
+      setBusy(true);
       say('正在处理已确认的目标实例，请等待...');
       try {
         const response = await api('/api/start-codex', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmToken }) });
         say(response.message || '已提交操作，等待实际挂载结果');
       } catch (error) { say('操作失败：' + error.message); }
-      finally { $('startBtn').disabled = false; refresh(); }
+      finally { setBusy(false); refresh(); }
     };
     $("restartBtn").onclick = async () => {
-      const result = await api("/api/restart-inject", { method: "POST", headers: { 'Content-Type': 'application/json' }, body: '{}' });
-      say(result.message || "已启动观察器，等待实际挂载结果");
-      refresh();
+      if (actionBusy) return;
+      setBusy(true);
+      try {
+        const result = await api("/api/restart-inject", { method: "POST", headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        say(result.message || "等待实际挂载结果");
+      } catch { say('重新挂载失败，请重新检查状态'); }
+      finally { setBusy(false); refresh(); }
     };
     $("checkUpdateBtn").onclick = async () => {
       $("checkUpdateBtn").disabled = true;

@@ -41,15 +41,7 @@ if (-not $isAlreadyRunning) {
   } catch {}
 }
 
-# 辅助检测 2: 检查本地控制面端口 18767 是否处于活跃响应状态
-if (-not $isAlreadyRunning) {
-  try {
-    $launcherStatus = Invoke-RestMethod -Uri "http://127.0.0.1:18767/api/status" -TimeoutSec 1 -ErrorAction SilentlyContinue
-    if ($launcherStatus -and $launcherStatus.app_version) {
-      $isAlreadyRunning = $true
-    }
-  } catch {}
-}
+# 控制后台存活不代表托盘存在；托盘缺失时继续引导并恢复界面。
 
 # 辅助检测 3: 检查已有 powershell 托盘进程
 if (-not $isAlreadyRunning) {
@@ -315,9 +307,10 @@ $env:TEAM_CONTEXT_PORT = [string]$Port
 $env:TEAM_CONTEXT_DEFAULT_ROOM = "1024"
 $env:TEAM_CONTEXT_DEFAULT_ROOM_KEY = $discoveredRoomKey
 
-$LauncherPath = Join-Path $InstallRoot "server\launcher_host.mjs"
+$LauncherPath = Join-Path $InstallRoot "server\bootstrap_launcher.mjs"
 Log-Message "正在启动本地控制面..."
-Start-Process -FilePath $nodePath -ArgumentList @($LauncherPath) -WorkingDirectory $InstallRoot -WindowStyle Hidden
+& $nodePath $LauncherPath
+if ($LASTEXITCODE -ne 0) { throw "TeamCodex 控制后台未就绪，请查看诊断日志。" }
 
 Log-Message "控制面将启动只跟随当前实例的观察器。无调试通道时，请在面板确认启动/重启。"
 
