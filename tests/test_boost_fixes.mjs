@@ -570,8 +570,8 @@ test("18. 彻底清理 AI 味图标与廉价表情，全面升级为原生精致
 
   // 18.5 空间口令快捷横幅与配置弹窗全面去除 ⚡ 与 🚀
   assert.match(uiCode, /id="collab-token-bar"/);
-  assert.match(uiCode, /加入此空间/);
-  assert.match(uiCode, /仅作为消息发送/);
+  assert.match(uiCode, /加入(?:此)?空间/);
+  assert.match(uiCode, /直接发送|仅作为消息发送/);
   assert.doesNotMatch(uiCode, /🚀 一键加入此空间/);
   assert.doesNotMatch(uiCode, /⚡ 检测到协同口令/);
 });
@@ -580,7 +580,7 @@ test("19. 精简输入框工具栏、多模式选会话分享与导入、磨砂�
   const uiCode = fs.readFileSync(path.join(ROOT, "inject/sidebar_fullscreen.js"), "utf8");
 
   // 19.1 输入框底部工具栏拔除鸡肋按钮：不再存在 + New、@ Link、Secure
-  const composerToolbarMatch = uiCode.match(/<div class="composer-toolbar">([\s\S]*?)<\/div>\s*<\/div>/);
+  const composerToolbarMatch = uiCode.match(/<div class="composer-toolbar">([\s\S]*?)<\/div>\s*<\/form>/);
   assert.ok(composerToolbarMatch, "应该找到 composer-toolbar 结构");
   const toolbarHtml = composerToolbarMatch[1];
   assert.doesNotMatch(toolbarHtml, /id="btn-new-thread"/, "工具栏严禁保留多余的 + New 按钮");

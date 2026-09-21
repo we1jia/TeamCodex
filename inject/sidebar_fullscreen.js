@@ -3,7 +3,7 @@
   const PAGE_ID = "team-context-fullscreen-page";
   const MENU_ID = "team-context-dropdown-menu";
   const TOAST_ID = "team-context-toast-notice";
-  const UI_VERSION = "inline-v100";
+  const UI_VERSION = "inline-v101";
 
   // 旧 UI 保留草稿与监听器，但“曾安装”不代表 React 重建后的入口仍在。
   if (window.__teamContextTabInstalled && (!window.TeamWorkspace || window.__teamContextUiVersion !== UI_VERSION)) {
@@ -280,11 +280,13 @@
     };
   }
 
-  function discussionMessageMarkup(content, thread, imagesHtml) {
-    const text = content && content !== '[图片]' ? `<div class="bubble">${escapeHtml(content)}</div>` : '';
+  function discussionMessageMarkup(content, thread, imagesHtml, attachmentsHtml = '') {
+    const isSpecialPlaceholder = content === '[图片]' || (content && (content.startsWith('[文件]') || content.startsWith('[文件夹]')));
+    const text = content && !isSpecialPlaceholder ? `<div class="bubble">${escapeHtml(content)}</div>` : '';
     const title = thread?.title ? escapeHtml(thread.title) : '';
-    const reference = title ? `<details class="message-reference"${imagesHtml && !text ? ' data-image-caption="true"' : ''}><summary title="${title}"><span class="reference-title">关联：${title}</span><span aria-hidden="true">⌄</span></summary><div class="reference-detail"><span>${title}</span><button type="button" class="ref">打开原生对话 ↗</button></div></details>` : '';
-    return `${text}${imagesHtml}${reference}`;
+    const hasMedia = Boolean(imagesHtml || attachmentsHtml);
+    const reference = title ? `<details class="message-reference"${hasMedia && !text ? ' data-image-caption="true"' : ''}><summary title="${title}"><span class="reference-title">关联：${title}</span><span aria-hidden="true">⌄</span></summary><div class="reference-detail"><span>${title}</span><button type="button" class="ref">打开原生对话 ↗</button></div></details>` : '';
+    return `${text}${imagesHtml}${attachmentsHtml}${reference}`;
   }
 
   function isDiscussionContinuation(previous, current) {
@@ -1340,18 +1342,20 @@
           background: rgba(16, 163, 127, 0.12);
         }
         .collab-token-bar {
+          width: 100%;
+          box-sizing: border-box;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 12px;
           background: color-mix(in srgb, var(--accent-color) 7%, var(--bg-card));
           border: 1px solid color-mix(in srgb, var(--accent-color) 25%, var(--border-subtle));
-          border-radius: 14px;
-          padding: 7px 12px 7px 10px;
+          border-radius: 12px;
+          padding: 6px 14px 6px 12px;
           margin-bottom: 8px;
           font-size: 12.5px;
           color: var(--text-primary);
-          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
         .collab-token-bar[hidden] {
           display: none !important;
@@ -1710,54 +1714,161 @@
           align-items: center;
           justify-content: center;
           text-align: center;
-          padding: 50px 24px;
-          margin: 30px auto auto;
+          padding: 20px;
+          margin: auto;
           max-width: 440px;
-          border-radius: 16px;
-          background: var(--bg-card);
-          border: 1px dashed var(--border-subtle);
+          background: transparent;
+          border: none;
         }
         .empty-icon {
-          width: 50px;
-          height: 50px;
-          border-radius: 14px;
-          background: rgba(58, 131, 247, 0.1);
+          width: 56px;
+          height: 56px;
+          border-radius: 18px;
+          background: color-mix(in srgb, var(--accent-color) 12%, transparent);
+          border: 1px solid color-mix(in srgb, var(--accent-color) 25%, transparent);
           color: var(--accent-color);
+          box-shadow: 0 8px 24px -4px color-mix(in srgb, var(--accent-color) 25%, transparent);
           display: flex;
           align-items: center;
           justify-content: center;
-          margin-bottom: 14px;
+          margin-bottom: 16px;
         }
         .empty-title {
-          font-size: 15px;
+          font-size: 16px;
           font-weight: 600;
           color: var(--text-primary);
-          margin-bottom: 6px;
-        }
-        .empty-desc {
-          font-size: 12.5px;
-          color: var(--text-secondary);
-          line-height: 1.5;
-          margin-bottom: 18px;
+          margin-bottom: 24px;
         }
         .btn-share-empty {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          padding: 7px 16px;
-          border-radius: 8px;
+          padding: 8px 20px;
+          border-radius: 10px;
           border: 1px solid var(--accent-color);
           background: var(--accent-color);
           color: #fff;
-          font-size: 12.5px;
-          font-weight: 500;
+          font-size: 13px;
+          font-weight: 550;
           cursor: pointer;
           font-family: inherit;
+          box-shadow: 0 4px 14px -2px color-mix(in srgb, var(--accent-color) 35%, transparent);
           transition: all 0.15s ease;
         }
         .btn-share-empty:hover {
           opacity: 0.9;
           transform: translateY(-1px);
+        }
+
+        /* 附件上传下拉菜单 */
+        .composer-upload-dropdown {
+          position: relative;
+          display: inline-flex;
+        }
+        .composer-upload-menu {
+          position: absolute;
+          bottom: calc(100% + 6px);
+          left: 0;
+          background: var(--bg-card);
+          border: 1px solid var(--border-subtle);
+          border-radius: 12px;
+          padding: 5px;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35);
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          min-width: 120px;
+          z-index: 100;
+          backdrop-filter: blur(12px);
+          animation: menuPop 0.15s ease-out;
+        }
+        .composer-upload-menu[hidden] {
+          display: none !important;
+        }
+        @keyframes menuPop {
+          from { opacity: 0; transform: translateY(4px) scale(0.96); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .upload-menu-item {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 10px;
+          border-radius: 8px;
+          border: none;
+          background: transparent;
+          color: var(--text-primary);
+          font-size: 12.5px;
+          cursor: pointer;
+          font-family: inherit;
+          text-align: left;
+          width: 100%;
+          box-sizing: border-box;
+          transition: background 0.12s ease;
+        }
+        .upload-menu-item:hover {
+          background: var(--bg-hover, rgba(128, 128, 128, 0.12));
+          color: var(--accent-color);
+        }
+
+        /* 消息气泡中的文件与文件夹卡片 */
+        .msg-file-card {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 8px 12px;
+          border-radius: 10px;
+          background: color-mix(in srgb, var(--accent-color) 6%, var(--bg-card));
+          border: 1px solid color-mix(in srgb, var(--accent-color) 20%, var(--border-subtle));
+          margin-top: 6px;
+          max-width: 360px;
+          text-decoration: none;
+          color: var(--text-primary);
+          transition: all 0.15s ease;
+          box-sizing: border-box;
+        }
+        .msg-file-card:hover {
+          border-color: var(--accent-color);
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .msg-file-icon {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          background: color-mix(in srgb, var(--accent-color) 16%, transparent);
+          color: var(--accent-color);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .msg-file-info {
+          display: flex;
+          flex-direction: column;
+          min-width: 0;
+          flex: 1;
+        }
+        .msg-file-name {
+          font-size: 12.5px;
+          font-weight: 550;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .msg-file-meta {
+          font-size: 11px;
+          color: var(--text-secondary);
+        }
+        .msg-file-action {
+          color: var(--accent-color);
+          display: flex;
+          align-items: center;
+          opacity: 0.85;
+          flex-shrink: 0;
+        }
+        .msg-file-card:hover .msg-file-action {
+          opacity: 1;
         }
         .toast-notification {
           position: fixed;
@@ -3479,23 +3590,26 @@
                 <span class="collab-token-icon-wrap">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
                 </span>
-                <span id="collab-token-text">检测到空间邀请口令</span>
+                <span id="collab-token-text">邀请口令</span>
               </div>
               <div class="collab-token-actions">
-                <button class="collab-token-btn primary" id="btn-collab-token-join" type="button">加入此空间</button>
-                <button class="collab-token-btn ghost" id="btn-collab-token-dismiss" type="button">仅作为消息发送</button>
+                <button class="collab-token-btn primary" id="btn-collab-token-join" type="button">加入空间</button>
+                <button class="collab-token-btn ghost" id="btn-collab-token-dismiss" type="button">直接发送</button>
               </div>
             </div>
             <form id="composer" class="composer">
-              <!-- 待发图片预览条 -->
+              <!-- 待发附件/图片/文件夹预览条 -->
               <div class="composer-image-preview-bar" id="composer-image-preview-bar" hidden>
                 <div class="composer-image-chip" id="composer-image-chip">
+                  <div id="composer-attachment-icon" class="composer-attachment-icon" style="display:none;width:30px;height:30px;border-radius:6px;background:color-mix(in srgb, var(--accent-color) 16%, transparent);align-items:center;justify-content:center;color:var(--accent-color);flex-shrink:0;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  </div>
                   <img id="composer-image-thumb" src="" alt="待发图片" />
                   <div class="composer-image-info">
                     <span class="composer-image-name" id="composer-image-name"></span>
                     <span class="composer-image-size" id="composer-image-size"></span>
                   </div>
-                  <button class="composer-image-remove" id="btn-composer-image-remove" type="button" title="移除图片">
+                  <button class="composer-image-remove" id="btn-composer-image-remove" type="button" title="移除附件">
                     <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor"><path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.75.75 0 1 1 1.06 1.06L9.06 8l3.22 3.22a.75.75 0 1 1-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 0 1-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z"/></svg>
                   </button>
                 </div>
@@ -3503,11 +3617,30 @@
               <textarea id="input" aria-label="输入团队消息" placeholder="输入消息，@ 关联任务"></textarea>
               <div class="composer-toolbar">
                 <div class="composer-left">
-                  <button class="tool-btn" id="btn-upload-image" type="button" title="上传或粘贴图片 (支持剪贴板 Cmd+V)">
-                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    <span>图片</span>
-                  </button>
+                  <div class="composer-upload-dropdown">
+                    <button class="tool-btn" id="btn-upload-image" type="button" title="上传图片、文件或文件夹">
+                      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                      <span>上传</span>
+                      <svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" style="opacity:0.6;margin-left:1px;"><path d="M4.427 6.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 6H4.604a.25.25 0 00-.177.427z"/></svg>
+                    </button>
+                    <div class="composer-upload-menu" id="composer-upload-menu" hidden>
+                      <button type="button" class="upload-menu-item" id="menu-upload-image">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        <span>图片</span>
+                      </button>
+                      <button type="button" class="upload-menu-item" id="menu-upload-file">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                        <span>文件</span>
+                      </button>
+                      <button type="button" class="upload-menu-item" id="menu-upload-folder">
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                        <span>文件夹</span>
+                      </button>
+                    </div>
+                  </div>
                   <input type="file" id="file-upload-image" accept="image/*" style="display:none;" />
+                  <input type="file" id="file-upload-file" multiple style="display:none;" />
+                  <input type="file" id="file-upload-folder" webkitdirectory directory multiple style="display:none;" />
                   <button class="tool-btn" id="share-thread" type="button" title="选择本地对话并分享到当前团队空间">
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
                     <span>分享对话...</span>
@@ -3834,11 +3967,18 @@
     const connectErrorBanner = root.getElementById("connect-error-banner");
     const btnConnectText = root.getElementById("btn-connect-text");
 
-    // 图片上传与预览相关 DOM 及工具状态
+    // 图片/文件/文件夹上传与预览相关 DOM 及工具状态
     const btnUploadImage = root.getElementById("btn-upload-image");
+    const composerUploadMenu = root.getElementById("composer-upload-menu");
+    const menuUploadImage = root.getElementById("menu-upload-image");
+    const menuUploadFile = root.getElementById("menu-upload-file");
+    const menuUploadFolder = root.getElementById("menu-upload-folder");
     const fileUploadImage = root.getElementById("file-upload-image");
+    const fileUploadFile = root.getElementById("file-upload-file");
+    const fileUploadFolder = root.getElementById("file-upload-folder");
     const composerImagePreviewBar = root.getElementById("composer-image-preview-bar");
     const composerImageThumb = root.getElementById("composer-image-thumb");
+    const composerAttachmentIcon = root.getElementById("composer-attachment-icon");
     const composerImageName = root.getElementById("composer-image-name");
     const composerImageSize = root.getElementById("composer-image-size");
     const btnComposerImageRemove = root.getElementById("btn-composer-image-remove");
@@ -3850,7 +3990,8 @@
     const imageLightboxOpenNew = root.getElementById("image-lightbox-open-new");
     const imageLightboxCopyLink = root.getElementById("image-lightbox-copy-link");
 
-    let pendingImage = null; // { name, size, base64 }
+    let pendingImage = null; // 兼容历史单图结构: { name, size, base64 }
+    let pendingAttachment = null; // 统一附件模型: { type: 'image' | 'files' | 'folder', name, size, files?: Array, base64?: string, folderName?: string }
 
     // 全局图片内存乐观缓存（映射关系：url 或 path -> data:image/... base64），彻底免疫沙箱私有网络访问拦截与裂图
     const imageLocalDataCache = new Map();
@@ -3865,22 +4006,77 @@
       return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
     };
 
-    const setPendingImage = (fileData) => {
-      if (!fileData) {
+    const setPendingAttachment = (att) => {
+      if (!att) {
+        pendingAttachment = null;
         pendingImage = null;
         if (composerImagePreviewBar) composerImagePreviewBar.hidden = true;
-        if (composerImageThumb) composerImageThumb.src = "";
+        if (composerImageThumb) {
+          composerImageThumb.src = "";
+          composerImageThumb.style.display = "block";
+        }
+        if (composerAttachmentIcon) composerAttachmentIcon.style.display = "none";
         if (composerImageName) composerImageName.textContent = "";
         if (composerImageSize) composerImageSize.textContent = "";
         if (fileUploadImage) fileUploadImage.value = "";
+        if (fileUploadFile) fileUploadFile.value = "";
+        if (fileUploadFolder) fileUploadFolder.value = "";
         return;
       }
-      pendingImage = fileData;
-      if (composerImageThumb) composerImageThumb.src = fileData.base64;
-      if (composerImageName) composerImageName.textContent = fileData.name || "图片";
-      if (composerImageSize) composerImageSize.textContent = formatFileSize(fileData.size);
+      pendingAttachment = att;
+      if (att.type === "image") {
+        pendingImage = { name: att.name, size: att.size, base64: att.base64 };
+        if (composerImageThumb) {
+          composerImageThumb.src = att.base64;
+          composerImageThumb.style.display = "block";
+        }
+        if (composerAttachmentIcon) composerAttachmentIcon.style.display = "none";
+        if (composerImageName) composerImageName.textContent = att.name || "图片";
+        if (composerImageSize) composerImageSize.textContent = formatFileSize(att.size);
+      } else if (att.type === "files") {
+        pendingImage = null;
+        if (composerImageThumb) composerImageThumb.style.display = "none";
+        if (composerAttachmentIcon) {
+          composerAttachmentIcon.style.display = "flex";
+          composerAttachmentIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`;
+        }
+        if (composerImageName) composerImageName.textContent = att.name;
+        if (composerImageSize) composerImageSize.textContent = formatFileSize(att.size);
+      } else if (att.type === "folder") {
+        pendingImage = null;
+        if (composerImageThumb) composerImageThumb.style.display = "none";
+        if (composerAttachmentIcon) {
+          composerAttachmentIcon.style.display = "flex";
+          composerAttachmentIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+        }
+        const fCount = att.files?.length || 0;
+        if (composerImageName) composerImageName.textContent = `📁 ${att.folderName} (${fCount} 个文件)`;
+        if (composerImageSize) composerImageSize.textContent = formatFileSize(att.size);
+      }
       if (composerImagePreviewBar) composerImagePreviewBar.hidden = false;
       input?.focus();
+    };
+
+    const setPendingImage = (fileData) => {
+      if (!fileData) {
+        setPendingAttachment(null);
+        return;
+      }
+      setPendingAttachment({
+        type: "image",
+        name: fileData.name,
+        size: fileData.size,
+        base64: fileData.base64,
+      });
+    };
+
+    const readFileAsBase64 = (file) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error(`读取文件 ${file.name || "未知"} 失败`));
+        reader.readAsDataURL(file);
+      });
     };
 
     const handleImageFile = (file) => {
@@ -3905,6 +4101,81 @@
         showToast("读取图片失败");
       };
       reader.readAsDataURL(file);
+    };
+
+    const handleGenericFiles = async (fileList) => {
+      if (!fileList || fileList.length === 0) return;
+      const files = Array.from(fileList);
+      for (const f of files) {
+        if (f.size > 10 * 1024 * 1024) {
+          showToast(`文件 ${f.name} 超过 10MB 限制`);
+          return;
+        }
+      }
+      if (files.length === 1 && files[0].type.startsWith("image/")) {
+        handleImageFile(files[0]);
+        return;
+      }
+      try {
+        const fileItems = [];
+        let totalBytes = 0;
+        for (const f of files) {
+          const base64Url = await readFileAsBase64(f);
+          fileItems.push({
+            name: f.name,
+            size: f.size,
+            type: f.type || "application/octet-stream",
+            base64: base64Url.split(",")[1] || base64Url,
+          });
+          totalBytes += f.size;
+        }
+        const displayName = files.length === 1 ? files[0].name : `${files[0].name} 等 ${files.length} 个文件`;
+        setPendingAttachment({
+          type: "files",
+          name: displayName,
+          size: totalBytes,
+          files: fileItems,
+        });
+      } catch (err) {
+        showToast(err.message || "读取文件失败");
+      }
+    };
+
+    const handleFolderUpload = async (fileList) => {
+      if (!fileList || fileList.length === 0) return;
+      const files = Array.from(fileList);
+      let totalBytes = 0;
+      for (const f of files) {
+        totalBytes += f.size;
+      }
+      if (totalBytes > 50 * 1024 * 1024) {
+        showToast("文件夹总大小不得超过 50MB");
+        return;
+      }
+      const firstPath = files[0].webkitRelativePath || files[0].name || "";
+      const folderName = firstPath.split("/")[0] || "folder";
+      showToast(`正在准备文件夹: ${folderName}...`);
+      try {
+        const fileItems = [];
+        for (const f of files) {
+          const relPath = f.webkitRelativePath || f.name;
+          const base64Url = await readFileAsBase64(f);
+          fileItems.push({
+            path: relPath,
+            size: f.size,
+            base64: base64Url.split(",")[1] || base64Url,
+          });
+        }
+        setPendingAttachment({
+          type: "folder",
+          folderName,
+          name: folderName,
+          size: totalBytes,
+          files: fileItems,
+        });
+      } catch (err) {
+        showToast(err.message || "读取文件夹失败");
+      }
     };
 
     const openImageLightbox = (imgSrc) => {
@@ -6639,9 +6910,9 @@
           }
         });
      } else {
-        let imagesHtml = "";
+        let attachmentsHtml = "";
         if (Array.isArray(message.metadata?.images) && message.metadata.images.length > 0) {
-          imagesHtml = message.metadata.images.map((img) => {
+          attachmentsHtml += message.metadata.images.map((img) => {
             const rawPath = img.url || img.full_url || "";
             const cachedDataUrl = img.dataUrl || (rawPath ? (imageLocalDataCache.get(rawPath) || (img.url ? imageLocalDataCache.get(img.url) : null)) : null);
             const initialSrc = cachedDataUrl || PLACEHOLDER_IMAGE_DATA;
@@ -6651,7 +6922,34 @@
           }).join("");
         }
 
-        stack.innerHTML = `<div class="who">${escapeHtml(who)}</div>${discussionMessageMarkup(contentText, message.linked_thread, imagesHtml)}`;
+        if (Array.isArray(message.metadata?.files) && message.metadata.files.length > 0) {
+          const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "http://127.0.0.1:18765").replace(/\/+$/, "");
+          attachmentsHtml += message.metadata.files.map((file) => {
+            const downloadUrl = file.full_url || `${hub}${file.url?.startsWith("/") ? "" : "/"}${file.url || ""}`;
+            const fileName = file.name || file.filename || "文件";
+            const fileSize = formatFileSize(file.size);
+            return `<a class="msg-file-card" href="${escapeHtml(downloadUrl)}" target="_blank" download="${escapeHtml(fileName)}" title="点击下载 ${escapeHtml(fileName)}"><div class="msg-file-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div><div class="msg-file-info"><div class="msg-file-name">${escapeHtml(fileName)}</div><div class="msg-file-meta">${escapeHtml(fileSize)}</div></div><div class="msg-file-action"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div></a>`;
+          }).join("");
+        }
+
+        if (message.metadata?.folder) {
+          const folder = message.metadata.folder;
+          const hub = (config.hubUrl || window.__TEAM_CONTEXT_HOST__ || "http://127.0.0.1:18765").replace(/\/+$/, "");
+          const downloadUrl = folder.full_url || `${hub}${folder.url?.startsWith("/") ? "" : "/"}${folder.url || ""}`;
+          const folderName = folder.folder_name || "文件夹";
+          const fileCount = folder.file_count || 1;
+          const folderSize = formatFileSize(folder.size);
+          attachmentsHtml += `<a class="msg-file-card" href="${escapeHtml(downloadUrl)}" target="_blank" download="${escapeHtml(folder.filename || folderName + '.zip')}" title="点击下载文件夹归档 ZIP"><div class="msg-file-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div><div class="msg-file-info"><div class="msg-file-name">📁 ${escapeHtml(folderName)} (打包归档)</div><div class="msg-file-meta">${escapeHtml(fileCount)} 个文件 · ${escapeHtml(folderSize)}</div></div><div class="msg-file-action"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div></a>`;
+        }
+
+        stack.innerHTML = `<div class="who">${escapeHtml(who)}</div>${discussionMessageMarkup(contentText, message.linked_thread, attachmentsHtml)}`;
+        stack.querySelectorAll(".msg-file-card").forEach((card) => {
+          card.addEventListener("click", (e) => {
+            if (isMultiSelectMode) {
+              e.preventDefault();
+            }
+          });
+        });
         stack.querySelector('.ref')?.addEventListener('click', event => {
           event.stopPropagation();
           if (isMultiSelectMode) return;
@@ -6826,7 +7124,6 @@
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               </div>
               <div class="empty-title">空间【${escapeHtml(targetRoomId)}】当前为空</div>
-              <div class="empty-desc">这里是团队公共对话池。点击下方按钮，即可将当前对话要点分享到空间协同。</div>
               <button type="button" class="btn-share-empty" id="btn-share-empty">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
                 <span>分享当前对话到本空间</span>
@@ -7316,7 +7613,8 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       const rawContent = input ? input.value : "";
       let content = rawContent.trim();
       const currentPendingImg = pendingImage;
-      if (!content && !currentPendingImg) {
+      const currentPendingAtt = pendingAttachment || (currentPendingImg ? { type: "image", ...currentPendingImg } : null);
+      if (!content && !currentPendingAtt) {
         logTrace("submit_empty_content", {});
         return;
       }
@@ -7338,34 +7636,78 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         autoResizeInput();
         if (typeof hidePicker === "function") hidePicker();
 
-        // 如有待发送图片，先上传至服务器
+        // 如有待发送附件（图片、通用文件、文件夹），先上传至服务器
         let uploadedImages = [];
-        if (currentPendingImg) {
+        let uploadedFiles = [];
+        let uploadedFolder = null;
+
+        if (currentPendingAtt) {
           try {
-            const uploadRes = await api("/api/upload", {
-              method: "POST",
-              body: JSON.stringify({
-                filename: currentPendingImg.name,
-                data: currentPendingImg.base64,
-              }),
-            });
-            if (uploadRes?.ok && uploadRes.url) {
-              const finalDataUrl = currentPendingImg.base64;
-              if (finalDataUrl) {
-                imageLocalDataCache.set(uploadRes.url, finalDataUrl);
-                if (uploadRes.full_url) imageLocalDataCache.set(uploadRes.full_url, finalDataUrl);
-              }
-              uploadedImages.push({
-                url: uploadRes.url,
-                full_url: uploadRes.full_url || uploadRes.url,
-                name: uploadRes.filename || currentPendingImg.name,
-                size: uploadRes.size || currentPendingImg.size,
-                dataUrl: finalDataUrl,
+            if (currentPendingAtt.type === "image") {
+              const uploadRes = await api("/api/upload", {
+                method: "POST",
+                body: JSON.stringify({
+                  filename: currentPendingAtt.name,
+                  data: currentPendingAtt.base64,
+                }),
               });
+              if (uploadRes?.ok && uploadRes.url) {
+                const finalDataUrl = currentPendingAtt.base64;
+                if (finalDataUrl) {
+                  imageLocalDataCache.set(uploadRes.url, finalDataUrl);
+                  if (uploadRes.full_url) imageLocalDataCache.set(uploadRes.full_url, finalDataUrl);
+                }
+                uploadedImages.push({
+                  url: uploadRes.url,
+                  full_url: uploadRes.full_url || uploadRes.url,
+                  name: uploadRes.filename || currentPendingAtt.name,
+                  size: uploadRes.size || currentPendingAtt.size,
+                  dataUrl: finalDataUrl,
+                });
+              }
+            } else if (currentPendingAtt.type === "files") {
+              const fileList = Array.isArray(currentPendingAtt.files) ? currentPendingAtt.files : [];
+              for (const f of fileList) {
+                const uploadRes = await api("/api/upload", {
+                  method: "POST",
+                  body: JSON.stringify({
+                    filename: f.name,
+                    data: f.base64,
+                  }),
+                });
+                if (uploadRes?.ok && uploadRes.url) {
+                  uploadedFiles.push({
+                    url: uploadRes.url,
+                    full_url: uploadRes.full_url || uploadRes.url,
+                    name: uploadRes.filename || f.name,
+                    size: uploadRes.size || f.size,
+                    ext: uploadRes.ext || "",
+                    is_image: uploadRes.is_image || false,
+                  });
+                }
+              }
+            } else if (currentPendingAtt.type === "folder") {
+              const uploadRes = await api("/api/upload-folder", {
+                method: "POST",
+                body: JSON.stringify({
+                  folderName: currentPendingAtt.folderName,
+                  files: currentPendingAtt.files || [],
+                }),
+              });
+              if (uploadRes?.ok && uploadRes.url) {
+                uploadedFolder = {
+                  url: uploadRes.url,
+                  full_url: uploadRes.full_url || uploadRes.url,
+                  filename: uploadRes.filename,
+                  folder_name: uploadRes.folder_name || currentPendingAtt.folderName,
+                  file_count: uploadRes.file_count || currentPendingAtt.files?.length || 0,
+                  size: uploadRes.size || currentPendingAtt.size,
+                };
+              }
             }
           } catch (uploadErr) {
-            console.error("图片上传失败:", uploadErr);
-            showToast(`图片上传失败: ${uploadErr.message || "请求异常"}`);
+            console.error("附件上传失败:", uploadErr);
+            showToast(`附件上传失败: ${uploadErr.message || "请求异常"}`);
             // 恢复输入框内容
             if (input && !input.value) {
               input.value = rawContent;
@@ -7375,8 +7717,14 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
           }
         }
 
-        if (!content && uploadedImages.length > 0) {
-          content = "[图片]";
+        if (!content) {
+          if (uploadedImages.length > 0) {
+            content = "[图片]";
+          } else if (uploadedFiles.length > 0) {
+            content = `[文件] ${uploadedFiles.map(f => f.name).join(", ")}`;
+          } else if (uploadedFolder) {
+            content = `[文件夹] ${uploadedFolder.folder_name} (${uploadedFolder.file_count}个文件)`;
+          }
         }
 
         // 智能识别用户直接粘贴发送的官方原生分享链接 (https://chatgpt.com/s/cx_...)
@@ -7400,6 +7748,12 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
 
         if (uploadedImages.length > 0) {
           metadata = { ...(metadata || {}), images: uploadedImages };
+        }
+        if (uploadedFiles.length > 0) {
+          metadata = { ...(metadata || {}), files: uploadedFiles };
+        }
+        if (uploadedFolder) {
+          metadata = { ...(metadata || {}), folder: uploadedFolder };
         }
 
         let threadInfo = linkedThread;
@@ -7554,10 +7908,41 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       }
     });
 
-    // 工具栏 [📷 图片] 按钮点击与原生文件选择器
-    btnUploadImage?.addEventListener("click", () => {
+    // 工具栏 [上传] 按钮点击与下拉选择菜单
+    btnUploadImage?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (composerUploadMenu) {
+        composerUploadMenu.hidden = !composerUploadMenu.hidden;
+      } else {
+        fileUploadImage?.click();
+      }
+    });
+
+    menuUploadImage?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (composerUploadMenu) composerUploadMenu.hidden = true;
       fileUploadImage?.click();
     });
+
+    menuUploadFile?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (composerUploadMenu) composerUploadMenu.hidden = true;
+      fileUploadFile?.click();
+    });
+
+    menuUploadFolder?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (composerUploadMenu) composerUploadMenu.hidden = true;
+      fileUploadFolder?.click();
+    });
+
+    // 点击页面其他区域自动收起上传菜单
+    root.addEventListener("click", (e) => {
+      if (composerUploadMenu && !composerUploadMenu.hidden && !e.target.closest(".composer-upload-dropdown")) {
+        composerUploadMenu.hidden = true;
+      }
+    });
+
     fileUploadImage?.addEventListener("change", () => {
       const file = fileUploadImage.files?.[0];
       if (file) {
@@ -7565,7 +7950,19 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       }
     });
 
-    // 待发图片条中 [✖️] 移除按钮
+    fileUploadFile?.addEventListener("change", () => {
+      if (fileUploadFile.files && fileUploadFile.files.length > 0) {
+        handleGenericFiles(fileUploadFile.files);
+      }
+    });
+
+    fileUploadFolder?.addEventListener("change", () => {
+      if (fileUploadFolder.files && fileUploadFolder.files.length > 0) {
+        handleFolderUpload(fileUploadFolder.files);
+      }
+    });
+
+    // 待发附件条中 [✖️] 移除按钮
     btnComposerImageRemove?.addEventListener("click", () => {
       setPendingImage(null);
     });

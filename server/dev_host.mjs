@@ -73,7 +73,105 @@ const MIME = {
   ".gif": "image/gif",
   ".webp": "image/webp",
   ".ico": "image/x-icon",
+  ".pdf": "application/pdf",
+  ".zip": "application/zip",
+  ".tar": "application/x-tar",
+  ".gz": "application/gzip",
+  ".txt": "text/plain; charset=utf-8",
+  ".md": "text/markdown; charset=utf-8",
+  ".csv": "text/csv; charset=utf-8",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 };
+
+// 纯原生跨平台 ZIP 归档构建器 (零外部依赖，标准 PKZIP 规范，各操作系统均可直接解压)
+function createNativeZip(files) {
+  const localHeaders = [];
+  const centralHeaders = [];
+  let offset = 0;
+
+  const crcTable = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) {
+      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    }
+    crcTable[i] = c >>> 0;
+  }
+  function getCrc32(buf) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < buf.length; i++) {
+      crc = (crc >>> 8) ^ crcTable[(crc ^ buf[i]) & 0xFF];
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  for (const file of files) {
+    const rawPath = (file.path || file.name || "file.bin").replace(/\\/g, "/").replace(/^\/+/, "");
+    const filenameBuf = Buffer.from(rawPath, "utf8");
+    const dataBuf = Buffer.isBuffer(file.data)
+      ? file.data
+      : typeof file.base64 === "string"
+      ? Buffer.from(file.base64, "base64")
+      : Buffer.from(file.data || "", "utf8");
+    const crc = getCrc32(dataBuf);
+    const size = dataBuf.length;
+
+    const localHeader = Buffer.alloc(30 + filenameBuf.length);
+    localHeader.writeUInt32LE(0x04034b50, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(0, 6);
+    localHeader.writeUInt16LE(0, 8); // Store
+    localHeader.writeUInt16LE(0, 10);
+    localHeader.writeUInt16LE(0, 12);
+    localHeader.writeUInt32LE(crc, 14);
+    localHeader.writeUInt32LE(size, 18);
+    localHeader.writeUInt32LE(size, 22);
+    localHeader.writeUInt16LE(filenameBuf.length, 26);
+    localHeader.writeUInt16LE(0, 28);
+    filenameBuf.copy(localHeader, 30);
+
+    localHeaders.push(localHeader, dataBuf);
+
+    const centralHeader = Buffer.alloc(46 + filenameBuf.length);
+    centralHeader.writeUInt32LE(0x02014b50, 0);
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(0, 8);
+    centralHeader.writeUInt16LE(0, 10);
+    centralHeader.writeUInt16LE(0, 12);
+    centralHeader.writeUInt32LE(crc, 16);
+    centralHeader.writeUInt32LE(size, 20);
+    centralHeader.writeUInt32LE(size, 24);
+    centralHeader.writeUInt16LE(filenameBuf.length, 28);
+    centralHeader.writeUInt16LE(0, 30);
+    centralHeader.writeUInt16LE(0, 32);
+    centralHeader.writeUInt16LE(0, 34);
+    centralHeader.writeUInt16LE(0, 36);
+    centralHeader.writeUInt32LE(0, 38);
+    centralHeader.writeUInt32LE(offset, 42);
+    filenameBuf.copy(centralHeader, 46);
+
+    centralHeaders.push(centralHeader);
+    offset += localHeader.length + dataBuf.length;
+  }
+
+  const centralDirOffset = offset;
+  const centralDirSize = centralHeaders.reduce((sum, h) => sum + h.length, 0);
+
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(0, 4);
+  eocd.writeUInt16LE(0, 6);
+  eocd.writeUInt16LE(files.length, 8);
+  eocd.writeUInt16LE(files.length, 10);
+  eocd.writeUInt32LE(centralDirSize, 12);
+  eocd.writeUInt32LE(centralDirOffset, 16);
+  eocd.writeUInt16LE(0, 20);
+
+  return Buffer.concat([...localHeaders, ...centralHeaders, eocd]);
+}
 
 function nowIso() {
   return new Date().toISOString();
@@ -1342,7 +1440,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 7.5 图片与媒体文件上传 (Upload API)
+  // 7.5 通用文件与媒体上传 (Upload API)
   if (req.method === "POST" && url.pathname === "/api/upload") {
     let body;
     try {
@@ -1353,29 +1451,41 @@ const server = http.createServer(async (req, res) => {
     }
     const rawData = body.data || body.base64 || body.dataUrl || "";
     if (!rawData) {
-      sendJson(res, 400, { ok: false, error: "data_required", message: "缺少图片数据 (base64/dataUrl)" });
+      sendJson(res, 400, { ok: false, error: "data_required", message: "缺少文件数据 (base64/dataUrl)" });
       return;
     }
-    let ext = ".png";
+    let ext = ".bin";
     let base64Data = rawData;
-    const dataUrlMatch = rawData.match(/^data:image\/([a-zA-Z0-9+.-]+);base64,(.+)$/);
+    const dataUrlMatch = rawData.match(/^data:([^;]+);base64,(.+)$/);
     if (dataUrlMatch) {
-      const mimeSubtype = dataUrlMatch[1].toLowerCase();
-      ext = mimeSubtype === "jpeg" ? ".jpg" : `.${mimeSubtype}`;
+      const mime = dataUrlMatch[1].toLowerCase();
+      for (const [e, m] of Object.entries(MIME)) {
+        if (m.split(";")[0] === mime) {
+          ext = e;
+          break;
+        }
+      }
+      if (ext === ".bin" && mime.startsWith("image/")) {
+        const sub = mime.split("/")[1];
+        ext = sub === "jpeg" ? ".jpg" : `.${sub}`;
+      }
       base64Data = dataUrlMatch[2];
-    } else if (body.filename) {
+    }
+    if (body.filename) {
       const parsedExt = path.extname(body.filename).toLowerCase();
-      if (parsedExt && [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"].includes(parsedExt)) {
+      if (parsedExt && !parsedExt.includes("/") && !parsedExt.includes("\\")) {
         ext = parsedExt;
       }
     }
     try {
       const buffer = Buffer.from(base64Data, "base64");
       if (buffer.length > 10 * 1024 * 1024) {
-        sendJson(res, 413, { ok: false, error: "image_too_large", message: "单张图片大小不得超过 10MB" });
+        sendJson(res, 413, { ok: false, error: "file_too_large", message: "单文件大小不得超过 10MB" });
         return;
       }
-      const filename = `img_${Date.now()}_${Math.random().toString(36).slice(2, 10)}${ext}`;
+      const isImg = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"].includes(ext);
+      const prefix = isImg ? "img" : "file";
+      const filename = `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}${ext}`;
       const filePath = path.join(UPLOADS_DIR, filename);
       fs.writeFileSync(filePath, buffer);
       sendJson(res, 201, {
@@ -1383,12 +1493,54 @@ const server = http.createServer(async (req, res) => {
         url: `/uploads/${filename}`,
         full_url: `http://${primaryIp}:${PORT}/uploads/${filename}`,
         filename: body.filename || filename,
+        original_name: body.filename || filename,
         size: buffer.length,
         ext,
+        is_image: isImg,
       });
       return;
     } catch (err) {
       sendJson(res, 500, { ok: false, error: "upload_failed", message: err.message });
+      return;
+    }
+  }
+
+  // 7.5.1 文件夹整体归档打包上传 (Folder Zip API)
+  if (req.method === "POST" && url.pathname === "/api/upload-folder") {
+    let body;
+    try {
+      body = JSON.parse((await readBody(req)) || "{}");
+    } catch {
+      sendJson(res, 400, { ok: false, error: "invalid_json", message: "请求体必须为合法 JSON" });
+      return;
+    }
+    const rawFolderName = (body.folderName || "folder").trim().replace(/[\/\\:*?"<>|]/g, "_") || "folder";
+    const files = Array.isArray(body.files) ? body.files : [];
+    if (!files.length) {
+      sendJson(res, 400, { ok: false, error: "empty_folder", message: "文件夹中无有效文件" });
+      return;
+    }
+    try {
+      const zipBuffer = createNativeZip(files);
+      if (zipBuffer.length > 100 * 1024 * 1024) {
+        sendJson(res, 413, { ok: false, error: "folder_too_large", message: "文件夹打包大小不得超过 100MB" });
+        return;
+      }
+      const filename = `folder_${rawFolderName}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.zip`;
+      const filePath = path.join(UPLOADS_DIR, filename);
+      fs.writeFileSync(filePath, zipBuffer);
+      sendJson(res, 201, {
+        ok: true,
+        url: `/uploads/${filename}`,
+        full_url: `http://${primaryIp}:${PORT}/uploads/${filename}`,
+        filename,
+        folder_name: rawFolderName,
+        file_count: files.length,
+        size: zipBuffer.length,
+      });
+      return;
+    } catch (err) {
+      sendJson(res, 500, { ok: false, error: "folder_upload_failed", message: err.message });
       return;
     }
   }
