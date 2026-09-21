@@ -11,16 +11,26 @@ function Get-SystemArchitecture {
   return "x64"
 }
 
+function Test-CompatibleNode {
+  param([string]$NodePath)
+  if (-not $NodePath -or -not (Test-Path -LiteralPath $NodePath -PathType Leaf)) { return $false }
+  try {
+    $nodeVersion = & $NodePath --version 2>$null
+    if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v(\d+)\.') { return $false }
+    return [int]$Matches[1] -ge 20
+  } catch { return $false }
+}
+
 function Find-InstalledNode {
   $cmd = Get-Command node -ErrorAction SilentlyContinue
-  if ($cmd) { return $cmd.Source }
+  if ($cmd -and (Test-CompatibleNode $cmd.Source)) { return $cmd.Source }
   $candidates = @(
     (Join-Path $env:ProgramFiles "nodejs\node.exe"),
     (Join-Path ${env:ProgramFiles(x86)} "nodejs\node.exe"),
     (Join-Path $env:LOCALAPPDATA "Programs\nodejs\node.exe")
   )
   foreach ($c in $candidates) {
-    if ($c -and (Test-Path -LiteralPath $c -PathType Leaf)) {
+    if (Test-CompatibleNode $c) {
       return $c
     }
   }
@@ -32,7 +42,7 @@ function Ensure-TeamCodexRuntime {
     [string]$TargetDir
   )
   $localRuntimeNode = Join-Path $TargetDir "runtime\node.exe"
-  if (Test-Path -LiteralPath $localRuntimeNode -PathType Leaf) {
+  if (Test-CompatibleNode $localRuntimeNode) {
     return $localRuntimeNode
   }
 
@@ -99,7 +109,7 @@ function Ensure-TeamCodexRuntime {
     if ($found) { $extractedNodeExe = $found.FullName }
   }
 
-  if (Test-Path -LiteralPath $extractedNodeExe) {
+  if (Test-CompatibleNode $extractedNodeExe) {
     Copy-Item -LiteralPath $extractedNodeExe -Destination $localRuntimeNode -Force
     Write-Host "[TeamCodex] 便携 Node.js ($arch) 就绪: $localRuntimeNode" -ForegroundColor Green
     Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue

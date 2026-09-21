@@ -9,6 +9,9 @@ test('精确识别桌面主进程，TeamCodex、CLI 和 helper 不算 Codex', ()
   assert.equal(isCodexDesktop('/Applications/ChatGPT.app/Contents/MacOS/ChatGPT'), true);
   assert.equal(isCodexDesktop('C:\\Program Files\\Codex\\Codex.exe'), true);
   assert.equal(isCodexDesktop('C:\\Codex\\Codex.exe', ['--type=renderer']), false);
+  assert.equal(isCodexDesktop('C:\\Users\\test\\AppData\\Local\\OpenAI\\Codex\\bin\\abc123\\codex.exe', ['app-server']), false);
+  assert.equal(isCodexDesktop('C:\\Codex\\resources\\codex.exe'), false);
+  assert.equal(isCodexDesktop('C:\\tools\\codex.exe', ['app-server']), false);
 });
 test('支持 Windows 分离参数，端口必须有效且保留原启动参数', () => {
   assert.equal(debugPort(['--remote-debugging-port', '9333']), 9333);

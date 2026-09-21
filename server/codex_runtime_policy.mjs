@@ -3,6 +3,8 @@ import crypto from 'node:crypto';
 export const isCodexDesktop = (executable = '', args = []) => {
   const value = executable.replaceAll('\\', '/');
   if (args.some(arg => /^--type(?:=|$)/.test(arg))) return false;
+  if (args.includes('app-server')) return false;
+  if (/\/(?:bin|resources|node_modules)\//i.test(value) && /\/codex\.exe$/i.test(value)) return false;
   return /\/(?:ChatGPT|Codex)\.app\/Contents\/MacOS\/(?:ChatGPT|Codex)$/.test(value) || /\/(?:ChatGPT|Codex)\.exe$/i.test(value);
 };
 export const debugPort = args => {
