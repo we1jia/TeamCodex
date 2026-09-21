@@ -16,13 +16,24 @@ try {
   function Find-InstalledNode { return $newNode }
   $selected = Ensure-TeamCodexRuntime -TargetDir $fixture
   if ($selected -ne $newNode) { throw 'A compatible system runtime should be reused without download' }
-  # A native loopback-only process also works with a clean machine environment;
-  # Windows PowerShell itself needs user cryptography/profile state to start.
-  $child = Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\PING.EXE') -ArgumentList '-n 30 127.0.0.1' -WorkingDirectory $fixture -UseNewEnvironment -WindowStyle Hidden -PassThru
+  # Explicit fixture environment: do not inherit runner credentials or assume
+  # UseNewEnvironment retains process-only variables such as SystemRoot.
+  $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+  $startInfo.FileName = Join-Path $env:SystemRoot 'System32\PING.EXE'
+  $startInfo.Arguments = '-n 30 127.0.0.1'
+  $startInfo.WorkingDirectory = $fixture
+  $startInfo.UseShellExecute = $false
+  $startInfo.CreateNoWindow = $true
+  $startInfo.RedirectStandardOutput = $true
+  $startInfo.EnvironmentVariables.Clear()
+  $startInfo.EnvironmentVariables['SystemRoot'] = $env:SystemRoot
+  $startInfo.EnvironmentVariables['TEAM_CONTEXT_READER_TEST'] = 'context value with spaces=a'
+  $child = [System.Diagnostics.Process]::Start($startInfo)
   try {
     $reader = Join-Path $PSScriptRoot '..\windows\read-process-context.ps1'
     $snapshot = & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $reader -TargetPid $child.Id | ConvertFrom-Json
-    if ($LASTEXITCODE -ne 0 -or -not $snapshot.env.SystemRoot) { throw 'Native context reader failed' }
+    if ($LASTEXITCODE -ne 0) { throw 'Native context reader failed' }
+    if ($snapshot.env.TEAM_CONTEXT_READER_TEST -cne 'context value with spaces=a') { throw 'Native reader did not preserve environment values' }
     if ($snapshot.cwd.TrimEnd('\') -ine $fixture.TrimEnd('\')) { throw 'Native reader did not preserve working directory' }
   } finally {
     if (-not $child.HasExited) { Stop-Process -Id $child.Id -ErrorAction SilentlyContinue }
