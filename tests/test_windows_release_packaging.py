@@ -90,9 +90,10 @@ class WindowsReleasePackagingTests(unittest.TestCase):
     def test_version_fields_use_release_constant_and_local_manifest_not_service_identity(self):
         installer = (ROOT / "windows/installer.nsi").read_text(encoding="utf-8-sig")
         tray = (ROOT / "windows/tray-teamcodex.ps1").read_text(encoding="utf-8-sig")
-        self.assertIn('!define APP_VERSION "1.2.0"', installer)
+        version = json.loads((ROOT / "version.json").read_text())["version"]
+        self.assertIn(f'!define APP_VERSION "{version}"', installer)
         self.assertIn('"DisplayVersion" "${APP_VERSION}"', installer)
-        self.assertIn('$installedVersion = "1.2.0"', tray)
+        self.assertIn(f'$installedVersion = "{version}"', tray)
         self.assertIn('"version.json"', tray)
         self.assertIn('$installedVersion = [string]$manifest.version', tray)
         self.assertNotIn('v1.1.5', tray)

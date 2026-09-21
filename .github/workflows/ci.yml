@@ -10,6 +10,13 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: teamcodex-ci-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   test:
     name: Regression Suite
@@ -33,6 +40,11 @@ jobs:
           python3 windows/build_zip.py
           python3 scripts/build_plugin_zip.py
 
+      - name: Build native context reader for regression tests
+        run: |
+          swiftc -O macos/TeamCodex.swift -o "$RUNNER_TEMP/TeamCodex-context-reader" -framework Cocoa -framework WebKit
+          echo "TEAM_CODEX_CONTEXT_READER=$RUNNER_TEMP/TeamCodex-context-reader" >> "$GITHUB_ENV"
+
       - name: Run automated tests
         run: |
           python3 -m unittest discover -s tests -p 'test_*packaging.py'
@@ -49,3 +61,47 @@ jobs:
           node --test tests/test_discussion_appearance.mjs
           node --test tests/test_boost_fixes.mjs
           node --test tests/test_rooms_and_auth.mjs
+
+  windows-runtime:
+    name: Windows runtime compatibility
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify supported Node runtimes without changing the system
+        shell: powershell
+        run: ./tests/test_windows_runtime.ps1
+
+  prepare-release:
+    name: Prepare automatic release
+    needs: [test, windows-runtime]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      publish: ${{ steps.version.outputs.publish }}
+      tag: ${{ steps.version.outputs.tag }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Increment version and push release commit atomically
+        id: version
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: python3 scripts/prepare_release.py --source "$SOURCE_SHA"
+
+  release:
+    name: Build and publish release
+    needs: [test, prepare-release]
+    if: needs.prepare-release.outputs.publish == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      version_tag: ${{ needs.prepare-release.outputs.tag }}
+      release_ref: ${{ needs.prepare-release.outputs.sha }}

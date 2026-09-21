@@ -202,6 +202,8 @@ TeamCodex 不仅实现了会话上下文的实时接力，更在客户端内原�
 
 ### 8. 仓库结构
 
+推送 `main` 后会自动测试、递增版本、打包并发布 GitHub Release；普通分支和 PR 只运行检查。详见[自动发布流程](docs/AUTO_RELEASE.md)。
+
 ```text
 TeamCodex/
 ├── .codex-plugin/              # 官方 Codex 插件清单与元数据 (plugin.json)
@@ -239,7 +241,7 @@ TeamCodex/
 │   ├── HUB_DEPLOYMENT.md       # 中枢部署与网络接入全景指南
 │   └── assets/                 # 架构图、实机演示与工作区截图
 ├── tests/                      # 全自动化测试套件 (工作区/权限/状态机/打包)
-├── version.json                # 客户端版本定义 (v1.2.0)
+├── version.json                # 客户端版本定义（自动发布时同步更新）
 ├── Dockerfile                  # 极简 Alpine Node 生产镜像定义
 ├── docker-compose.yml          # 一键容器化服务编排
 └── README.md

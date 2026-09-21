@@ -1,6 +1,14 @@
 name: Release & Package Matrix
 
 on:
+  workflow_call:
+    inputs:
+      version_tag:
+        required: true
+        type: string
+      release_ref:
+        required: true
+        type: string
   push:
     tags:
       - "v*"
@@ -22,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.release_ref || github.sha }}
           fetch-depth: 0
       - name: Validate release version and target commit
         id: version
@@ -31,19 +40,12 @@ jobs:
           INPUT_TAG: ${{ inputs.version_tag }}
         run: |
           python3 - <<'PY'
-          import json, os, re, subprocess
+          import json, os, subprocess
           from pathlib import Path
           version = json.loads(Path('version.json').read_text())['version']
-          if not re.fullmatch(r'\d+\.\d+\.\d+', version):
-              raise SystemExit('Invalid version.json release version')
           expected = f'v{version}'
-          tag = os.environ['REF_NAME'] if os.environ['EVENT_NAME'] == 'push' else (os.environ['INPUT_TAG'] or expected)
-          if tag != expected:
-              raise SystemExit(f'Tag {tag} does not match version.json {expected}')
-          existing = subprocess.run(['git', 'rev-parse', '--verify', f'refs/tags/{tag}^{{commit}}'], capture_output=True, text=True)
-          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-          if existing.returncode == 0 and existing.stdout.strip() != head:
-              raise SystemExit(f'Tag {tag} points to a different commit; refusing to replace release assets')
+          tag = os.environ['INPUT_TAG'] or (os.environ['REF_NAME'] if os.environ['EVENT_NAME'] == 'push' else expected)
+          subprocess.run(['python3', 'scripts/release_version.py', tag], check=True)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write(f'tag={tag}\n')
           PY
@@ -54,6 +56,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref || github.sha }}
 
       - name: Setup Node.js runtime
         uses: actions/setup-node@v4
@@ -69,6 +73,11 @@ jobs:
         run: |
           python3 windows/build_zip.py
           python3 scripts/build_plugin_zip.py
+
+      - name: Build native context reader for regression tests
+        run: |
+          swiftc -O macos/TeamCodex.swift -o "$RUNNER_TEMP/TeamCodex-context-reader" -framework Cocoa -framework WebKit
+          echo "TEAM_CODEX_CONTEXT_READER=$RUNNER_TEMP/TeamCodex-context-reader" >> "$GITHUB_ENV"
 
       - name: Run automated tests
         run: |
@@ -111,6 +120,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref || github.sha }}
 
       - name: Setup Python environment
         uses: actions/setup-python@v5
@@ -147,6 +158,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_ref || github.sha }}
 
       - name: Download macOS Artifacts
         uses: actions/download-artifact@v4
@@ -165,15 +178,25 @@ jobs:
           sha256sum TeamCodex-macOS.dmg TeamCodex-Setup.exe TeamCodex-macOS.zip TeamCodex-Windows-arm64-amd64.zip TeamCodex-Codex-Plugin.zip > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Select release notes
+        id: notes
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          notes="docs/releases/$RELEASE_TAG.md"
+          if [ -f "$notes" ]; then
+            echo "path=$notes" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: TeamCodex ${{ needs.prepare.outputs.tag }}
-          target_commitish: ${{ github.sha }}
+          target_commitish: ${{ inputs.release_ref || github.sha }}
           draft: false
           prerelease: false
-          body_path: docs/releases/${{ needs.prepare.outputs.tag }}.md
+          body_path: ${{ steps.notes.outputs.path }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
