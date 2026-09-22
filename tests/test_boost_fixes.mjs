@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
+import { execFileSync } from "node:child_process";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const WORKSPACE = path.resolve(ROOT, "..");
@@ -1099,9 +1100,12 @@ test("36. 官方 Codex 插件体系整合、元数据规范、Hook 自动注入�
   const manifest = JSON.parse(fs.readFileSync(pluginJsonPath, "utf8"));
   assert.strictEqual(manifest.name, "team-codex");
   assert.strictEqual(manifest.version, JSON.parse(fs.readFileSync(path.join(ROOT, "version.json"), "utf8")).version);
-  assert.ok(manifest.skills && manifest.skills.includes("skills/team-codex/"));
-  assert.ok(manifest.hooks && manifest.hooks.includes("hooks/hooks.json"));
-  assert.ok(manifest.interface && manifest.interface.defaultPrompt.length >= 3);
+  assert.equal(manifest.skills, "./skills/");
+  assert.equal(Object.hasOwn(manifest, "hooks"), false, "现行插件清单不应声明已被校验器拒绝的 hooks 字段");
+  assert.ok(manifest.interface && manifest.interface.defaultPrompt.length >= 6);
+  assert.ok(manifest.interface.defaultPrompt.some(prompt => prompt.includes("任务看板")));
+  assert.ok(manifest.interface.defaultPrompt.some(prompt => prompt.includes("知识库和素材库")));
+  assert.ok(manifest.interface.defaultPrompt.some(prompt => prompt.includes("选定的任务和资料")));
 
   // 36.2 验证 Hook 脚本及权限
   const hookJsonPath = path.join(ROOT, "hooks/hooks.json");
@@ -1116,6 +1120,11 @@ test("36. 官方 Codex 插件体系整合、元数据规范、Hook 自动注入�
   const skillPath = path.join(ROOT, "skills/team-codex/SKILL.md");
   const screenshotDoc = path.join(ROOT, "docs/assets/codex_plugin_detail.png");
   assert.ok(fs.existsSync(skillPath), "skills/team-codex/SKILL.md 应存在");
+  const skill = fs.readFileSync(skillPath, "utf8");
+  assert.match(skill, /任务看板与工作日历/);
+  assert.match(skill, /知识库与素材库/);
+  assert.match(skill, /api\/workspace\/context/);
+  assert.match(skill, /私人资料绝不自动注入/);
   assert.ok(fs.existsSync(screenshotDoc), "docs/assets/codex_plugin_detail.png 应存在");
   assert.ok(fs.statSync(screenshotDoc).size > 50000, "插件详情截图应大于 50KB");
 
@@ -1123,6 +1132,15 @@ test("36. 官方 Codex 插件体系整合、元数据规范、Hook 自动注入�
   const pluginZipPath = path.join(ROOT, "TeamCodex-Codex-Plugin.zip");
   if (fs.existsSync(pluginZipPath)) {
     assert.ok(fs.statSync(pluginZipPath).size > 100000, "插件压缩包应大于 100KB");
+    const zippedManifest = JSON.parse(execFileSync("python3", ["-c", [
+      "import sys, zipfile",
+      "with zipfile.ZipFile(sys.argv[1]) as archive:",
+      "    print(archive.read('.codex-plugin/plugin.json').decode('utf-8'))",
+    ].join("\n"), pluginZipPath], { encoding: "utf8" }));
+    assert.equal(zippedManifest.skills, "./skills/");
+    assert.equal(Object.hasOwn(zippedManifest, "hooks"), false);
+    assert.deepEqual(zippedManifest.interface.defaultPrompt, manifest.interface.defaultPrompt);
+    assert.ok(zippedManifest.interface.defaultPrompt.some(prompt => prompt.includes("任务看板")));
   }
 });
 

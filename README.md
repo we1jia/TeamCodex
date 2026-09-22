@@ -160,12 +160,18 @@ curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deplo
 - **左侧栏 `Team` Tab（人类看板）**：给**工程师**使用。提供沉浸式全屏群聊、在线成员头像、多房间切换、快照时间线浏览与手动一键导入；
 - **`Team Codex` 插件（AI 手脚与耳朵）**：给**当前会话中的 AI 助手**使用。赋予 Codex 读写团队空间、提炼讨论摘要、自动同步上下文的 Tool 能力，开发者无需切屏，用自然语言即可指挥 AI 协同。
 
-#### 1) 三大自然语言预置指令 (Preset Prompts)
+#### 1) 六大自然语言预置指令 (Preset Prompts)
 在 Codex 对话框中直接输入或点击气泡：
 - **`打开 Team Codex 团队协作空间。`**  
   👉 调起协同中枢与本地控制台，引导聚焦左侧栏 Team 面板；
 - **`读取当前团队空间的讨论摘要。`**  
   👉 自动调用 API 获取团队当前空间的成员共识、架构方案版本与关键意见，无缝注入当前任务；
+- **`查看当前团队空间的任务看板和成员进度。`**
+  👉 汇总四态任务、负责人、审核人、阻塞原因与工作日历安排；
+- **`搜索当前团队空间的知识库和素材库。`**
+  👉 只检索当前成员有权访问的资料与素材，不自动读取私人资料；
+- **`把选定的任务和资料引用到当前 Codex 对话。`**
+  👉 生成带来源 ID、版本和读取时间的可追溯草稿，确认后放入 Team 输入框，不自动发送；
 - **`把当前 Codex 对话分享到团队空间。`**  
   👉 自动打包当前多轮推理链条，剔除本地敏感路径后广播至团队中枢。
 
@@ -173,6 +179,7 @@ curl -fsSL https://raw.githubusercontent.com/we1jia/TeamCodex/main/scripts/deplo
 - **提问前静默探测**：在用户每次向 Codex 提交代码问题前，Hook 在 1200ms 内静默请求 `http://127.0.0.1:18765/api/compact.txt`；
 - **毫秒级上下文注入**：自动提取团队最新决策与成员变更，作为 `additionalContext` 隐式附带在提示词中，让 AI 的回答始终建立在全团队最新的共识之上；
 - **高可用与零阻塞**：若本地或局域网中枢暂时未启动或发生超时，Hook 0 毫秒静默跳过，绝不阻塞开发者的日常编码。
+- **显式工作区查询**：看板、知识库和素材库不被 Hook 静默注入；只有用户明确查询或选择引用时，插件才读取对应工作区数据。
 
 #### 3) 插件安装与启用方式
 - **源码安装（推荐开发者）**：在终端执行：
@@ -429,12 +436,18 @@ In addition to the visual sidebar tab and tray companion designed for human engi
 - **Sidebar `Team` Tab (Human Dashboard)**: Designed for **engineers**. Provides immersive fullscreen room chat, real-time presence avatars, multi-room switching, snapshot timeline, and one-click thread imports;
 - **`Team Codex` Plugin (AI Hands & Ears)**: Designed for **the active AI Assistant inside your session**. Equips Codex with tool permissions to read/write the team hub, extract discussion summaries, and relay context autonomously via natural language.
 
-#### 1) Three Preset Natural Language Prompts
+#### 1) Six Preset Natural Language Prompts
 Execute directly or click prompt pills in the Codex composer:
 - **`打开 Team Codex 团队协作空间。 (Open Team Codex Workspace)`**  
   👉 Wakes local daemon and guides user to focus the fullscreen team sidebar;
 - **`读取当前团队空间的讨论摘要。 (Fetch Team Discussion Summary)`**  
   👉 Queries the active room compact summary and injects peer consensus and architecture decisions into the current task;
+- **`查看当前团队空间的任务看板和成员进度。 (View Task Board and Member Progress)`**
+  👉 Reads task states, owners, reviewers, blockers, and work-calendar signals from the authorized workspace;
+- **`搜索当前团队空间的知识库和素材库。 (Search Knowledge Base and Assets)`**
+  👉 Searches only resources visible to the current workspace identity and preserves resource revisions;
+- **`把选定的任务和资料引用到当前 Codex 对话。 (Cite Selected Tasks and Resources)`**
+  👉 Creates traceable context with source IDs and versions, placing it into the Team composer without auto-sending;
 - **`把当前 Codex 对话分享到团队空间。 (Share Conversation to Team Room)`**  
   👉 Packages the current multi-turn reasoning chain, scrubs private local paths, and broadcasts a sanitized snapshot.
 
@@ -442,6 +455,7 @@ Execute directly or click prompt pills in the Codex composer:
 - **Pre-flight Silent Probe**: Before every prompt is dispatched to Codex, the hook issues a lightweight 1200ms request to `http://127.0.0.1:18765/api/compact.txt`;
 - **Sub-Second Context Injection**: Dynamically appends the team latest decisions as `additionalContext`, ensuring the AI solutions are grounded in single-source team truth;
 - **Zero-Blocking Resilience**: If the Hub is offline or timed out, the hook exits cleanly in 0ms without delaying standard chat.
+- **Explicit Workspace Queries**: The hook never silently injects task-board, knowledge-base, or private asset data; those are read only when the user asks or selects a reference.
 
 #### 3) Plugin Installation
 - **Source CLI Installation**:

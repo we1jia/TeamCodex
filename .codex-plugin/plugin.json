@@ -1,7 +1,7 @@
 {
   "name": "team-codex",
   "version": "1.2.5",
-  "description": "Visible team rooms, collaborative context, and AI context relay inside Codex.",
+  "description": "Team rooms plus connected task boards, knowledge base, asset library, and work calendar inside Codex.",
   "author": {
     "name": "liuweijia"
   },
@@ -11,14 +11,18 @@
     "team",
     "collaboration",
     "group-chat",
-    "context-relay"
+    "context-relay",
+    "kanban",
+    "knowledge-base",
+    "asset-library",
+    "work-calendar",
+    "workspace"
   ],
-  "skills": "./skills/team-codex/",
-  "hooks": "./hooks/hooks.json",
+  "skills": "./skills/",
   "interface": {
     "displayName": "Team Codex",
-    "shortDescription": "在 Codex 中建立团队可见的团队协作群聊与实时上下文接力。",
-    "longDescription": "Team Codex 提供团队空间、成员讨论、上下文分享和摘要注入，并将协作入口放到 Codex 左侧栏。",
+    "shortDescription": "在 Codex 中协同讨论、任务看板、知识库、素材库与工作日历。",
+    "longDescription": "Team Codex 将团队讨论、任务进度、知识库、素材库和成员工作日历关联到同一个空间；Codex 可按用户选择读取、引用和更新这些内容，并将协作入口放到左侧栏。",
     "developerName": "liuweijia",
     "category": "Productivity",
     "capabilities": [
@@ -29,6 +33,9 @@
     "defaultPrompt": [
       "打开 Team Codex 团队协作空间。",
       "读取当前团队空间的讨论摘要。",
+      "查看当前团队空间的任务看板和成员进度。",
+      "搜索当前团队空间的知识库和素材库。",
+      "把选定的任务和资料引用到当前 Codex 对话。",
       "把当前 Codex 对话分享到团队空间。"
     ],
     "brandColor": "#2F63F5",
