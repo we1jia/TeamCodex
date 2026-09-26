@@ -62,6 +62,7 @@ Section "TeamCodex Core" SecCore
 
   SetOutPath "$INSTDIR\inject"
   File "..\inject\attach_codex.mjs"
+  File "..\inject\host_adapter.mjs"
   File "..\inject\composer_appearance.js"
   File "..\inject\cdp_websocket.mjs"
   File "..\inject\sidebar_fullscreen.js"

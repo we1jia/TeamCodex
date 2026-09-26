@@ -6,6 +6,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { CdpWebSocket } from "./cdp_websocket.mjs";
+import { hostAdapterBootstrap } from './host_adapter.mjs';
 import { inspectRuntime } from '../server/codex_runtime.mjs';
 import { fingerprint, hotUpdateDecision } from '../server/codex_runtime_policy.mjs';
 const consumedUpdates = new Set();
@@ -26,6 +27,7 @@ const DEFAULT_ROOM = process.env.TEAM_CONTEXT_DEFAULT_ROOM || "1024";
 const DEFAULT_ROOM_KEY = process.env.TEAM_CONTEXT_DEFAULT_ROOM_KEY ?? "";
 
 function resolveRoomContext(config = {}) {
+  config ??= {};
   const room = config.roomId || DEFAULT_ROOM;
   const savedKey = config.roomKey ?? config.roomKeys?.[room];
   const key = savedKey ?? (room === DEFAULT_ROOM ? DEFAULT_ROOM_KEY : '');
@@ -100,7 +102,7 @@ async function resolveInjectScript() {
   }
   try {
     const remote = await getText(`${HOST_URL.replace(/\/$/, "")}/inject/sidebar_fullscreen.js`);
-    if (remote && remote.includes("team-context-sidebar-tab") && remote.includes("connectHub")) {
+    if (remote && remote.includes("team-context-sidebar-tab") && remote.includes("connectHub") && remote.includes('window.TeamCodexHost')) {
       cachedRemoteScript = remote;
       cachedRemoteAt = now;
       return remote;
@@ -412,11 +414,11 @@ async function injectTarget(target, source, sessions) {
   try {
     await session.send("Runtime.addBinding", { name: "__teamContextNativeCall" }).catch(() => {});
     const probe = await session.send("Runtime.evaluate", {
-      expression: `!!document.querySelector('aside.app-shell-left-panel nav[role="navigation"]')`,
+      expression: `${hostAdapterBootstrap}window.TeamCodexHost.describe()`,
       returnByValue: true,
     });
-    if (probe?.result?.value !== true) {
-      return { installed: false, reason: "not-codex-sidebar" };
+    if (probe?.result?.value?.supported !== true) {
+      return { installed: false, reason: "unsupported-host-layout", layout: probe?.result?.value || null };
     }
     await applyComposerAppearance(session);
     const targetUiVersionMatch = source.match(/UI_VERSION\s*=\s*["']([^"']+)["']/);
@@ -440,10 +442,29 @@ async function injectTarget(target, source, sessions) {
       consumedUpdates.add(target.id);
     }
     const pageState = await session.send("Runtime.evaluate", {
-      expression: "(() => ({ pending: window.__teamContextTakePending ? window.__teamContextTakePending() : null, config: window.__teamContextGetConfig ? window.__teamContextGetConfig() : null, pendingConfig: window.__teamContextPendingConfig || null, pendingCalls: window.__teamContextTakePendingCalls ? window.__teamContextTakePendingCalls() : null }))()",
+      expression: `(() => {
+        const config = window.__teamContextGetConfig ? window.__teamContextGetConfig() : null;
+        if (!config || typeof config !== 'object' || Array.isArray(config)) return { config: null };
+        return { pending: window.__teamContextTakePending ? window.__teamContextTakePending() : null,
+          config, pendingConfig: window.__teamContextPendingConfig || null,
+          pendingCalls: window.__teamContextTakePendingCalls ? window.__teamContextTakePendingCalls() : null };
+      })()`,
       returnByValue: true,
     });
     const state = pageState?.result?.value || {};
+    const readMountReceipt = async () => {
+      const receipt = await session.send('Runtime.evaluate', {
+        expression: "({installed:!!window.__teamContextTabInstalled && !!document.getElementById('team-context-sidebar-tab'),ui:window.__teamContextUiVersion||''})",
+        returnByValue: true,
+      });
+      return { ...(receipt?.result?.value || { installed: false }),
+        pendingUpdate: action === 'defer' || result?.result?.value?.pendingUpdate === true };
+    };
+    // 菜单安装不等于讨论页已打开；配置 getter 由 mountCollab 首次初始化。
+    // 冷启动只回报真实入口状态，不消费队列，也不以默认身份访问共享房间。
+    if (!state.config || typeof state.config !== 'object' || Array.isArray(state.config)) {
+      return { ...await readMountReceipt(), configPending: true };
+    }
     const payload = state.pending;
     const { room: currentRoom, key: currentKey } = resolveRoomContext(state.config);
 
@@ -524,11 +545,7 @@ async function injectTarget(target, source, sessions) {
       console.warn(`[attach_codex] snapshot/sync failed (host=${targetHost}): ${syncErr.message}`);
       syncError = syncErr.message;
     }
-    const receipt = await session.send('Runtime.evaluate', {
-      expression: "({installed:!!window.__teamContextTabInstalled && !!document.getElementById('team-context-sidebar-tab'),ui:window.__teamContextUiVersion||''})",
-      returnByValue: true,
-    });
-    return { ...(receipt?.result?.value || { installed: false }), pendingUpdate: action === 'defer' || result?.result?.value?.pendingUpdate === true, ...(syncError ? { syncError } : {}) };
+    return { ...await readMountReceipt(), ...(syncError ? { syncError } : {}) };
   } catch (error) {
     console.warn(`[attach_codex] cdp session error on target ${target.id}: ${error.message}`);
     session?.close();

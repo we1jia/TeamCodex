@@ -36,6 +36,7 @@ FILES_AND_DIRS = [
     ("ui/workspace_boot.js", "TeamCodex-macOS/ui/workspace_boot.js", 0o644),
     ("inject/sidebar_fullscreen.js", "TeamCodex-macOS/inject/sidebar_fullscreen.js", 0o644),
     ("inject/attach_codex.mjs", "TeamCodex-macOS/inject/attach_codex.mjs", 0o644),
+    ("inject/host_adapter.mjs", "TeamCodex-macOS/inject/host_adapter.mjs", 0o644),
     ("inject/composer_appearance.js", "TeamCodex-macOS/inject/composer_appearance.js", 0o644),
     ("inject/cdp_websocket.mjs", "TeamCodex-macOS/inject/cdp_websocket.mjs", 0o644),
     ("inject/safety.mjs", "TeamCodex-macOS/inject/safety.mjs", 0o644),
@@ -57,11 +58,11 @@ def add_file(z, src_path, zip_target, mode=None):
         data = f.read()
 
     zinfo = zipfile.ZipInfo(zip_target)
-    if mode is None:
-        st_mode = os.stat(src_path).st_mode
-        zinfo.external_attr = (st_mode & 0xFFFF) << 16
-    else:
-        zinfo.external_attr = (mode & 0xFFFF) << 16
+    zinfo.create_system = 3  # Unix attributes, independent of the build host.
+    permissions = stat.S_IMODE(os.stat(src_path).st_mode if mode is None else mode)
+    # macOS ditto needs the regular-file type too; permission bits alone
+    # are otherwise extracted as 0644, making apps and launchers unlaunchable.
+    zinfo.external_attr = (stat.S_IFREG | permissions) << 16
 
     z.writestr(zinfo, data, compress_type=zipfile.ZIP_DEFLATED)
 

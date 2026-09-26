@@ -20,11 +20,13 @@ test('原生即时调用与轮询兜底共享同一 Promise，不重复写入', 
 });
 
 test('Windows 与 macOS 分发清单包含所有新模块，不生成或替换发布包', () => {
-  const files = ['server/workspace_store.mjs', 'server/workspace_validation.mjs', 'server/workspace_routes.mjs', 'server/workspace_bundle.mjs', 'server/codex_runtime.mjs', 'server/codex_runtime_policy.mjs', 'inject/cdp_websocket.mjs', 'inject/workspace.js', 'inject/workspace.css', 'ui/workspace.html', 'ui/workspace_boot.js'];
-  for (const script of ['../windows/build_zip.py', '../macos/build_mac_zip.py']) {
+  const files = ['server/workspace_store.mjs', 'server/workspace_validation.mjs', 'server/workspace_routes.mjs', 'server/workspace_bundle.mjs', 'server/codex_runtime.mjs', 'server/codex_runtime_policy.mjs', 'inject/host_adapter.mjs', 'inject/cdp_websocket.mjs', 'inject/workspace.js', 'inject/workspace.css', 'ui/workspace.html', 'ui/workspace_boot.js'];
+  for (const script of ['../windows/build_zip.py', '../macos/build_mac_zip.py', '../macos/build_dmg.py']) {
     const source = fs.readFileSync(new URL(script, import.meta.url), 'utf8');
     for (const file of files) assert.ok(source.includes(file), `${script} 缺少 ${file}`);
   }
+  const installer = fs.readFileSync(new URL('../windows/installer.nsi', import.meta.url), 'utf8');
+  assert.ok(installer.includes('File "..\\inject\\host_adapter.mjs"'));
 });
 
 test('旧 Hub 未加载工作区整包时，不热替换已安装的宿主界面', () => {

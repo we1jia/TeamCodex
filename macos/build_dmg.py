@@ -26,6 +26,7 @@ APP_FILES = (
     "server/workspace_routes.mjs",
     "server/workspace_bundle.mjs",
     "inject/attach_codex.mjs",
+    "inject/host_adapter.mjs",
     "inject/composer_appearance.js",
     "inject/cdp_websocket.mjs",
     "inject/safety.mjs",

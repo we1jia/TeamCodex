@@ -3,7 +3,7 @@
   const PAGE_ID = "team-context-fullscreen-page";
   const MENU_ID = "team-context-dropdown-menu";
   const TOAST_ID = "team-context-toast-notice";
-  const UI_VERSION = "inline-v103";
+  const UI_VERSION = "inline-v104";
 
   // 旧 UI 保留草稿与监听器，但“曾安装”不代表 React 重建后的入口仍在。
   if (window.__teamContextTabInstalled && (!window.TeamWorkspace || window.__teamContextUiVersion !== UI_VERSION)) {
@@ -366,11 +366,13 @@
   }
 
   function findSidebar() {
+    if (window.TeamCodexHost) return window.TeamCodexHost.locate().sidebar || null;
     return document.querySelector("aside.app-shell-left-panel");
   }
 
   function findNav() {
-    return document.querySelector('aside.app-shell-left-panel nav[role="navigation"], nav[role="navigation"]');
+    if (window.TeamCodexHost) return window.TeamCodexHost.locate().navigation || null;
+    return document.querySelector('aside.app-shell-left-panel nav[role="navigation"]');
   }
 
   function findInsertionButton(navigation) {
@@ -378,7 +380,7 @@
     return (
       buttons.find((button) => /^(插件|Plugins)$/i.test(textOf(button))) ||
       buttons.find((button) => /^(定时任务|Scheduled tasks?)$/i.test(textOf(button))) ||
-      buttons[buttons.length - 1]
+      buttons.find((button) => /^(新对话|新聊天|New chat)$/i.test(textOf(button)))
     );
   }
 
@@ -443,6 +445,16 @@
       #${TAB_ID} { display: block; }
       #${TAB_ID} button {
         transition: background-color 160ms cubic-bezier(.22,1,.36,1), color 160ms cubic-bezier(.22,1,.36,1), box-shadow 160ms cubic-bezier(.22,1,.36,1);
+      }
+      #${TAB_ID}[data-host-layout="rail"] { display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+      #${TAB_ID}[data-host-layout="rail"] button {
+        display: inline-flex; width: 36px; height: 36px; padding: 8px; margin: 0;
+        align-items: center; justify-content: center; border: 0; border-radius: 10px;
+        cursor: pointer; -webkit-app-region: no-drag;
+      }
+      #${TAB_ID}[data-host-layout="rail"] svg { width: 20px; height: 20px; }
+      html[data-team-codex-open="true"] nav[data-app-navigation-rail] [data-sidebar-destination][aria-current="page"] {
+        background: transparent !important; box-shadow: none !important;
       }
 
       /* 侧栏单一选中互斥：当 TeamCodex 全屏激活时，压制其他项的高亮选中背景，保持单一当前选中菜单 */
@@ -716,6 +728,28 @@
   function positionPage(page = document.getElementById(PAGE_ID)) {
     if (!page) return;
     const isWindows = isWindowsHost();
+    const modern = window.TeamCodexHost?.pageBounds();
+    if (modern) {
+      restoreNativeAppShellHeader();
+      Object.assign(page.style, { left: `${modern.left}px`, top: `${modern.top}px`,
+        right: `${modern.right}px`, bottom: `${modern.bottom}px`, height: `${modern.height}px`,
+        maxHeight: `${modern.height}px`, boxSizing: 'border-box' });
+      page.style.setProperty('--team-host-top', `${modern.top}px`);
+      page.style.setProperty('--team-host-left', `${modern.left}px`);
+      page.style.setProperty('--team-host-leading-safe', '0px');
+      page.dataset.hostLayout = 'rail';
+      page.dataset.platform = isWindows ? 'windows' : 'macos';
+      // 新版标题栏始终保留，不再借用旧版折叠侧栏的交通灯占位。
+      page.dataset.sidebarCollapsed = 'false';
+      const wrap = page.shadowRoot?.querySelector('.wrap');
+      if (wrap) { wrap.dataset.sidebarCollapsed = 'false'; wrap.dataset.platform = page.dataset.platform; }
+      return;
+    }
+    // 结构不明确时无损收起，不用过期边界遮挡新宿主；恢复后需用户主动打开。
+    if (window.TeamCodexHost && window.TeamCodexHost.describe().kind !== 'legacy') {
+      suspendHostPage(page);
+      return;
+    }
     if (isWindows) restoreNativeAppShellHeader();
     const rect = visibleHostRect(findSidebar());
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
@@ -760,7 +794,7 @@
 
   function hideNativeAppShellHeader() {
     // Windows的draggable header可能承载最小化/最大化/关闭；只避让，不隐藏。
-    if (isWindowsHost()) {
+    if (isWindowsHost() || (window.TeamCodexHost && window.TeamCodexHost.describe().kind !== 'legacy')) {
       restoreNativeAppShellHeader();
       return;
     }
@@ -802,6 +836,16 @@
     document.body?.removeAttribute("data-team-codex-open");
     restoreNativeAppShellHeader();
     return true;
+  }
+
+  function suspendHostPage(page = document.getElementById(PAGE_ID)) {
+    // 保留输入与非模态编辑框 DOM；不是用户离开，不触发丢弃/保存或网络操作。
+    if (page) { page.style.display = 'none'; page.style.visibility = 'hidden'; }
+    window.__teamContextCloseMenu?.();
+    setTabActive(false);
+    document.documentElement.removeAttribute('data-team-codex-open');
+    document.body?.removeAttribute('data-team-codex-open');
+    restoreNativeAppShellHeader();
   }
 
   function showNativeAppToast(msg) {
@@ -8303,6 +8347,9 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
   }
 
   function openPage() {
+    const host = window.TeamCodexHost?.describe();
+    if (host && ((!host.supported && host.reason !== 'sidebar-hidden') ||
+        (host.kind === 'rail' && !window.TeamCodexHost.pageBounds()))) return false;
     hideNativeAppShellHeader();
     if (!document.getElementById(PAGE_ID)) {
       window.__teamContextReturnThread = currentThread();
@@ -8473,7 +8520,9 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
 
   function teamMenuPosition(rect) {
     // 保留原生菜单外侧4px间距；透明连接区负责跨缝悬停，不靠覆盖按钮防失焦。
-    const right = rect.right >= 60 ? rect.right : (findSidebar()?.getBoundingClientRect().right || 260);
+    const host = window.TeamCodexHost?.locate();
+    const right = host?.kind === 'rail' ? Math.max(rect.right, host.navigation.getBoundingClientRect().right) :
+      rect.right >= 60 ? rect.right : (findSidebar()?.getBoundingClientRect().right || 260);
     const x = Math.max(12, Math.min(Math.round(right + 4), window.innerWidth - 252));
     const top = rect.top >= 40 ? Math.round(rect.top) : 120;
     const y = Math.max(12, Math.min(top, window.innerHeight - 232));
@@ -8695,7 +8744,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       closeTeamMenu();
 
       const sidebar = findSidebar();
-      if (!sidebar || !sidebar.contains(target)) return;
+      if (window.TeamCodexHost ? !window.TeamCodexHost.isNavigationTarget(target) : !sidebar?.contains(target)) return;
 
       // 侧栏全局离开监听：当用户点击侧栏中的任何交互项时关闭 TeamCodex 全屏页面
       const interactiveEl = target.closest('button, a, [role="button"], [role="tab"], [data-app-action-sidebar-thread-id], nav li, nav > div');
@@ -8817,16 +8866,29 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     button.onclick = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      // rail 悬停会先打开菜单，随后鼠标点击不能反而将它关闭。
+      // 键盘点击仍保留 toggle，旧侧栏交互保持不变。
+      if (button.closest(`#${TAB_ID}`)?.dataset.hostLayout === 'rail' && e.detail > 0) {
+        cancelTeamMenuTimers();
+        if (!document.getElementById(MENU_ID)) (window.__teamContextOpenMenu || openTeamMenu)();
+        return;
+      }
       (window.__teamContextToggleMenu || toggleTeamMenu)(e);
     };
   }
 
   function installTab() {
-    const navigation = findNav();
+    const host = window.TeamCodexHost?.locate();
+    if (host && !host.supported) {
+      if (host.reason !== 'sidebar-hidden') suspendHostPage();
+      return { installed: false, reason: host.reason, layout: host.kind };
+    }
+    const navigation = host?.navigation || findNav();
     if (!navigation) return { installed: false, reason: "navigation-missing" };
     ensureTabStyles();
-    const insertionButton = findInsertionButton(navigation);
-    const parent = insertionButton?.parentElement || navigation;
+    const insertionButton = host?.anchor || findInsertionButton(navigation);
+    if (!insertionButton) return { installed: false, reason: 'navigation-anchor-missing' };
+    const parent = host?.parent || insertionButton.parentElement;
     let wrapper = document.getElementById(TAB_ID);
 
     // 幂等防闪烁核心：如果 wrapper 已挂载在正确位置且版本一致，绝不重新 cloneNode 或 replaceWith
@@ -8843,6 +8905,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
         if (button.getAttribute("aria-expanded") !== targetExpanded) {
           button.setAttribute("aria-expanded", targetExpanded);
         }
+        observeHostLayout();
         return { installed: true, tab: "Team", ui: UI_VERSION, cached: true };
       }
     }
@@ -8856,11 +8919,16 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       wrapper = document.createElement("div");
       wrapper.id = TAB_ID;
       wrapper.dataset.ui = UI_VERSION;
+      wrapper.dataset.hostLayout = host?.kind || 'legacy';
       const template =
-        [...navigation.querySelectorAll("button")].find((item) => /^(新对话|New chat)$/i.test(textOf(item))) ||
+        [...navigation.querySelectorAll("button")].find((item) => /^(新对话|新聊天|New chat)$/i.test(textOf(item))) ||
         insertionButton;
       if (!template) return { installed: false, reason: 'navigation-template-missing' };
-      const button = template.cloneNode(true);
+      const button = host?.kind === 'rail' ? document.createElement('button') : template.cloneNode(true);
+      if (host?.kind === 'rail') {
+        button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${TEAM_ICON_PATHS}</svg>`;
+        button.title = 'Team Codex';
+      }
       button.type = "button";
       button.removeAttribute("disabled");
       [...button.attributes].forEach((attr) => {
@@ -8875,7 +8943,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       const texts = [];
       while (walker.nextNode()) texts.push(walker.currentNode);
       texts.forEach((node) => {
-        if (/新对话|New chat|Pull Request|插件|Plugins|定时任务|团队协作|TeamCodex/.test(node.textContent || "")) {
+        if (/新对话|新聊天|New chat|Pull Request|插件|Plugins|定时任务|团队协作|TeamCodex/.test(node.textContent || "")) {
           node.textContent = "Team";
         }
       });
@@ -8899,8 +8967,21 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
       }
     }
     installLeaveHandler();
+    observeHostLayout();
     setTabActive(isPageActive());
     return { installed: true, tab: "Team", ui: UI_VERSION, threads: listSidebarThreads().length };
+  }
+
+  function observeHostLayout() {
+    if (!window.TeamCodexHost || !window.ResizeObserver) return;
+    const elements = window.TeamCodexHost.observedElements();
+    const previous = window.__teamContextHostObserved || [];
+    if (elements.length === previous.length && elements.every((node, index) => node === previous[index])) return;
+    window.__teamContextHostResizeObserver?.disconnect();
+    window.__teamContextHostObserved = elements;
+    window.__teamContextHostResizeObserver = new window.ResizeObserver(() => window.__teamContextPositionPage?.());
+    elements.forEach(node => window.__teamContextHostResizeObserver.observe(node));
+    window.__teamContextPositionPage?.();
   }
 
   function ensureWatchers() {
@@ -8910,8 +8991,19 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
     // React 会整体替换 aside；监听稳定根节点，只在入口缺失时调度恢复。
     const target = document.body;
     if (!target || typeof MutationObserver === 'undefined') return;
-    window.__teamContextObserver = new MutationObserver(() => {
-      if (document.getElementById(TAB_ID) || !findNav()) return;
+    window.__teamContextObserver = new MutationObserver((records = []) => {
+      if (records.length && records.every(record => record.target.closest?.(`#${TAB_ID}, #${PAGE_ID}, #${MENU_ID}`))) return;
+      const tab = document.getElementById(TAB_ID);
+      const host = window.TeamCodexHost?.locate();
+      if (host && !host.supported && host.reason !== 'sidebar-hidden') {
+        window.__teamContextSuspendHost?.();
+        return;
+      }
+      if (tab && (!host || (host.supported && tab.parentElement === host.parent))) {
+        if (host) observeHostLayout();
+        return;
+      }
+      if (!findNav()) return;
       if (window.__teamContextInstallTimer) return;
       window.__teamContextInstallTimer = setTimeout(() => {
         window.__teamContextInstallTimer = null;
@@ -8922,6 +9014,7 @@ ${omitted ? `另有 ${omitted} 条日常讨论未展开。` : ""}
   }
 
   window.__teamContextOpenPage = openPage;
+  window.__teamContextSuspendHost = suspendHostPage;
   window.__teamContextClosePage = closePage;
   window.__teamContextReturnToConversation = returnToConversation;
   window.__teamContextInstall = installTab;

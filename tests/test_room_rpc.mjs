@@ -22,12 +22,59 @@ test('空房间密码必须保留为空，不借用默认房间密码', () => {
   assert.equal(context.resolveRoomContext().key, 'default-key');
 });
 
+test('冷启动显式 null 配置不会触发 roomId 空指针', () => {
+  const context = vm.createContext({ DEFAULT_ROOM: 'fixture', DEFAULT_ROOM_KEY: 'fixture-only' });
+  vm.runInContext(extract('resolveRoomContext') + ';this.resolveRoomContext=resolveRoomContext;', context);
+  assert.equal(context.resolveRoomContext(null).room, 'fixture');
+});
+
+for (const installed of [true, false]) {
+  test(`冷启动配置未就绪：保留真实挂载结果 ${installed}，不向默认房间同步`, async () => {
+    let closed = 0, syncCalls = 0;
+    const session = { ws: { readyState: 1 }, close() { closed++; }, send: async (_method, params = {}) => {
+      const expression = params.expression || '';
+      if (expression.includes('TeamCodexHost.describe()')) return { result: { value: { supported: true, kind: 'rail' } } };
+      if (expression.includes('installed: Boolean')) return { result: { value: { installed, version: 'inline-v104' } } };
+      if (expression.includes('pending: window.__teamContextTakePending')) return { result: { value: { config: null } } };
+      if (expression.includes('installed:!!')) return { result: { value: { installed, ui: 'inline-v104' } } };
+      return {};
+    } };
+    const context = vm.createContext({ stopping: false, process: { env: {} }, hostAdapterBootstrap: '',
+      DEFAULT_ROOM: 'fixture', DEFAULT_ROOM_KEY: 'fixture-only', HOST_URL: 'http://fixture.invalid',
+      consumedUpdates: new Set(), hotUpdateDecision: () => 'keep', console: { warn() {} },
+      applyComposerAppearance: async () => {}, getJson: async () => { syncCalls++; return {}; },
+      postJson: async () => { syncCalls++; }, executeNativeRpc: async () => { syncCalls++; } });
+    vm.runInContext(extract('resolveRoomContext') + '\n' + extract('injectTarget') + ';this.injectTarget=injectTarget;', context);
+    const result = await context.injectTarget({ id: 'page' }, 'const UI_VERSION="inline-v104";', new Map([['page', session]]));
+    assert.equal(result.installed, installed);
+    assert.equal(result.configPending, true);
+    assert.equal(closed, 0);
+    assert.equal(syncCalls, 0);
+  });
+}
+
+test('读取冷启动状态不消费消息或 RPC 队列，配置就绪后才取出', () => {
+  const expression = source.match(/const pageState = await session.send\("Runtime.evaluate", \{\s*expression: ([`"])([\s\S]*?)\1,/)[2];
+  let config = null, takeCalls = 0;
+  const context = vm.createContext({ window: {
+    __teamContextGetConfig: () => config,
+    __teamContextTakePending: () => { takeCalls++; return { content: 'fixture' }; },
+    __teamContextTakePendingCalls: () => { takeCalls++; return []; },
+  } });
+  assert.equal(vm.runInContext(expression, context).config, null);
+  assert.equal(takeCalls, 0);
+  config = { roomId: 'fixture', roomKey: '' };
+  assert.equal(vm.runInContext(expression, context).config.roomId, 'fixture');
+  assert.equal(takeCalls, 2);
+});
+
 test('无密码 Media 进入消息转发和回执流程，不在取出请求后抛异常', async () => {
   const forwarded = [], replies = [];
   const request = { id: 'fixture-rpc', hubUrl: 'http://fixture.invalid', path: '/api/messages', method: 'POST', body: { text: 'fixture' } };
   const state = { config: { roomId: 'Media', roomKey: '', hubUrl: request.hubUrl }, pendingCalls: [request] };
   const session = { ws: { readyState: 1 }, close() {}, send: async (_method, params = {}) => {
     const expression = params.expression || '';
+    if (expression.includes('TeamCodexHost.describe()')) return { result: { value: { supported: true, kind: 'legacy' } } };
     if (expression.includes('pending: window.__teamContextTakePending')) return { result: { value: state } };
     if (expression.includes('__teamContextOnNativeResponse')) { replies.push(expression); return {}; }
     if (expression.includes('installed: Boolean')) return { result: { value: { installed: true, version: 'inline-v100' } } };
@@ -36,6 +83,7 @@ test('无密码 Media 进入消息转发和回执流程，不在取出请求后�
   } };
   const context = vm.createContext({
     stopping: false, process: { env: {} }, DEFAULT_ROOM: '1024', DEFAULT_ROOM_KEY: 'default-key', HOST_URL: request.hubUrl,
+    hostAdapterBootstrap: '',
     consumedUpdates: new Set(), hotUpdateDecision: () => 'keep', console: { log() {}, warn() {}, error() {} },
     applyComposerAppearance: async () => {},
     executeNativeRpc: async payload => { forwarded.push(payload); return { id: payload.id, ok: true, status: 200, data: {} }; },

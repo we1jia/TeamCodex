@@ -1,8 +1,10 @@
-"""Release assembly tests; no app is launched and native tools are mocked."""
+"""Release assembly tests; native builds are mocked, macOS ZIP extraction is real."""
 
 import json
 from pathlib import Path
 import plistlib
+import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -81,9 +83,43 @@ class MacReleasePackagingTests(unittest.TestCase):
             for relative in build_dmg.APP_FILES:
                 self.assertEqual(bundle.read(embedded + relative), bundle.read(base + relative), relative)
             binary = bundle.getinfo(base + "TeamCodex.app/Contents/MacOS/TeamCodex")
+            self.assertEqual(binary.create_system, 3)
+            self.assertTrue(stat.S_ISREG(binary.external_attr >> 16))
             self.assertTrue((binary.external_attr >> 16) & 0o111)
             info = plistlib.loads(bundle.read(base + "TeamCodex.app/Contents/Info.plist"))
             self.assertEqual(info["CFBundleVersion"], "1.2.0")
+
+    def test_zip_file_modes_include_unix_regular_file_type(self):
+        source = self.root / "README.md"
+        source.chmod(0o640)
+        archive = self.root / "modes.zip"
+        with zipfile.ZipFile(archive, "w") as bundle:
+            for name, mode in (("default", None), ("script", 0o755), ("resource", 0o644)):
+                build_mac_zip.add_file(bundle, source, name, mode=mode)
+        with zipfile.ZipFile(archive) as bundle:
+            for name, mode in (("default", 0o640), ("script", 0o755), ("resource", 0o644)):
+                info = bundle.getinfo(name)
+                self.assertEqual(info.create_system, 3, name)
+                self.assertTrue(stat.S_ISREG(info.external_attr >> 16), name)
+                self.assertEqual(stat.S_IMODE(info.external_attr >> 16), mode, name)
+
+    @unittest.skipUnless(sys.platform == "darwin", "requires macOS ditto")
+    def test_ditto_extraction_preserves_all_entrypoint_execute_permissions(self):
+        archive = self.root / "release.zip"
+        with patch.object(build_dmg.subprocess, "run", side_effect=self.native_tool):
+            build_mac_zip.build_mac_zip(repo_root=self.root, output_zip=archive)
+        extracted = self.root / "extracted"
+        subprocess.run(["/usr/bin/ditto", "-x", "-k", str(archive), str(extracted)],
+                       check=True, capture_output=True)
+        base = extracted / "TeamCodex-macOS"
+        for relative in (
+            "启动TeamCodex.command",
+            "macos/launch.sh",
+            "TeamCodex.app/Contents/MacOS/TeamCodex",
+            "TeamCodex.app/Contents/Resources/app/macos/launch.sh",
+        ):
+            self.assertEqual(stat.S_IMODE((base / relative).stat().st_mode), 0o755, relative)
+        self.assertEqual(stat.S_IMODE((base / "README.md").stat().st_mode), 0o644)
 
     @patch.object(build_dmg.subprocess, "run")
     def test_missing_runtime_fails_closed(self, run):

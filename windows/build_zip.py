@@ -37,6 +37,7 @@ FILES_TO_PACK = [
     ('ui/workspace_boot.js', 'TeamCodex-Windows/ui/workspace_boot.js'),
     ('inject/run_isolated.mjs', 'TeamCodex-Windows/inject/run_isolated.mjs'),
     ('inject/attach_codex.mjs', 'TeamCodex-Windows/inject/attach_codex.mjs'),
+    ('inject/host_adapter.mjs', 'TeamCodex-Windows/inject/host_adapter.mjs'),
     ('inject/composer_appearance.js', 'TeamCodex-Windows/inject/composer_appearance.js'),
     ('inject/verify_native_smoke.mjs', 'TeamCodex-Windows/inject/verify_native_smoke.mjs'),
     ('inject/cdp_websocket.mjs', 'TeamCodex-Windows/inject/cdp_websocket.mjs'),
