@@ -473,6 +473,7 @@ test("16. isPageActive 活性判据与切回原生对话高亮无损互斥", () 
     }
   }
   const button = new FixtureElement();
+  button.closest = () => null; // 旧侧栏夹具没有新版全局 rail 祖先。
   const wrapper = new FixtureElement();
   wrapper.button = button;
   const page = new FixtureElement();
